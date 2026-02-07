@@ -46,11 +46,22 @@ npm --version    # Should show 9.0.0 or higher
 4. Set up the database:
    - **Supabase** (recommended):
      1. Go to https://supabase.com and create a new project
-     2. Navigate to Settings > Database
-     3. Copy the connection string (use "Connection pooling" for better performance)
-     4. Replace `[YOUR-PASSWORD]` with your database password
-     5. Add it to `.env.local` as `DATABASE_URL`
-   - **Other PostgreSQL providers**: Use standard PostgreSQL connection string format
+     2. Navigate to **Settings** > **Database**
+     3. Scroll to **Connection string** section
+     4. Select the **Connection pooling** tab (recommended for better performance) or **Direct connection**
+     5. Copy the URI connection string - it will look like:
+        ```
+        postgresql://postgres:[YOUR-PASSWORD]@db.xxxxx.supabase.co:5432/postgres
+        ```
+     6. Replace `[YOUR-PASSWORD]` with your actual database password (set when creating the project)
+     7. The final string should look like:
+        ```
+        postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
+        ```
+     8. Add this complete URI string to `.env.local` as `DATABASE_URL`:
+        ```
+        DATABASE_URL=postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
+        ```
    
    Then initialize your database schema:
    ```bash
