@@ -40,7 +40,7 @@ Rendecrew learns from your past events, making planning faster, smarter, and eas
 ### Data
 
 - **DB System**: PostgreSQL
-- **Managed Service**: Azure Database for PostgreSQL
+- **Managed Service**: Supabase (PostgreSQL)
 - **ORM**: Prisma
 
 ### Backend
@@ -50,7 +50,6 @@ Rendecrew learns from your past events, making planning faster, smarter, and eas
 - Once I have heavier or batched workloads:
     - **Language**: Python
     - **Python Web Framework**: FastAPI
-    - **Backend Development Platform**: Supabase (for Postgres)
 
 ### AI
 

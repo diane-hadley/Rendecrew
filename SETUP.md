@@ -38,16 +38,32 @@ npm --version    # Should show 9.0.0 or higher
    ```bash
    cp env.example .env.local
    ```
-   Then edit `.env.local` and add your Clerk keys:
+   Then edit `.env.local` and add your keys:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Your publishable key (starts with `pk_test_` or `pk_live_`)
    - `CLERK_SECRET_KEY` - Your secret key (starts with `sk_test_` or `sk_live_`)
+   - `DATABASE_URL` - Your PostgreSQL connection string (see Database Setup below)
 
-4. Run the development server:
+4. Set up the database:
+   - **Supabase** (recommended):
+     1. Go to https://supabase.com and create a new project
+     2. Navigate to Settings > Database
+     3. Copy the connection string (use "Connection pooling" for better performance)
+     4. Replace `[YOUR-PASSWORD]` with your database password
+     5. Add it to `.env.local` as `DATABASE_URL`
+   - **Other PostgreSQL providers**: Use standard PostgreSQL connection string format
+   
+   Then initialize your database schema:
+   ```bash
+   npm run prisma:migrate
+   ```
+   This will create your first migration and apply it to the database.
+
+5. Run the development server:
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Project Structure
 
@@ -63,6 +79,12 @@ app/
 components/
   ├── UserButton.tsx      # User button component
   └── ProtectedRoute.tsx  # Client-side route protection
+
+lib/
+  └── prisma.ts           # Prisma Client singleton (database access)
+
+prisma/
+  └── schema.prisma       # Database schema (platform-agnostic PostgreSQL)
 
 middleware.ts             # Clerk middleware for route protection
 ```
