@@ -38,16 +38,43 @@ npm --version    # Should show 9.0.0 or higher
    ```bash
    cp env.example .env.local
    ```
-   Then edit `.env.local` and add your Clerk keys:
+   Then edit `.env.local` and add your keys:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Your publishable key (starts with `pk_test_` or `pk_live_`)
    - `CLERK_SECRET_KEY` - Your secret key (starts with `sk_test_` or `sk_live_`)
+   - `DATABASE_URL` - Your PostgreSQL connection string (see Database Setup below)
 
-4. Run the development server:
+4. Set up the database:
+   - **Supabase** (recommended):
+     1. Go to https://supabase.com and create a new project
+     2. Navigate to **Settings** > **Database**
+     3. Scroll to **Connection string** section
+     4. Select the **Connection pooling** tab (recommended for better performance) or **Direct connection**
+     5. Copy the URI connection string - it will look like:
+        ```
+        postgresql://postgres:[YOUR-PASSWORD]@db.xxxxx.supabase.co:5432/postgres
+        ```
+     6. Replace `[YOUR-PASSWORD]` with your actual database password (set when creating the project)
+     7. The final string should look like:
+        ```
+        postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
+        ```
+     8. Add this complete URI string to `.env.local` as `DATABASE_URL`:
+        ```
+        DATABASE_URL=postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
+        ```
+   
+   Then initialize your database schema:
+   ```bash
+   npm run prisma:migrate
+   ```
+   This will create your first migration and apply it to the database.
+
+5. Run the development server:
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Project Structure
 
@@ -63,6 +90,12 @@ app/
 components/
   ├── UserButton.tsx      # User button component
   └── ProtectedRoute.tsx  # Client-side route protection
+
+lib/
+  └── prisma.ts           # Prisma Client singleton (database access)
+
+prisma/
+  └── schema.prisma       # Database schema (platform-agnostic PostgreSQL)
 
 middleware.ts             # Clerk middleware for route protection
 ```
