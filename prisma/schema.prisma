@@ -8,3 +8,53 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique
+  email     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign key relationships
+  memberships Membership[]
+
+  // PostgreSQL table name
+  @@map("users")
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  startAt     DateTime
+  endAt       DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign key relationships
+  memberships Membership[]
+
+  // PostgreSQL table name
+  @@map("events")
+}
+
+model Membership {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  role      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign key relationships
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Prevents duplicate memberships - a user can only have one membership per event
+  @@unique([eventId, userId])
+  // PostgreSQL table name
+  @@map("memberships")
+}
