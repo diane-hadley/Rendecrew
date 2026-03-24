@@ -67,7 +67,7 @@ npm --version    # Should show 9.0.0 or higher
    ```bash
    npm run prisma:push
    ```
-   This syncs `prisma/schema.prisma` to your empty database. When you want versioned migrations later, switch to `prisma migrate dev`.
+   This syncs `prisma/schema.prisma` to your empty database. If your `DATABASE_URL` uses Supabase’s **transaction pooler** (port `6543`), the script switches to port `5432` for the push, because DDL on `6543` often hangs. Prefer a **direct** or **session** connection string (port `5432`) in `.env.local` when possible. When you want versioned migrations later, switch to `prisma migrate dev`.
 
 5. Run the development server:
    ```bash
