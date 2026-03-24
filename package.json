@@ -13,13 +13,13 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:push": "prisma db push",
     "prisma:format": "prisma format"
   },
   "dependencies": {
     "@clerk/nextjs": "^5.0.0",
+    "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.3.0",
     "next": "^14.2.0",
     "prisma": "^7.3.0",
