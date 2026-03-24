@@ -6,12 +6,12 @@ Rendecrew turns plain-English ideas into fully organized plans.
 Describe your event —
 
 ```
-“30 friends camping in the woods over Labor Day, music gear, shared meals”
+"30 friends camping in the woods over Labor Day, music gear, shared meals"
 ```
 
 —and Rendecrew generates everything you need to make it happen:
 
-* 🗓️ Task board for organizing who’s doing what
+* 🗓️ Task board for organizing who's doing what
 
 * 🎒 Group packing list to track shared items
 
@@ -21,13 +21,20 @@ Describe your event —
 
 Then, just ask:
 ```
-“Who still needs a ride?”
-“What’s left before Friday?”
+"Who still needs a ride?"
+"What's left before Friday?"
 ```
 Rendecrew learns from your past events, making planning faster, smarter, and easier every time. Use Rendecrew for your next event, no matter how big (group international trip?) or small (potluck?).
 
+## Getting Started
 
-## Tech Stack Plan
+To set up Rendecrew on your local machine, follow these guides in order:
+
+1. **[SETUP.md](./SETUP.md)** - Complete setup guide
+2. **[SETUP_PAT.md](./SETUP_PAT.md)** - GitHub Personal Access Token setup (only if needed for pushing code)
+
+
+## Tech Stack
 
 ### Product / UI
 
@@ -47,7 +54,7 @@ Rendecrew learns from your past events, making planning faster, smarter, and eas
 
 - **Auth / Session Management:** Clerk
 - **Realtime collaboration SDK**: Liveblocks
-- Once I have heavier or batched workloads:
+- Once there are heavier or batched workloads:
     - **Language**: Python
     - **Python Web Framework**: FastAPI
 
@@ -60,3 +67,33 @@ Rendecrew learns from your past events, making planning faster, smarter, and eas
 
 - **Hosting Platform**: Vercel
     - *Built specifically for Next.js with GitHub integration*
+
+## Project Structure
+
+```
+app/
+  ├── layout.tsx          # Root layout with ClerkProvider
+  ├── page.tsx            # Home page with sign-in/sign-up
+  ├── globals.css         # Global styles with Tailwind
+  ├── sign-in/            # Sign-in page
+  ├── sign-up/            # Sign-up page
+  └── dashboard/          # Protected dashboard page
+
+components/
+  ├── UserButton.tsx      # User button component
+  └── ProtectedRoute.tsx  # Client-side route protection
+
+lib/
+  └── prisma.ts           # Prisma Client singleton (database access)
+
+prisma/
+  └── schema.prisma       # Database schema (platform-agnostic PostgreSQL)
+
+middleware.ts             # Clerk middleware for route protection
+```
+
+## Authentication Flow
+
+- **Public routes**: `/`, `/sign-in`, `/sign-up`
+- **Protected routes**: `/dashboard` and all other routes (protected by middleware)
+- Users are automatically redirected to `/sign-in` if not authenticated
