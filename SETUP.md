@@ -80,10 +80,12 @@ npm install
 Run the Prisma migration to create your database tables:
 
 ```bash
-npm run prisma:migrate
+npm run prisma:push
 ```
 
-This will create your first migration and apply it to the database.
+This syncs `prisma/schema.prisma` to your empty database. If your `DATABASE_URL` uses Supabase’s **transaction pooler** (port `6543`), the script switches to port `5432` for the push, because DDL on `6543` often hangs. Prefer a **direct** or **session** connection string (port `5432`) in `.env.local` when possible. 
+
+When you want versioned migrations later, switch to `prisma migrate dev`.
 
 ### Step 6: Run the Development Server
 
