@@ -63,11 +63,11 @@ npm --version    # Should show 9.0.0 or higher
         DATABASE_URL=postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
         ```
    
-   Then initialize your database schema:
+   Then push your Prisma schema to the database (no migration history yet):
    ```bash
-   npm run prisma:migrate
+   npm run prisma:push
    ```
-   This will create your first migration and apply it to the database.
+   This syncs `prisma/schema.prisma` to your empty database. When you want versioned migrations later, switch to `prisma migrate dev`.
 
 5. Run the development server:
    ```bash

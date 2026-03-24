@@ -1,13 +1,16 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { getOrCreateUser } from "@/lib/user";
 
 export default async function DashboardPage() {
-  const user = await currentUser();
+  const clerkUser = await currentUser();
 
-  if (!user) {
+  if (!clerkUser) {
     redirect("/sign-in");
   }
+
+  const dbUser = await getOrCreateUser();
 
   return (
     <div className="min-h-screen p-8">
@@ -18,7 +21,9 @@ export default async function DashboardPage() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Welcome, {user.firstName || user.emailAddresses[0]?.emailAddress}!</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Welcome, {dbUser.name}!
+          </h2>
           <p className="text-gray-600 dark:text-gray-400">
             Your dashboard is ready. Start planning your next event!
           </p>

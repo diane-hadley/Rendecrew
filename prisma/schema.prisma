@@ -11,14 +11,14 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
-  clerkId   String   @unique
-  email     String
+  clerkId   String   @unique @map("clerk_id")
+  email     String   @unique
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Foreign key relationships
-  memberships Membership[]
+  createdEvents Event[]       @relation("EventCreatedBy")
+  eventMembers  EventMember[]
 
   // PostgreSQL table name
   @@map("users")
@@ -26,35 +26,36 @@ model User {
 
 model Event {
   id          String   @id @default(uuid())
-  name        String
+  title       String
   description String?
-  startAt     DateTime
-  endAt       DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      String
+  startAt     DateTime @map("start_at")
+  endAt       DateTime @map("end_at")
+  location    String?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  // Foreign key relationships
-  memberships Membership[]
+  createdBy    User          @relation("EventCreatedBy", fields: [createdById], references: [id])
+  eventMembers EventMember[]
 
   // PostgreSQL table name
   @@map("events")
 }
 
-model Membership {
-  id        String   @id @default(uuid())
-  eventId   String
-  userId    String
-  role      String
-  status    String
+model EventMember {
+  id       String   @id @default(uuid())
+  userId   String   @map("user_id")
+  eventId  String   @map("event_id")
+  role     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Foreign key relationships
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   // Prevents duplicate memberships - a user can only have one membership per event
   @@unique([eventId, userId])
   // PostgreSQL table name
-  @@map("memberships")
+  @@map("event_members")
 }

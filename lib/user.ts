@@ -19,20 +19,18 @@ export async function getOrCreateUser() {
     throw new Error('User email not found')
   }
 
-  // Get user's name (Clerk provides firstName and lastName)
-  // Since name is required, we use email as fallback if no name is provided
-  const name = clerkUser.firstName && clerkUser.lastName
-    ? `${clerkUser.firstName} ${clerkUser.lastName}`
-    : clerkUser.firstName || clerkUser.lastName || email
+  const name =
+    clerkUser.firstName && clerkUser.lastName
+      ? `${clerkUser.firstName} ${clerkUser.lastName}`
+      : clerkUser.firstName || clerkUser.lastName || email
 
-  // Upsert user: create if doesn't exist, update if it does
+  // Upsert: create with Clerk-derived name; updates only sync email so `name` stays the DB display value.
   const user = await prisma.user.upsert({
     where: {
       clerkId: clerkUser.id,
     },
     update: {
       email,
-      name,
     },
     create: {
       clerkId: clerkUser.id,
