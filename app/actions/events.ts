@@ -3,14 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { canManageEvent, getEventForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
-
-const DEFAULT_STATUS = "draft";
 
 export type CreateEventInput = {
   title: string;
   description?: string | null;
-  status?: string;
   startAt?: Date | string | null;
   endAt?: Date | string | null;
   location?: string | null;
@@ -19,6 +17,12 @@ export type CreateEventInput = {
 export type CreateEventResult =
   | { ok: true; eventId: string }
   | { ok: false; error: string };
+
+export type UpdateEventInput = CreateEventInput & {
+  eventId: string;
+};
+
+export type UpdateEventResult = { ok: true } | { ok: false; error: string };
 
 function parseDate(value: Date | string | null | undefined): Date | null {
   if (value == null) return null;
@@ -61,7 +65,6 @@ export async function createEvent(
         data: {
           title,
           description: input.description?.trim() || null,
-          status: input.status?.trim() || DEFAULT_STATUS,
           startAt: startAt ?? null,
           endAt: endAt ?? null,
           location: input.location?.trim() || null,
@@ -85,4 +88,54 @@ export async function createEvent(
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
+}
+
+export async function updateEvent(
+  input: UpdateEventInput,
+): Promise<UpdateEventResult> {
+  const title = input.title.trim();
+  if (!title) {
+    return { ok: false, error: "Title is required" };
+  }
+
+  const startAt = parseDate(input.startAt);
+  const endAt = parseDate(input.endAt);
+  const hasStart = startAt != null;
+  const hasEnd = endAt != null;
+  if (hasStart !== hasEnd) {
+    return {
+      ok: false,
+      error: "Provide both start and end, or leave both empty",
+    };
+  }
+  if (hasStart && hasEnd && startAt && endAt && endAt < startAt) {
+    return { ok: false, error: "End must be on or after start" };
+  }
+
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(input.eventId, user.id);
+  if (!row || !canManageEvent(row.role)) {
+    return { ok: false, error: "You do not have permission to edit this event" };
+  }
+
+  try {
+    await prisma.event.update({
+      where: { id: input.eventId },
+      data: {
+        title,
+        description: input.description?.trim() || null,
+        startAt: startAt ?? null,
+        endAt: endAt ?? null,
+        location: input.location?.trim() || null,
+      },
+    });
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Failed to update event";
+    return { ok: false, error: message };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/events/${input.eventId}`);
+  return { ok: true };
 }

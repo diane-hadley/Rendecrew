@@ -68,9 +68,14 @@ export default async function DashboardPage() {
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {memberships.map(({ event, role }) => (
                 <li key={event.id} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                  <Link
+                    href={`/dashboard/events/${event.id}`}
+                    className="group flex flex-wrap items-start justify-between gap-2 -mx-2 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                  >
                     <div>
-                      <p className="font-medium text-lg">{event.title}</p>
+                      <p className="font-medium text-lg group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                        {event.title}
+                      </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {formatRange(event.startAt, event.endAt)}
                       </p>
@@ -84,12 +89,18 @@ export default async function DashboardPage() {
                       className={
                         role === "owner"
                           ? "shrink-0 rounded-full bg-blue-100 dark:bg-blue-950 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-200"
-                          : "shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:text-gray-200"
+                          : role === "admin"
+                            ? "shrink-0 rounded-full bg-violet-100 dark:bg-violet-950 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:text-violet-200"
+                            : "shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:text-gray-200"
                       }
                     >
-                      {role === "owner" ? "Owner" : "Going"}
+                      {role === "owner"
+                        ? "Owner"
+                        : role === "admin"
+                          ? "Admin"
+                          : "Going"}
                     </span>
-                  </div>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -5,7 +5,6 @@ export type DashboardEventRow = {
     id: string;
     title: string;
     description: string | null;
-    status: string;
     startAt: Date | null;
     endAt: Date | null;
     location: string | null;
@@ -44,4 +43,37 @@ export async function getEventsForUser(userId: string): Promise<DashboardEventRo
     const { eventMembers: _, ...eventRow } = event;
     return { event: eventRow, role };
   });
+}
+
+/**
+ * Single event if the user is a member or the creator. Returns null if missing or no access.
+ */
+export async function getEventForUser(
+  eventId: string,
+  userId: string,
+): Promise<DashboardEventRow | null> {
+  const event = await prisma.event.findFirst({
+    where: {
+      id: eventId,
+      OR: [{ eventMembers: { some: { userId } } }, { createdById: userId }],
+    },
+    include: {
+      eventMembers: {
+        where: { userId },
+        take: 1,
+      },
+    },
+  });
+
+  if (!event) return null;
+
+  const membership = event.eventMembers[0];
+  const role =
+    membership?.role ?? (event.createdById === userId ? "owner" : "member");
+  const { eventMembers: _, ...eventRow } = event;
+  return { event: eventRow, role };
+}
+
+export function canManageEvent(role: string): boolean {
+  return role === "owner" || role === "admin";
 }
