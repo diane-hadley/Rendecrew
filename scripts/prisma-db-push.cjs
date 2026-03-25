@@ -21,7 +21,12 @@ if (url.includes(":6543")) {
   );
 }
 
-execSync("npx prisma db push", {
+const extra = process.argv.slice(2);
+const cmd =
+  extra.length > 0
+    ? `npx prisma db push ${extra.join(" ")}`
+    : "npx prisma db push";
+execSync(cmd, {
   stdio: "inherit",
   env: { ...process.env, DATABASE_URL: url },
 });

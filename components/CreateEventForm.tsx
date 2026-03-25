@@ -93,25 +93,23 @@ export function CreateEventForm() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <label htmlFor="event-start" className="text-sm font-medium">
-              Start <span className="text-red-600 dark:text-red-400">*</span>
+              Start
             </label>
             <input
               id="event-start"
               name="startAt"
               type="datetime-local"
-              required
               className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="event-end" className="text-sm font-medium">
-              End <span className="text-red-600 dark:text-red-400">*</span>
+              End
             </label>
             <input
               id="event-end"
               name="endAt"
               type="datetime-local"
-              required
               className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
             />
           </div>

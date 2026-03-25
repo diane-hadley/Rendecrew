@@ -29,8 +29,8 @@ model Event {
   title       String
   description String?
   status      String
-  startAt     DateTime @map("start_at")
-  endAt       DateTime @map("end_at")
+  startAt     DateTime? @map("start_at")
+  endAt       DateTime? @map("end_at")
   location    String?
   createdById String   @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")

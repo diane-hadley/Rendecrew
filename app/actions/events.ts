@@ -11,8 +11,8 @@ export type CreateEventInput = {
   title: string;
   description?: string | null;
   status?: string;
-  startAt: Date | string;
-  endAt: Date | string;
+  startAt?: Date | string | null;
+  endAt?: Date | string | null;
   location?: string | null;
 };
 
@@ -20,8 +20,14 @@ export type CreateEventResult =
   | { ok: true; eventId: string }
   | { ok: false; error: string };
 
-function parseDate(value: Date | string): Date | null {
-  const d = value instanceof Date ? value : new Date(value);
+function parseDate(value: Date | string | null | undefined): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const s = String(value).trim();
+  if (!s) return null;
+  const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -35,10 +41,15 @@ export async function createEvent(
 
   const startAt = parseDate(input.startAt);
   const endAt = parseDate(input.endAt);
-  if (!startAt || !endAt) {
-    return { ok: false, error: "Valid start and end dates are required" };
+  const hasStart = startAt != null;
+  const hasEnd = endAt != null;
+  if (hasStart !== hasEnd) {
+    return {
+      ok: false,
+      error: "Provide both start and end, or leave both empty",
+    };
   }
-  if (endAt < startAt) {
+  if (hasStart && hasEnd && startAt && endAt && endAt < startAt) {
     return { ok: false, error: "End must be on or after start" };
   }
 
@@ -51,8 +62,8 @@ export async function createEvent(
           title,
           description: input.description?.trim() || null,
           status: input.status?.trim() || DEFAULT_STATUS,
-          startAt,
-          endAt,
+          startAt: startAt ?? null,
+          endAt: endAt ?? null,
           location: input.location?.trim() || null,
           createdById: user.id,
         },
