@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -44,7 +45,7 @@ export async function createEvent(
   try {
     const user = await getOrCreateUser();
 
-    const event = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const created = await tx.event.create({
         data: {
           title,
@@ -64,15 +65,13 @@ export async function createEvent(
           role: "owner",
         },
       });
-
-      return created;
     });
-
-    revalidatePath("/dashboard");
-    return { ok: true, eventId: event.id };
   } catch (e) {
     const message =
       e instanceof Error ? e.message : "Failed to create event";
     return { ok: false, error: message };
   }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
