@@ -6,8 +6,8 @@ export type DashboardEventRow = {
     title: string;
     description: string | null;
     status: string;
-    startAt: Date;
-    endAt: Date;
+    startAt: Date | null;
+    endAt: Date | null;
     location: string | null;
     createdById: string;
     createdAt: Date;

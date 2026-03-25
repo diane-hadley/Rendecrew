@@ -5,7 +5,10 @@ import { UserButton } from "@clerk/nextjs";
 import { getEventsForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
 
-function formatRange(start: Date, end: Date) {
+function formatRange(start: Date | null, end: Date | null) {
+  if (!start || !end) {
+    return "No date set";
+  }
   const opts: Intl.DateTimeFormatOptions = {
     dateStyle: "medium",
     timeStyle: "short",
