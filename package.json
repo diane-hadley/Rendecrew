@@ -18,6 +18,7 @@
     "prisma:format": "prisma format"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@clerk/nextjs": "^5.0.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.3.0",

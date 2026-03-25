@@ -60,7 +60,15 @@ npm install
    ```
 8. Keep this connection string handy - you'll need it in Step 4
 
-### Step 4: Configure Environment Variables
+### Step 4: Set Up AI (Anthropic)
+
+Rendecrew uses the **Anthropic TypeScript SDK** (`@anthropic-ai/sdk`) to call the Claude API. The default model is **Claude Sonnet 4.5** (`claude-sonnet-4-5`).
+
+1. Go to https://console.anthropic.com/ and sign in (or create an account).
+2. Open **API Keys** and create a key.
+3. Keep the key handy for Step 4 (it is only shown once).
+
+### Step 5: Configure Environment Variables
 
 1. Create your environment file:
    ```bash
@@ -72,10 +80,11 @@ npm install
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
    CLERK_SECRET_KEY=sk_test_...
    DATABASE_URL=postgresql://postgres:your_actual_password@db.xxxxx.supabase.co:5432/postgres
+   ANTHROPIC_API_KEY=sk-ant-api03-...
    ```
-   Replace the values with the keys you collected in Steps 2 and 3.
+   Replace the values with the keys you collected in Steps 2, 3, and 4.
 
-### Step 5: Initialize Database Schema
+### Step 6: Initialize Database Schema
 
 Run the Prisma migration to create your database tables:
 
@@ -87,7 +96,7 @@ This syncs `prisma/schema.prisma` to your empty database. If your `DATABASE_URL`
 
 When you want versioned migrations later, switch to `prisma migrate dev`.
 
-### Step 6: Run the Development Server
+### Step 7: Run the Development Server
 
 Start the development server:
 

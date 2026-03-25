@@ -60,8 +60,8 @@ To set up Rendecrew on your local machine, follow these guides in order:
 
 ### AI
 
-- **LLM**: GPT-4o
-- **AI Runtime**: Azure OpenAI
+- **LLM**: Claude Sonnet 4.5 (`claude-sonnet-4-5`)
+- **SDK**: [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) (Anthropic Claude API)
 
 ### Hosting
 
@@ -84,6 +84,7 @@ components/
   └── ProtectedRoute.tsx  # Client-side route protection
 
 lib/
+  ├── anthropic.ts        # Anthropic SDK client (Claude API)
   └── prisma.ts           # Prisma Client singleton (database access)
 
 prisma/
