@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { CreateEventForm } from "@/components/CreateEventForm";
+import { DescribeEventForm } from "@/components/DescribeEventForm";
 
 export default async function NewEventPage() {
   const clerkUser = await currentUser();
@@ -28,7 +29,13 @@ export default async function NewEventPage() {
           </Link>
         </div>
 
-        <CreateEventForm />
+        <div className="flex flex-col gap-8 max-w-xl">
+          <DescribeEventForm />
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Or fill in the form</h2>
+            <CreateEventForm />
+          </div>
+        </div>
       </div>
     </div>
   );

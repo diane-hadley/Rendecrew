@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { canManageEvent, getEventForUser } from "@/lib/events";
+import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
 import { getOrCreateUser } from "@/lib/user";
 
 export type CreateEventInput = {
@@ -35,12 +36,10 @@ function parseDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export async function createEvent(
-  input: CreateEventInput,
-): Promise<CreateEventResult> {
+function validateCreateEventInput(input: CreateEventInput): string | null {
   const title = input.title.trim();
   if (!title) {
-    return { ok: false, error: "Title is required" };
+    return "Title is required";
   }
 
   const startAt = parseDate(input.startAt);
@@ -48,18 +47,29 @@ export async function createEvent(
   const hasStart = startAt != null;
   const hasEnd = endAt != null;
   if (hasStart !== hasEnd) {
-    return {
-      ok: false,
-      error: "Provide both start and end, or leave both empty",
-    };
+    return "Provide both start and end, or leave both empty";
   }
   if (hasStart && hasEnd && startAt && endAt && endAt < startAt) {
-    return { ok: false, error: "End must be on or after start" };
+    return "End must be on or after start";
+  }
+  return null;
+}
+
+async function createEventRecord(
+  userId: string,
+  input: CreateEventInput,
+): Promise<CreateEventResult> {
+  const validationError = validateCreateEventInput(input);
+  if (validationError) {
+    return { ok: false, error: validationError };
   }
 
-  try {
-    const user = await getOrCreateUser();
+  const title = input.title.trim();
+  const startAt = parseDate(input.startAt);
+  const endAt = parseDate(input.endAt);
 
+  try {
+    let eventId = "";
     await prisma.$transaction(async (tx) => {
       const created = await tx.event.create({
         data: {
@@ -68,26 +78,71 @@ export async function createEvent(
           startAt: startAt ?? null,
           endAt: endAt ?? null,
           location: input.location?.trim() || null,
-          createdById: user.id,
+          createdById: userId,
         },
       });
+      eventId = created.id;
 
       await tx.eventMember.create({
         data: {
-          userId: user.id,
+          userId,
           eventId: created.id,
           role: "owner",
         },
       });
     });
+    return { ok: true, eventId };
   } catch (e) {
     const message =
       e instanceof Error ? e.message : "Failed to create event";
     return { ok: false, error: message };
   }
+}
+
+export async function createEvent(
+  input: CreateEventInput,
+): Promise<CreateEventResult> {
+  const user = await getOrCreateUser();
+  const result = await createEventRecord(user.id, input);
+  if (!result.ok) {
+    return result;
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
+}
+
+/**
+ * Parses plain-language text with Claude, creates the event, then redirects to its detail page.
+ */
+export async function createEventFromNaturalLanguage(
+  plainText: string,
+): Promise<CreateEventResult> {
+  const user = await getOrCreateUser();
+  const parsed = await parseEventFromNaturalLanguage(
+    plainText,
+    new Date().toISOString(),
+  );
+  if (!parsed.ok) {
+    return { ok: false, error: parsed.error };
+  }
+
+  const { fields } = parsed;
+  const result = await createEventRecord(user.id, {
+    title: fields.title,
+    description: fields.description,
+    location: fields.location,
+    startAt: fields.startAt,
+    endAt: fields.endAt,
+  });
+  if (!result.ok) {
+    return result;
+  }
+
+  const detailPath = `/dashboard/events/${result.eventId}`;
+  revalidatePath("/dashboard");
+  revalidatePath(detailPath);
+  redirect(detailPath);
 }
 
 export async function updateEvent(
