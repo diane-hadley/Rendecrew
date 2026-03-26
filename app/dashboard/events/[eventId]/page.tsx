@@ -2,6 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { DeleteEventPanel } from "@/components/DeleteEventPanel";
 import { EditEventForm } from "@/components/EditEventForm";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
@@ -71,6 +72,7 @@ export default async function EventDetailPage({
                 endAt: event.endAt,
               }}
             />
+            <DeleteEventPanel eventId={event.id} eventTitle={event.title} />
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-w-xl">

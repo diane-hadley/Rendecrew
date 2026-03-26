@@ -25,6 +25,8 @@ export type UpdateEventInput = CreateEventInput & {
 
 export type UpdateEventResult = { ok: true } | { ok: false; error: string };
 
+export type DeleteEventResult = { ok: true } | { ok: false; error: string };
+
 function parseDate(value: Date | string | null | undefined): Date | null {
   if (value == null) return null;
   if (value instanceof Date) {
@@ -192,5 +194,28 @@ export async function updateEvent(
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/events/${input.eventId}`);
+  return { ok: true };
+}
+
+export async function deleteEvent(eventId: string): Promise<DeleteEventResult> {
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(eventId, user.id);
+  if (!row || !canManageEvent(row.role)) {
+    return {
+      ok: false,
+      error: "You do not have permission to delete this event",
+    };
+  }
+
+  try {
+    await prisma.event.delete({ where: { id: eventId } });
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Failed to delete event";
+    return { ok: false, error: message };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true };
 }
