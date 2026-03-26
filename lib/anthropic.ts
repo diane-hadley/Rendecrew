@@ -8,6 +8,8 @@ export const ANTHROPIC_MODEL = "claude-sonnet-4-5" as const;
 
 const globalForAnthropic = globalThis as unknown as {
   anthropic: Anthropic | undefined;
+  /** Last key used to build `anthropic`; recreate client if env changes (e.g. after editing `.env.local`). */
+  anthropicApiKey: string | undefined;
 };
 
 /**
@@ -19,8 +21,12 @@ export function getAnthropic(): Anthropic {
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY environment variable is not set");
   }
-  if (!globalForAnthropic.anthropic) {
+  if (
+    !globalForAnthropic.anthropic ||
+    globalForAnthropic.anthropicApiKey !== apiKey
+  ) {
     globalForAnthropic.anthropic = new Anthropic({ apiKey });
+    globalForAnthropic.anthropicApiKey = apiKey;
   }
   return globalForAnthropic.anthropic;
 }
