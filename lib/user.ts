@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { currentUser } from '@clerk/nextjs/server'
+import { backfillPackingItemClaimsForUser } from '@/lib/packing-list'
 
 /**
  * Get or create a user in the database based on Clerk authentication
@@ -38,6 +39,8 @@ export async function getOrCreateUser() {
       name,
     },
   })
+
+  await backfillPackingItemClaimsForUser(user.id, email)
 
   return user
 }
