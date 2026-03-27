@@ -17,8 +17,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  createdEvents Event[]       @relation("EventCreatedBy")
-  eventMembers  EventMember[]
+  createdEvents       Event[]        @relation("EventCreatedBy")
+  eventMembers        EventMember[]
+  claimedPackingItems PackingItem[]
 
   // PostgreSQL table name
   @@map("users")
@@ -37,9 +38,44 @@ model Event {
 
   createdBy    User          @relation("EventCreatedBy", fields: [createdById], references: [id])
   eventMembers EventMember[]
+  packingList  PackingList?
 
   // PostgreSQL table name
   @@map("events")
+}
+
+model PackingList {
+  id               String   @id @default(uuid())
+  eventId          String   @unique @map("event_id")
+  liveblocksRoomId String   @unique @map("liveblocks_room_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  event Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  items PackingItem[]
+
+  @@map("packing_lists")
+}
+
+model PackingItem {
+  id              String   @id @default(uuid())
+  packingListId   String   @map("packing_list_id")
+  name            String
+  quantity        Int?
+  packed          Boolean  @default(false)
+  claimedByName   String?  @map("claimed_by_name")
+  claimedByEmail  String?  @map("claimed_by_email")
+  claimedByUserId String?  @map("claimed_by_user_id")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  packingList   PackingList @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  claimedByUser User?       @relation(fields: [claimedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([packingListId])
+  @@index([claimedByEmail])
+  @@map("packing_items")
 }
 
 model EventMember {

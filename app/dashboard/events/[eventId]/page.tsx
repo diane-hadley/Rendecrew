@@ -4,7 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { DeleteEventPanel } from "@/components/DeleteEventPanel";
 import { EditEventForm } from "@/components/EditEventForm";
+import { PackingListEventPanel } from "@/components/PackingListEventPanel";
 import { canManageEvent, getEventForUser } from "@/lib/events";
+import { getPackingListForEvent } from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 
 function formatRange(start: Date | null, end: Date | null) {
@@ -36,6 +38,7 @@ export default async function EventDetailPage({
 
   const { event, role } = row;
   const editable = canManageEvent(role);
+  const packingList = await getPackingListForEvent(event.id);
 
   return (
     <div className="min-h-screen p-8">
@@ -72,6 +75,10 @@ export default async function EventDetailPage({
                 endAt: event.endAt,
               }}
             />
+            <PackingListEventPanel
+              eventId={event.id}
+              liveblocksRoomId={packingList?.liveblocksRoomId ?? null}
+            />
             <DeleteEventPanel eventId={event.id} eventTitle={event.title} />
           </div>
         ) : (
@@ -93,6 +100,18 @@ export default async function EventDetailPage({
             {event.description && (
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                 {event.description}
+              </p>
+            )}
+            {packingList && (
+              <p className="mt-6 text-sm">
+                <Link
+                  href={`/packing/${packingList.liveblocksRoomId}`}
+                  className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open collaborative packing list
+                </Link>
               </p>
             )}
             <Link
