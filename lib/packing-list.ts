@@ -1,30 +1,43 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 
+export type PackingSignUpPayload = {
+  id: string;
+  quantity: number | null;
+  displayName: string;
+  email: string | null;
+  userId: string | null;
+};
+
 export type PackingItemPayload = {
   id: string;
   name: string;
   quantity: number | null;
   packed: boolean;
-  claimedByName: string | null;
-  claimedByEmail: string | null;
-  claimedByUserId: string | null;
+  signUps: PackingSignUpPayload[];
 };
+
+const MAX_ITEMS = 500;
+const MAX_SIGN_UPS_PER_ITEM = 40;
 
 function generateLiveblocksRoomId(): string {
   return randomBytes(24).toString("base64url");
 }
 
-export function normalizeEmailForClaim(email: string): string {
+export function normalizeEmailForSignUp(email: string): string {
   return email.trim().toLowerCase();
 }
+
+const signUpsInclude = {
+  orderBy: { sortOrder: "asc" as const },
+};
 
 export async function getPackingListByRoomId(roomId: string) {
   return prisma.packingList.findUnique({
     where: { liveblocksRoomId: roomId },
     include: {
       event: { select: { id: true, title: true } },
-      items: { orderBy: { sortOrder: "asc" } },
+      items: { orderBy: { sortOrder: "asc" }, include: { signUps: signUpsInclude } },
     },
   });
 }
@@ -32,7 +45,9 @@ export async function getPackingListByRoomId(roomId: string) {
 export async function getPackingListForEvent(eventId: string) {
   return prisma.packingList.findUnique({
     where: { eventId },
-    include: { items: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      items: { orderBy: { sortOrder: "asc" }, include: { signUps: signUpsInclude } },
+    },
   });
 }
 
@@ -58,22 +73,32 @@ export async function createPackingListForEvent(eventId: string) {
 }
 
 /**
- * Sets claimedByUserId on items that were claimed with this email before signup.
+ * Links packing sign-ups to this user when they used the same email before creating a Rendecrew account.
  */
-export async function backfillPackingItemClaimsForUser(
+export async function backfillPackingItemSignUpsForUser(
   userId: string,
   email: string,
 ): Promise<void> {
-  const normalized = normalizeEmailForClaim(email);
+  const normalized = normalizeEmailForSignUp(email);
   if (!normalized) return;
 
-  await prisma.packingItem.updateMany({
+  await prisma.packingItemSignUp.updateMany({
     where: {
-      claimedByUserId: null,
-      claimedByEmail: { equals: normalized, mode: "insensitive" },
+      userId: null,
+      email: { equals: normalized, mode: "insensitive" },
     },
-    data: { claimedByUserId: userId },
+    data: { userId },
   });
+}
+
+function sumSignUpQuantities(
+  signUps: { quantity: number | null }[],
+  itemQuantity: number | null,
+): number {
+  return signUps.reduce((acc, s) => {
+    if (itemQuantity == null) return acc;
+    return acc + (typeof s.quantity === "number" ? s.quantity : 0);
+  }, 0);
 }
 
 export async function persistPackingListItems(
@@ -88,7 +113,7 @@ export async function persistPackingListItems(
     return { ok: false, error: "Packing list not found" };
   }
 
-  if (items.length > 500) {
+  if (items.length > MAX_ITEMS) {
     return { ok: false, error: "Too many items" };
   }
 
@@ -103,74 +128,130 @@ export async function persistPackingListItems(
     if (it.quantity != null && (!Number.isInteger(it.quantity) || it.quantity < 0)) {
       return { ok: false, error: "Invalid quantity" };
     }
+    if (!Array.isArray(it.signUps) || it.signUps.length > MAX_SIGN_UPS_PER_ITEM) {
+      return { ok: false, error: "Invalid sign-ups" };
+    }
+
+    const seenUser = new Set<string>();
+    for (const su of it.signUps) {
+      if (!su.id || typeof su.id !== "string") {
+        return { ok: false, error: "Invalid sign-up id" };
+      }
+      const dn = su.displayName?.trim() ?? "";
+      if (!dn || dn.length > 120) {
+        return { ok: false, error: "Invalid sign-up name" };
+      }
+      if (su.quantity != null) {
+        if (!Number.isInteger(su.quantity) || su.quantity < 1) {
+          return { ok: false, error: "Invalid quantity for sign-up" };
+        }
+        if (it.quantity != null && su.quantity > it.quantity) {
+          return { ok: false, error: "Sign-up exceeds item quantity" };
+        }
+      }
+      if (it.quantity != null && su.quantity == null) {
+        return { ok: false, error: "Sign-up needs a quantity when item has a total" };
+      }
+      if (su.userId?.trim()) {
+        const uid = su.userId.trim();
+        if (seenUser.has(uid)) {
+          return { ok: false, error: "Duplicate sign-up for same user on an item" };
+        }
+        seenUser.add(uid);
+      }
+      const em = su.email?.trim();
+      if (em && em.length > 254) {
+        return { ok: false, error: "Invalid email on sign-up" };
+      }
+    }
+
+    if (it.quantity != null) {
+      const sum = sumSignUpQuantities(it.signUps, it.quantity);
+      if (sum > it.quantity) {
+        return { ok: false, error: "Sign-ups exceed total quantity needed" };
+      }
+    }
   }
 
   const userIds = new Set(
-    items.map((i) => i.claimedByUserId).filter((x): x is string => Boolean(x?.trim())),
+    items.flatMap((i) =>
+      i.signUps.map((s) => s.userId).filter((x): x is string => Boolean(x?.trim())),
+    ),
   );
   for (const uid of userIds) {
     const u = await prisma.user.findUnique({ where: { id: uid }, select: { id: true } });
     if (!u) {
-      return { ok: false, error: "Invalid claimed user" };
+      return { ok: false, error: "Invalid user for sign-up" };
     }
   }
 
   try {
     await prisma.$transaction(async (tx) => {
-    const incomingIds = items.map((i) => i.id);
-    const touched = await tx.packingItem.findMany({
-      where: { id: { in: incomingIds } },
-      select: { id: true, packingListId: true },
-    });
-    for (const row of touched) {
-      if (row.packingListId !== list.id) {
-        throw new Error("Invalid item reference");
+      const incomingIds = items.map((i) => i.id);
+      const touched = await tx.packingItem.findMany({
+        where: { id: { in: incomingIds } },
+        select: { id: true, packingListId: true },
+      });
+      for (const row of touched) {
+        if (row.packingListId !== list.id) {
+          throw new Error("Invalid item reference");
+        }
       }
-    }
 
-    const existing = await tx.packingItem.findMany({
-      where: { packingListId: list.id },
-      select: { id: true },
-    });
-    const incomingSet = new Set(incomingIds);
-    const toDelete = existing.filter((e) => !incomingSet.has(e.id)).map((e) => e.id);
-    if (toDelete.length) {
-      await tx.packingItem.deleteMany({
-        where: { id: { in: toDelete }, packingListId: list.id },
+      const existing = await tx.packingItem.findMany({
+        where: { packingListId: list.id },
+        select: { id: true },
       });
-    }
+      const incomingSet = new Set(incomingIds);
+      const toDelete = existing.filter((e) => !incomingSet.has(e.id)).map((e) => e.id);
+      if (toDelete.length) {
+        await tx.packingItem.deleteMany({
+          where: { id: { in: toDelete }, packingListId: list.id },
+        });
+      }
 
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const email =
-        it.claimedByEmail?.trim() != null && it.claimedByEmail.trim() !== ""
-          ? normalizeEmailForClaim(it.claimedByEmail)
-          : null;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
 
-      await tx.packingItem.upsert({
-        where: { id: it.id },
-        create: {
-          id: it.id,
-          packingListId: list.id,
-          name: it.name.trim(),
-          quantity: it.quantity,
-          packed: it.packed,
-          claimedByName: it.claimedByName?.trim() || null,
-          claimedByEmail: email,
-          claimedByUserId: it.claimedByUserId?.trim() || null,
-          sortOrder: i,
-        },
-        update: {
-          name: it.name.trim(),
-          quantity: it.quantity,
-          packed: it.packed,
-          claimedByName: it.claimedByName?.trim() || null,
-          claimedByEmail: email,
-          claimedByUserId: it.claimedByUserId?.trim() || null,
-          sortOrder: i,
-        },
-      });
-    }
+        await tx.packingItem.upsert({
+          where: { id: it.id },
+          create: {
+            id: it.id,
+            packingListId: list.id,
+            name: it.name.trim(),
+            quantity: it.quantity,
+            packed: it.packed,
+            sortOrder: i,
+          },
+          update: {
+            name: it.name.trim(),
+            quantity: it.quantity,
+            packed: it.packed,
+            sortOrder: i,
+          },
+        });
+
+        await tx.packingItemSignUp.deleteMany({
+          where: { packingItemId: it.id },
+        });
+
+        if (it.signUps.length) {
+          await tx.packingItemSignUp.createMany({
+            data: it.signUps.map((su, j) => ({
+              id: su.id,
+              packingItemId: it.id,
+              quantity: su.quantity,
+              displayName: su.displayName.trim(),
+              email:
+                su.email?.trim() != null && su.email.trim() !== ""
+                  ? normalizeEmailForSignUp(su.email)
+                  : null,
+              userId: su.userId?.trim() || null,
+              sortOrder: j,
+            })),
+          });
+        }
+      }
     });
   } catch (e) {
     const message =
