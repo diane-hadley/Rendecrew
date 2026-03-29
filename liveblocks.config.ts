@@ -1,13 +1,19 @@
 import type { LiveList, LiveObject } from "@liveblocks/client";
 
+export type PackingSignUpStorage = {
+  id: string;
+  quantity: number | null;
+  displayName: string;
+  email: string | null;
+  userId: string | null;
+};
+
 export type PackingItemStorage = {
   id: string;
   name: string;
   quantity: number | null;
   packed: boolean;
-  claimedByName: string | null;
-  claimedByEmail: string | null;
-  claimedByUserId: string | null;
+  signUps: LiveList<LiveObject<PackingSignUpStorage>>;
 };
 
 declare global {

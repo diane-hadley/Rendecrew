@@ -38,9 +38,13 @@ export default async function PublicPackingPage({
     name: it.name,
     quantity: it.quantity,
     packed: it.packed,
-    claimedByName: it.claimedByName,
-    claimedByEmail: it.claimedByEmail,
-    claimedByUserId: it.claimedByUserId,
+    signUps: it.signUps.map((s) => ({
+      id: s.id,
+      quantity: s.quantity,
+      displayName: s.displayName,
+      email: s.email,
+      userId: s.userId,
+    })),
   }));
 
   return (

@@ -18,12 +18,17 @@ export type EventAIContext = {
       name: string;
       quantity: number | null;
       packed: boolean;
-      claimedByName: string | null;
-      claimedByEmail: string | null;
-      hasLinkedUser: boolean;
+      signUps: Array<{
+        displayName: string;
+        quantity: number | null;
+        email: string | null;
+        hasLinkedUser: boolean;
+      }>;
     }>;
   };
 };
+
+const signUpsOrder = { orderBy: { sortOrder: "asc" as const } };
 
 export async function getEventContextForAI(
   eventId: string,
@@ -33,7 +38,10 @@ export async function getEventContextForAI(
     include: {
       packingList: {
         include: {
-          items: { orderBy: { sortOrder: "asc" } },
+          items: {
+            orderBy: { sortOrder: "asc" },
+            include: { signUps: signUpsOrder },
+          },
         },
       },
     },
@@ -58,9 +66,12 @@ export async function getEventContextForAI(
             name: it.name,
             quantity: it.quantity,
             packed: it.packed,
-            claimedByName: it.claimedByName,
-            claimedByEmail: it.claimedByEmail,
-            hasLinkedUser: it.claimedByUserId != null,
+            signUps: it.signUps.map((s) => ({
+              displayName: s.displayName,
+              quantity: s.quantity,
+              email: s.email,
+              hasLinkedUser: s.userId != null,
+            })),
           })),
         }
       : null,
@@ -97,18 +108,25 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
   } else {
     lines.push("Packing list:");
     for (const it of ctx.packingList.items) {
-      const qty =
-        it.quantity != null ? ` ×${it.quantity}` : "";
+      const qty = it.quantity != null ? ` ×${it.quantity}` : "";
       const status = it.packed ? "packed" : "not packed";
-      let claim = "";
-      if (it.claimedByName || it.claimedByEmail || it.hasLinkedUser) {
-        const parts: string[] = [];
-        if (it.claimedByName) parts.push(`claimed by ${it.claimedByName}`);
-        if (it.claimedByEmail) parts.push(`email ${it.claimedByEmail}`);
-        if (it.hasLinkedUser) parts.push("linked Rendecrew account");
-        claim = `; ${parts.join("; ")}`;
+      let signUp = "";
+      if (it.signUps.length > 0) {
+        const parts = it.signUps.map((s) => {
+          const q =
+            s.quantity != null
+              ? `${s.quantity}${it.quantity != null ? ` of ${it.quantity}` : ""}`
+              : it.quantity != null
+                ? `all ${it.quantity}`
+                : "(amount not set)";
+          let extra = `${s.displayName} bringing ${q}`;
+          if (s.email) extra += `; email ${s.email}`;
+          if (s.hasLinkedUser) extra += "; linked Rendecrew account";
+          return extra;
+        });
+        signUp = `; ${parts.join("; ")}`;
       }
-      lines.push(`  - ${it.name}${qty} — ${status}${claim}`);
+      lines.push(`  - ${it.name}${qty} — ${status}${signUp}`);
     }
   }
 

@@ -68,7 +68,7 @@ export function PackingCollabPage({
       <div className="max-w-md mx-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow">
         <h2 className="text-lg font-semibold mb-2">Join the packing list</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Choose a display name others will see when you claim items.
+          Choose a display name others will see when you sign up for items.
         </p>
         <form
           className="space-y-4"
@@ -158,7 +158,7 @@ export function PackingCollabPage({
             <p className="text-sm text-gray-600 dark:text-gray-400">{eventTitle}</p>
             {authUser && (
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                Signed in — claims are tied to your Rendecrew account.
+                Signed in — sign-ups are tied to your Rendecrew account.
               </p>
             )}
           </div>
