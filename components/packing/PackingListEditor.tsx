@@ -2,7 +2,7 @@
 
 import { LiveList, LiveObject } from "@liveblocks/client";
 import { useMutation, useStorage, useSyncStatus } from "@liveblocks/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type { PackingItemPayload } from "@/lib/packing-list";
 
@@ -202,36 +202,81 @@ export function PackingListEditor({
         )}
       </div>
 
-      <ul className="space-y-3">
-        {items.map((item, index) => {
-          const isMine = authUser
-            ? item.claimedByUserId === authUser.dbUserId
-            : Boolean(guestDisplayName && item.claimedByName === guestDisplayName && !item.claimedByUserId);
-          const claimedLabel = item.claimedByUserId
-            ? item.claimedByName ?? "Member"
-            : item.claimedByName
-              ? item.claimedByName
-              : null;
+      <div className="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 shadow-sm">
+        <table className="w-full min-w-[720px] border-collapse text-sm tabular-nums">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-900">
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300"
+              >
+                Item
+              </th>
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-20"
+              >
+                Qty
+              </th>
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-24"
+              >
+                Packed
+              </th>
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-36"
+              >
+                Bringing
+              </th>
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 min-w-[7rem]"
+              >
+                Claimed by
+              </th>
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-24"
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, index) => {
+              const isMine = authUser
+                ? item.claimedByUserId === authUser.dbUserId
+                : Boolean(
+                    guestDisplayName &&
+                      item.claimedByName === guestDisplayName &&
+                      !item.claimedByUserId,
+                  );
+              const claimedLabel = item.claimedByUserId
+                ? (item.claimedByName ?? "Member")
+                : item.claimedByName
+                  ? item.claimedByName
+                  : null;
 
-          return (
-            <li
-              key={item.id}
-              className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-4 shadow-sm"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex flex-1 flex-col gap-2 min-w-0">
-                  <input
-                    type="text"
-                    value={item.name}
-                    onChange={(e) =>
-                      updateName({ index, name: e.target.value })
-                    }
-                    className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm"
-                    aria-label="Item name"
-                  />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="text-gray-500 dark:text-gray-400">Qty</span>
+              const cellBorder =
+                "border border-gray-300 dark:border-gray-600 align-middle";
+
+              return (
+                <Fragment key={item.id}>
+                  <tr className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900/80">
+                    <td className={`${cellBorder} p-0`}>
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={(e) =>
+                          updateName({ index, name: e.target.value })
+                        }
+                        className="w-full min-w-[8rem] border-0 bg-transparent px-2 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        aria-label="Item name"
+                      />
+                    </td>
+                    <td className={`${cellBorder} p-0 text-center`}>
                       <input
                         type="number"
                         min={0}
@@ -241,86 +286,117 @@ export function PackingListEditor({
                           const v = e.target.value;
                           updateQuantity({
                             index,
-                            quantity: v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
+                            quantity:
+                              v === ""
+                                ? null
+                                : Math.max(0, parseInt(v, 10) || 0),
                           });
                         }}
-                        className="w-20 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                        className="w-full max-w-[5rem] border-0 bg-transparent px-2 py-2 text-center text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        aria-label="Quantity"
                       />
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={item.packed}
-                        onChange={(e) =>
-                          setPacked({ index, packed: e.target.checked })
-                        }
-                      />
-                      Packed
-                    </label>
-                  </div>
-                </div>
-                <div className="flex flex-col items-stretch gap-2 sm:items-end shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => toggleClaim(index)}
-                    disabled={!authUser && !guestDisplayName}
-                    className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-500 dark:hover:bg-blue-600"
-                  >
-                    {isMine ? "Unclaim" : "I’ll bring this"}
-                  </button>
-                  {claimedLabel && !isMine && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400 text-right">
-                      Claimed by {claimedLabel}
-                    </span>
+                    </td>
+                    <td className={`${cellBorder} p-0`}>
+                      <label className="flex cursor-pointer items-center justify-center gap-2 px-2 py-2 text-gray-700 dark:text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={item.packed}
+                          onChange={(e) =>
+                            setPacked({ index, packed: e.target.checked })
+                          }
+                          className="rounded border-gray-300 dark:border-gray-600"
+                          aria-label="Packed"
+                        />
+                      </label>
+                    </td>
+                    <td className={`${cellBorder} px-2 py-1.5`}>
+                      <button
+                        type="button"
+                        onClick={() => toggleClaim(index)}
+                        disabled={!authUser && !guestDisplayName}
+                        className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                      >
+                        {isMine ? "Unclaim" : "I’ll bring this"}
+                      </button>
+                    </td>
+                    <td className={`${cellBorder} px-2 py-2 text-gray-600 dark:text-gray-400`}>
+                      {claimedLabel && !isMine ? (
+                        <span className="text-xs">{claimedLabel}</span>
+                      ) : isMine ? (
+                        <span className="text-xs text-blue-700 dark:text-blue-300">
+                          You
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className={`${cellBorder} px-2 py-1.5 text-center`}>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                  {isMine && !authUser && (
+                    <tr className="bg-gray-50 dark:bg-gray-900/60">
+                      <td
+                        colSpan={6}
+                        className="border border-gray-300 dark:border-gray-600 px-3 py-2"
+                      >
+                        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                          Add your email (optional) so we can link this to your
+                          Rendecrew account if you sign up later.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="email"
+                            placeholder="you@example.com"
+                            value={
+                              emailDrafts[item.id] ??
+                              item.claimedByEmail ??
+                              ""
+                            }
+                            onChange={(e) =>
+                              setEmailDrafts((d) => ({
+                                ...d,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            className="min-w-[12rem] flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+                          />
+                          <button
+                            type="button"
+                            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                            onClick={() => {
+                              const raw =
+                                emailDrafts[item.id] ??
+                                item.claimedByEmail ??
+                                "";
+                              const trimmed = raw.trim();
+                              setItemEmail({
+                                index,
+                                email:
+                                  trimmed === ""
+                                    ? null
+                                    : trimmed.toLowerCase(),
+                              });
+                            }}
+                          >
+                            Save email
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => removeItem(index)}
-                    className="text-xs text-red-600 hover:underline dark:text-red-400"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-
-              {isMine && !authUser && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Add your email (optional) so we can link this to your Rendecrew
-                    account if you sign up later.
-                  </p>
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={emailDrafts[item.id] ?? item.claimedByEmail ?? ""}
-                      onChange={(e) =>
-                        setEmailDrafts((d) => ({ ...d, [item.id]: e.target.value }))
-                      }
-                      className="flex-1 min-w-[12rem] rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
-                    />
-                    <button
-                      type="button"
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                      onClick={() => {
-                        const raw =
-                          emailDrafts[item.id] ?? item.claimedByEmail ?? "";
-                        const trimmed = raw.trim();
-                        setItemEmail({
-                          index,
-                          email: trimmed === "" ? null : trimmed.toLowerCase(),
-                        });
-                      }}
-                    >
-                      Save email
-                    </button>
-                  </div>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <button
         type="button"

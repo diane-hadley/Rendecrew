@@ -45,7 +45,7 @@ export default async function PublicPackingPage({
 
   return (
     <div className="min-h-screen p-6 md:p-10 bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <Link
