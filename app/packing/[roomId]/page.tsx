@@ -35,6 +35,7 @@ export default async function PublicPackingPage({
 
   const initialItems: PackingItemPayload[] = list.items.map((it) => ({
     id: it.id,
+    section: it.section,
     name: it.name,
     quantity: it.quantity,
     signUps: it.signUps.map((s) => ({

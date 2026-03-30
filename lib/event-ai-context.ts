@@ -15,6 +15,7 @@ export type EventAIContext = {
   };
   packingList: null | {
     items: Array<{
+      section: string | null;
       name: string;
       quantity: number | null;
       signUps: Array<{
@@ -63,6 +64,7 @@ export async function getEventContextForAI(
     packingList: packingList
       ? {
           items: packingList.items.map((it) => ({
+            section: it.section,
             name: it.name,
             quantity: it.quantity,
             signUps: it.signUps.map((s) => ({
@@ -107,7 +109,14 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
     lines.push("Packing list: (none or empty)");
   } else {
     lines.push("Packing list:");
+    let lastSection: string | null = null;
     for (const it of ctx.packingList.items) {
+      const sec = it.section?.trim() || null;
+      if (sec && sec !== lastSection) {
+        lines.push(`  [${sec}]`);
+        lastSection = sec;
+      }
+      if (!sec) lastSection = null;
       const qty = it.quantity != null ? ` ×${it.quantity}` : "";
       let signUp = "";
       if (it.signUps.length > 0) {

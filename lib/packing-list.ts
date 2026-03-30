@@ -12,6 +12,8 @@ export type PackingSignUpPayload = {
 
 export type PackingItemPayload = {
   id: string;
+  /** Trimmed section label, or null/omitted for items above the first named section. */
+  section?: string | null;
   name: string;
   quantity: number | null;
   signUps: PackingSignUpPayload[];
@@ -19,6 +21,7 @@ export type PackingItemPayload = {
 
 const MAX_ITEMS = 500;
 const MAX_SIGN_UPS_PER_ITEM = 40;
+const MAX_SECTION_LEN = 120;
 
 function generateLiveblocksRoomId(): string {
   return randomBytes(24).toString("base64url");
@@ -169,6 +172,10 @@ export async function persistPackingListItems(
     if (!name || name.length > 200) {
       return { ok: false, error: "Invalid item name" };
     }
+    const sectionRaw = it.section?.trim() ?? "";
+    if (sectionRaw.length > MAX_SECTION_LEN) {
+      return { ok: false, error: "Section name too long" };
+    }
     if (it.quantity != null && (!Number.isInteger(it.quantity) || it.quantity < 0)) {
       return { ok: false, error: "Invalid quantity" };
     }
@@ -259,17 +266,21 @@ export async function persistPackingListItems(
 
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
+        const sectionTrim = it.section?.trim() ?? "";
+        const section = sectionTrim === "" ? null : sectionTrim;
 
         await tx.packingItem.upsert({
           where: { id: it.id },
           create: {
             id: it.id,
             packingListId: list.id,
+            section,
             name: it.name.trim(),
             quantity: it.quantity,
             sortOrder: i,
           },
           update: {
+            section,
             name: it.name.trim(),
             quantity: it.quantity,
             sortOrder: i,

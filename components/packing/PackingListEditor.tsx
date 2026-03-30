@@ -23,6 +23,7 @@ type StorageSignUp = {
 
 type StorageRow = {
   id: string;
+  section?: string | null;
   name: string;
   quantity: number | null;
   signUps?: readonly StorageSignUp[] | null;
@@ -31,6 +32,13 @@ type StorageRow = {
   claimedByUserId?: string | null;
   claimedQuantity?: number | null;
 };
+
+function normalizedSection(row: StorageRow): string | null {
+  const s = row.section;
+  if (s == null || typeof s !== "string") return null;
+  const t = s.trim();
+  return t === "" ? null : t;
+}
 
 function readSignUps(row: StorageRow): StorageSignUp[] {
   if (Array.isArray(row.signUps) && row.signUps.length > 0) {
@@ -77,6 +85,7 @@ function storageToPayload(
   if (!items?.length) return [];
   return items.map((row) => ({
     id: row.id,
+    section: normalizedSection(row),
     name: row.name,
     quantity: row.quantity,
     signUps: readSignUps(row).map((s) => ({
@@ -215,14 +224,62 @@ export function PackingListEditor({
   }, [rawItems, schedulePersist]);
 
   const addItem = useMutation(
-    ({ storage }) => {
+    (
+      { storage },
+      opts?: { startIndex: number; runSection: string | null },
+    ) => {
       const items = storage.get("items");
+      const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+
+      if (opts && typeof opts.startIndex === "number") {
+        const targetSec =
+          opts.runSection === null
+            ? null
+            : (() => {
+                const t = opts.runSection.trim();
+                return t === "" ? null : t;
+              })();
+        let lastInRun = opts.startIndex;
+        for (let k = opts.startIndex + 1; k < items.length; k++) {
+          const row = items.get(k);
+          if (!row) break;
+          const raw = row.get("section") as string | null | undefined;
+          const t = typeof raw === "string" ? raw.trim() : "";
+          const rowSec = t === "" ? null : t;
+          if (rowSec === targetSec) lastInRun = k;
+          else break;
+        }
+        items.insert(
+          new LiveObject({
+            id: crypto.randomUUID(),
+            section: targetSec,
+            name: "New item",
+            quantity: null,
+            signUps,
+          }),
+          lastInRun + 1,
+        );
+        return;
+      }
+
+      let section: string | null = null;
+      if (items.length > 0) {
+        const prev = items.get(items.length - 1);
+        if (prev) {
+          const raw = prev.get("section") as string | null | undefined;
+          if (typeof raw === "string") {
+            const t = raw.trim();
+            section = t === "" ? null : t;
+          }
+        }
+      }
       items.push(
         new LiveObject({
           id: crypto.randomUUID(),
+          section,
           name: "New item",
           quantity: null,
-          signUps: new LiveList<LiveObject<PackingSignUpStorage>>([]),
+          signUps,
         }),
       );
     },
@@ -242,6 +299,16 @@ export function PackingListEditor({
       const items = storage.get("items");
       const row = items.get(index);
       if (row) row.set("name", name);
+    },
+    [],
+  );
+
+  const updateSection = useMutation(
+    ({ storage }, { index, section }: { index: number; section: string }) => {
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      row.set("section", section.trim() === "" ? null : section);
     },
     [],
   );
@@ -439,9 +506,15 @@ export function PackingListEditor({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 shadow-sm">
-        <table className="w-full min-w-[800px] border-collapse text-sm tabular-nums">
+        <table className="w-full min-w-[920px] border-collapse text-sm tabular-nums">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-900">
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-32"
+              >
+                Section
+              </th>
               <th
                 scope="col"
                 className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300"
@@ -492,12 +565,62 @@ export function PackingListEditor({
                   ? total == null || (rem != null && rem >= 1)
                   : false;
 
+              const sec = normalizedSection(item);
+              const prevSec =
+                index > 0 ? normalizedSection(items[index - 1]!) : null;
+              const showNamedSectionHeader = sec != null && sec !== prevSec;
+              const showUncategorizedHeader =
+                sec == null && (index === 0 || prevSec != null);
+              const sectionHeader = showNamedSectionHeader
+                ? { label: sec, runSection: sec }
+                : showUncategorizedHeader
+                  ? { label: "Uncategorized", runSection: null }
+                  : null;
+
               const cellBorder =
                 "border border-gray-300 dark:border-gray-600 align-middle";
 
               return (
                 <Fragment key={item.id}>
+                  {sectionHeader && (
+                    <tr className="bg-gray-200/90 dark:bg-gray-800">
+                      <td
+                        colSpan={7}
+                        className="border border-gray-300 dark:border-gray-600 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
+                            {sectionHeader.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addItem({
+                                startIndex: index,
+                                runSection: sectionHeader.runSection,
+                              })
+                            }
+                            className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                          >
+                            Add item
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   <tr className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900/80">
+                    <td className={`${cellBorder} p-0`}>
+                      <input
+                        type="text"
+                        value={item.section ?? ""}
+                        onChange={(e) =>
+                          updateSection({ index, section: e.target.value })
+                        }
+                        placeholder="—"
+                        className="w-full min-w-[6rem] border-0 bg-transparent px-2 py-2 text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        aria-label="Section"
+                      />
+                    </td>
                     <td className={`${cellBorder} p-0`}>
                       <input
                         type="text"
@@ -641,7 +764,7 @@ export function PackingListEditor({
                   {mySu && !authUser && (
                     <tr className="bg-gray-50 dark:bg-gray-900/60">
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="border border-gray-300 dark:border-gray-600 px-3 py-2"
                       >
                         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
@@ -740,6 +863,7 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
         (i) =>
           new LiveObject({
             id: i.id,
+            section: i.section ?? null,
             name: i.name,
             quantity: i.quantity,
             signUps: new LiveList(

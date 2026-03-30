@@ -60,6 +60,8 @@ model PackingList {
 model PackingItem {
   id            String   @id @default(uuid())
   packingListId String   @map("packing_list_id")
+  /** Optional group label; consecutive items with the same section share one header row in the UI. */
+  section       String?
   name          String
   quantity      Int?
   sortOrder     Int      @default(0) @map("sort_order")
