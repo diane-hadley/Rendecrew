@@ -317,21 +317,10 @@ export function PackingListEditor({
         return;
       }
 
-      let section: string | null = null;
-      if (items.length > 0) {
-        const prev = items.get(items.length - 1);
-        if (prev) {
-          const raw = prev.get("section") as string | null | undefined;
-          if (typeof raw === "string") {
-            const t = raw.trim();
-            section = t === "" ? null : t;
-          }
-        }
-      }
       items.push(
         new LiveObject({
           id: crypto.randomUUID(),
-          section,
+          section: null,
           name: "New item",
           quantity: null,
           quantityMax: null,
