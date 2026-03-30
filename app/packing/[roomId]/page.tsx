@@ -38,6 +38,7 @@ export default async function PublicPackingPage({
     section: it.section,
     name: it.name,
     quantity: it.quantity,
+    quantityMax: it.quantityMax,
     signUps: it.signUps.map((s) => ({
       id: s.id,
       quantity: s.quantity,

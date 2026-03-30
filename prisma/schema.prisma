@@ -63,7 +63,10 @@ model PackingItem {
   /** Optional group label; consecutive items with the same section share one header row in the UI. */
   section       String?
   name          String
+  /** Minimum (or exact when quantityMax is null). */
   quantity      Int?
+  /** Upper bound inclusive; null means need exactly `quantity`. */
+  quantityMax   Int?     @map("quantity_max")
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
