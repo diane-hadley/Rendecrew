@@ -119,17 +119,26 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
         lastSection = sec;
       }
       if (!sec) lastSection = null;
+      const isOptional = it.quantity === 0;
       const cap =
         it.quantity != null
-          ? it.quantityMax != null && it.quantityMax > it.quantity
-            ? it.quantityMax
-            : it.quantity
+          ? isOptional
+            ? it.quantityMax != null && it.quantityMax > 0
+              ? it.quantityMax
+              : null
+            : it.quantityMax != null && it.quantityMax > it.quantity
+              ? it.quantityMax
+              : it.quantity
           : null;
       const qty =
         it.quantity != null
-          ? it.quantityMax != null && it.quantityMax > it.quantity
-            ? ` ×${it.quantity}–${it.quantityMax}`
-            : ` ×${it.quantity}`
+          ? isOptional
+            ? it.quantityMax != null && it.quantityMax > 0
+              ? ` (optional, up to ${it.quantityMax})`
+              : " (optional)"
+            : it.quantityMax != null && it.quantityMax > it.quantity
+              ? ` ×${it.quantity}–${it.quantityMax}`
+              : ` ×${it.quantity}`
           : "";
       let signUp = "";
       if (it.signUps.length > 0) {

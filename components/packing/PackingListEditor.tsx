@@ -5,7 +5,7 @@ import { useMutation, useStorage, useSyncStatus } from "@liveblocks/react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type { PackingItemPayload } from "@/lib/packing-list";
-import { itemQuantityCap } from "@/lib/packing-quantity";
+import { isOptionalPackingMin, itemQuantityCap } from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
   PackingSignUpStorage,
@@ -382,7 +382,9 @@ export function PackingListEditor({
       const maxRaw = row.get("quantityMax") as number | null | undefined;
       let nextMax: number | null =
         maxRaw != null && typeof maxRaw === "number" ? maxRaw : null;
-      if (nextMax != null && nextMax <= quantity) nextMax = null;
+      if (quantity > 0 && nextMax != null && nextMax <= quantity) {
+        nextMax = null;
+      }
       row.set("quantityMax", nextMax);
       const signUps = row.get("signUps");
       if (!signUps) return;
@@ -408,13 +410,41 @@ export function PackingListEditor({
       }
       let nextMax = quantityMax;
       if (nextMax != null && nextMax < min) nextMax = min;
-      if (nextMax != null && nextMax <= min) nextMax = null;
+      if (min > 0 && nextMax != null && nextMax <= min) nextMax = null;
       row.set("quantityMax", nextMax);
       const signUps = row.get("signUps");
       if (!signUps) return;
       const cap = itemQuantityCap(min, nextMax);
       if (cap == null) return;
       clampSignUpsOverCap(signUps, cap);
+    },
+    [],
+  );
+
+  /** Optional items are stored as min 0 + max cap (no DB flag). */
+  const setItemOptionalMode = useMutation(
+    ({ storage }, { index, optional }: { index: number; optional: boolean }) => {
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      if (optional) {
+        const prevMax = row.get("quantityMax") as number | null | undefined;
+        row.set("quantity", 0);
+        const keepMax =
+          prevMax != null && typeof prevMax === "number" && prevMax > 0
+            ? prevMax
+            : null;
+        row.set("quantityMax", keepMax);
+      } else {
+        row.set("quantity", null);
+        row.set("quantityMax", null);
+      }
+      const signUps = row.get("signUps");
+      if (!signUps) return;
+      const q = row.get("quantity") as number | null;
+      const qm = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(q, qm ?? null);
+      if (cap != null) clampSignUpsOverCap(signUps, cap);
     },
     [],
   );
@@ -647,7 +677,12 @@ export function PackingListEditor({
                   ? item.quantityMax
                   : null;
               const cap = itemQuantityCap(qMin, qMax);
-              const isRange = qMin != null && qMax != null && qMax > qMin;
+              const isOptionalItem = isOptionalPackingMin(qMin);
+              const isRange =
+                qMin != null &&
+                qMin > 0 &&
+                qMax != null &&
+                qMax > qMin;
               const sum = allocatedSum(signUps);
               const remCap = remainingUntilCap(cap, signUps);
               const remMin = remainingUntilMin(qMin, signUps);
@@ -727,55 +762,98 @@ export function PackingListEditor({
                     <td className={`${cellBorder} p-0 text-center`}>
                       {editingNeededIndex === index ? (
                         <div
-                          className="flex flex-col gap-1 p-1"
+                          className="flex flex-col gap-1.5 p-1"
                           onBlur={(e) => {
                             const next = e.relatedTarget as Node | null;
                             if (next && e.currentTarget.contains(next)) return;
                             setEditingNeededIndex(null);
                           }}
                         >
-                          <input
-                            type="number"
-                            min={0}
-                            placeholder="Min"
-                            autoFocus
-                            value={item.quantity ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              updateQuantity({
-                                index,
-                                quantity:
-                                  v === ""
-                                    ? null
-                                    : Math.max(0, parseInt(v, 10) || 0),
-                              });
-                            }}
-                            className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
-                            aria-label="Minimum quantity needed"
-                          />
-                          <input
-                            type="number"
-                            min={0}
-                            placeholder="Max (optional)"
-                            disabled={item.quantity == null}
-                            value={
-                              item.quantity == null
-                                ? ""
-                                : (item.quantityMax ?? "")
-                            }
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              updateQuantityMax({
-                                index,
-                                quantityMax:
-                                  v === ""
-                                    ? null
-                                    : Math.max(0, parseInt(v, 10) || 0),
-                              });
-                            }}
-                            className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400 disabled:opacity-40"
-                            aria-label="Maximum quantity needed (optional range)"
-                          />
+                          <label className="flex cursor-pointer items-center gap-2 px-0.5 text-left text-[0.7rem] text-gray-600 dark:text-gray-400">
+                            <input
+                              type="checkbox"
+                              checked={isOptionalItem}
+                              onChange={(e) =>
+                                setItemOptionalMode({
+                                  index,
+                                  optional: e.target.checked,
+                                })
+                              }
+                              className="rounded border-gray-300 dark:border-gray-600"
+                            />
+                            <span>Optional (no minimum)</span>
+                          </label>
+                          {isOptionalItem ? (
+                            <input
+                              type="number"
+                              min={1}
+                              placeholder="Up to (if brought)"
+                              autoFocus
+                              value={
+                                item.quantityMax != null &&
+                                item.quantityMax > 0
+                                  ? item.quantityMax
+                                  : ""
+                              }
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateQuantityMax({
+                                  index,
+                                  quantityMax:
+                                    v === ""
+                                      ? null
+                                      : Math.max(1, parseInt(v, 10) || 0),
+                                });
+                              }}
+                              className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                              aria-label="Maximum to bring if optional item is covered"
+                            />
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Min"
+                                autoFocus
+                                value={item.quantity ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateQuantity({
+                                    index,
+                                    quantity:
+                                      v === ""
+                                        ? null
+                                        : Math.max(0, parseInt(v, 10) || 0),
+                                  });
+                                }}
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                                aria-label="Minimum quantity needed"
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Max (optional range)"
+                                disabled={item.quantity == null}
+                                value={
+                                  item.quantity == null
+                                    ? ""
+                                    : (item.quantityMax ?? "")
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateQuantityMax({
+                                    index,
+                                    quantityMax:
+                                      v === ""
+                                        ? null
+                                        : Math.max(0, parseInt(v, 10) || 0),
+                                  });
+                                }}
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400 disabled:opacity-40"
+                                aria-label="Maximum quantity (optional range above min)"
+                              />
+                            </>
+                          )}
                         </div>
                       ) : (
                         <button
@@ -785,16 +863,31 @@ export function PackingListEditor({
                           aria-label={
                             qMin == null
                               ? "Needed: not set, click to edit"
-                              : isRange
-                                ? `Needed: ${qMin} to ${qMax}, click to edit`
-                                : `Needed: ${qMin}, click to edit`
+                              : isOptionalItem
+                                ? qMax != null
+                                  ? `Needed: optional, up to ${qMax}, click to edit`
+                                  : "Needed: optional, click to edit"
+                                : isRange
+                                  ? `Needed: ${qMin} to ${qMax}, click to edit`
+                                  : `Needed: ${qMin}, click to edit`
                           }
                         >
-                          {qMin == null
-                            ? "—"
-                            : isRange
-                              ? `${qMin} – ${qMax}`
-                              : qMin}
+                          {qMin == null ? (
+                            "—"
+                          ) : isOptionalItem ? (
+                            <span className="flex flex-col items-center gap-0.5 leading-tight">
+                              <span>Optional</span>
+                              {qMax != null ? (
+                                <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
+                                  up to {qMax}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : isRange ? (
+                            `${qMin} – ${qMax}`
+                          ) : (
+                            qMin
+                          )}
                         </button>
                       )}
                     </td>
@@ -802,7 +895,15 @@ export function PackingListEditor({
                       {qMin != null ? (
                         <div>
                           <div>
-                            {isRange ? (
+                            {isOptionalItem ? (
+                              qMax != null ? (
+                                <>
+                                  {sum} / {qMax}
+                                </>
+                              ) : (
+                                sum
+                              )
+                            ) : isRange ? (
                               <>
                                 {sum} / {qMin} – {qMax}
                               </>
@@ -810,7 +911,22 @@ export function PackingListEditor({
                               sum
                             )}
                           </div>
-                          {isRange ? (
+                          {isOptionalItem ? (
+                            <>
+                              {qMax != null && remCap != null && remCap > 0 && (
+                                <div className="text-sky-700 dark:text-sky-400 mt-0.5">
+                                  {remCap} more welcome
+                                </div>
+                              )}
+                              {qMax != null &&
+                                remCap === 0 &&
+                                signUps.length > 0 && (
+                                  <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                    Covered
+                                  </div>
+                                )}
+                            </>
+                          ) : isRange ? (
                             <>
                               {remMin != null && remMin > 0 && (
                                 <div className="text-amber-700 dark:text-amber-400 mt-0.5">
