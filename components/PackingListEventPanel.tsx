@@ -2,7 +2,7 @@
 
 import { enablePackingListForEvent } from "@/app/actions/packing-list";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 export function PackingListEventPanel({
   eventId,
@@ -15,12 +15,16 @@ export function PackingListEventPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPending, startTransition] = useTransition();
+  /** Set after mount so server and first client render match (avoids hydration errors). */
+  const [origin, setOrigin] = useState<string | null>(null);
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const sharePath = liveblocksRoomId ? `/packing/${liveblocksRoomId}` : null;
   const fullUrl =
-    typeof window !== "undefined" && sharePath
-      ? `${window.location.origin}${sharePath}`
-      : null;
+    sharePath && origin ? `${origin}${sharePath}` : null;
 
   if (!liveblocksRoomId) {
     return (
@@ -66,17 +70,18 @@ export function PackingListEventPanel({
         event.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        {fullUrl && (
+        {sharePath && (
           <code className="flex-1 truncate rounded bg-gray-100 dark:bg-gray-900 px-2 py-1.5 text-xs text-gray-800 dark:text-gray-200">
-            {fullUrl}
+            {fullUrl ?? sharePath}
           </code>
         )}
         <button
           type="button"
-          disabled={!fullUrl}
+          disabled={!sharePath}
           onClick={async () => {
-            if (!fullUrl) return;
-            await navigator.clipboard.writeText(fullUrl);
+            if (!sharePath) return;
+            const url = fullUrl ?? `${window.location.origin}${sharePath}`;
+            await navigator.clipboard.writeText(url);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
           }}

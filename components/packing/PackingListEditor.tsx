@@ -18,13 +18,13 @@ type StorageSignUp = {
   displayName: string;
   email: string | null;
   userId: string | null;
+  packed: boolean;
 };
 
 type StorageRow = {
   id: string;
   name: string;
   quantity: number | null;
-  packed: boolean;
   signUps?: readonly StorageSignUp[] | null;
   claimedByName?: string | null;
   claimedByEmail?: string | null;
@@ -40,6 +40,7 @@ function readSignUps(row: StorageRow): StorageSignUp[] {
       displayName: s.displayName,
       email: s.email ?? null,
       userId: s.userId ?? null,
+      packed: Boolean(s.packed),
     }));
   }
   if (Array.isArray(row.signUps) && row.signUps.length === 0) {
@@ -62,6 +63,7 @@ function readSignUps(row: StorageRow): StorageSignUp[] {
         displayName: row.claimedByName?.trim() || "Member",
         email: row.claimedByEmail ?? null,
         userId: row.claimedByUserId?.trim() || null,
+        packed: false,
       },
     ];
   }
@@ -77,13 +79,13 @@ function storageToPayload(
     id: row.id,
     name: row.name,
     quantity: row.quantity,
-    packed: row.packed,
     signUps: readSignUps(row).map((s) => ({
       id: s.id,
       quantity: s.quantity,
       displayName: s.displayName,
       email: s.email,
       userId: s.userId,
+      packed: s.packed,
     })),
   }));
 }
@@ -173,9 +175,9 @@ export function PackingListEditor({
       const qty = row.get("quantity") as number | null;
       if (ln || lu) {
         list.push(
-          new LiveObject({
-            id: crypto.randomUUID(),
-            quantity:
+        new LiveObject({
+          id: crypto.randomUUID(),
+          quantity:
               typeof lq === "number"
                 ? lq
                 : typeof qty === "number" && qty > 0
@@ -184,6 +186,7 @@ export function PackingListEditor({
             displayName: (ln && String(ln).trim()) || "Member",
             email: le ?? null,
             userId: lu ?? null,
+            packed: false,
           }),
         );
       }
@@ -219,7 +222,6 @@ export function PackingListEditor({
           id: crypto.randomUUID(),
           name: "New item",
           quantity: null,
-          packed: false,
           signUps: new LiveList<LiveObject<PackingSignUpStorage>>([]),
         }),
       );
@@ -271,15 +273,6 @@ export function PackingListEditor({
     [],
   );
 
-  const setPacked = useMutation(
-    ({ storage }, { index, packed }: { index: number; packed: boolean }) => {
-      const items = storage.get("items");
-      const row = items.get(index);
-      if (row) row.set("packed", packed);
-    },
-    [],
-  );
-
   const addMySignUp = useMutation(
     ({ storage }, index: number) => {
       const { authUser: au, guestDisplayName: gn } = ctxRef.current;
@@ -317,6 +310,7 @@ export function PackingListEditor({
           displayName: au ? au.name : g!,
           email: au ? au.email.trim().toLowerCase() : null,
           userId: au ? au.dbUserId : null,
+          packed: false,
         }),
       );
     },
@@ -445,7 +439,7 @@ export function PackingListEditor({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 shadow-sm">
-        <table className="w-full min-w-[880px] border-collapse text-sm tabular-nums">
+        <table className="w-full min-w-[800px] border-collapse text-sm tabular-nums">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-900">
               <th
@@ -459,12 +453,6 @@ export function PackingListEditor({
                 className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-20"
               >
                 Qty
-              </th>
-              <th
-                scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-24"
-              >
-                Packed
               </th>
               <th
                 scope="col"
@@ -540,19 +528,6 @@ export function PackingListEditor({
                         className="w-full max-w-[5rem] border-0 bg-transparent px-2 py-2 text-center text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
                         aria-label="Quantity"
                       />
-                    </td>
-                    <td className={`${cellBorder} p-0`}>
-                      <label className="flex cursor-pointer items-center justify-center gap-2 px-2 py-2 text-gray-700 dark:text-gray-300">
-                        <input
-                          type="checkbox"
-                          checked={item.packed}
-                          onChange={(e) =>
-                            setPacked({ index, packed: e.target.checked })
-                          }
-                          className="rounded border-gray-300 dark:border-gray-600"
-                          aria-label="Packed"
-                        />
-                      </label>
                     </td>
                     <td className={`${cellBorder} px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400`}>
                       {total != null ? (
@@ -666,7 +641,7 @@ export function PackingListEditor({
                   {mySu && !authUser && (
                     <tr className="bg-gray-50 dark:bg-gray-900/60">
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         className="border border-gray-300 dark:border-gray-600 px-3 py-2"
                       >
                         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
@@ -750,6 +725,7 @@ function snapshotSignUps(signUps: unknown): StorageSignUp[] {
       displayName: String(g.get("displayName") ?? ""),
       email: (g.get("email") as string | null) ?? null,
       userId: (g.get("userId") as string | null) ?? null,
+      packed: Boolean(g.get("packed")),
     });
   }
   return out;
@@ -766,7 +742,6 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
             id: i.id,
             name: i.name,
             quantity: i.quantity,
-            packed: i.packed,
             signUps: new LiveList(
               (i.signUps ?? []).map((s) =>
                 new LiveObject({
@@ -775,6 +750,7 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
                   displayName: s.displayName,
                   email: s.email,
                   userId: s.userId,
+                  packed: s.packed,
                 }),
               ),
             ),

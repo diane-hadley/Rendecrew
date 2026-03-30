@@ -37,13 +37,13 @@ export default async function PublicPackingPage({
     id: it.id,
     name: it.name,
     quantity: it.quantity,
-    packed: it.packed,
     signUps: it.signUps.map((s) => ({
       id: s.id,
       quantity: s.quantity,
       displayName: s.displayName,
       email: s.email,
       userId: s.userId,
+      packed: s.packed,
     })),
   }));
 

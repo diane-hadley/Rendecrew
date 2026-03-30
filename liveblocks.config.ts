@@ -6,13 +6,14 @@ export type PackingSignUpStorage = {
   displayName: string;
   email: string | null;
   userId: string | null;
+  /** Synced for storage; personal edits merge in persist from DB. */
+  packed: boolean;
 };
 
 export type PackingItemStorage = {
   id: string;
   name: string;
   quantity: number | null;
-  packed: boolean;
   signUps: LiveList<LiveObject<PackingSignUpStorage>>;
 };
 
