@@ -15,8 +15,10 @@ export type EventAIContext = {
   };
   packingList: null | {
     items: Array<{
+      section: string | null;
       name: string;
       quantity: number | null;
+      quantityMax: number | null;
       signUps: Array<{
         displayName: string;
         quantity: number | null;
@@ -63,8 +65,10 @@ export async function getEventContextForAI(
     packingList: packingList
       ? {
           items: packingList.items.map((it) => ({
+            section: it.section,
             name: it.name,
             quantity: it.quantity,
+            quantityMax: it.quantityMax,
             signUps: it.signUps.map((s) => ({
               displayName: s.displayName,
               quantity: s.quantity,
@@ -107,16 +111,43 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
     lines.push("Packing list: (none or empty)");
   } else {
     lines.push("Packing list:");
+    let lastSection: string | null = null;
     for (const it of ctx.packingList.items) {
-      const qty = it.quantity != null ? ` ×${it.quantity}` : "";
+      const sec = it.section?.trim() || null;
+      if (sec && sec !== lastSection) {
+        lines.push(`  [${sec}]`);
+        lastSection = sec;
+      }
+      if (!sec) lastSection = null;
+      const isOptional = it.quantity === 0;
+      const cap =
+        it.quantity != null
+          ? isOptional
+            ? it.quantityMax != null && it.quantityMax > 0
+              ? it.quantityMax
+              : null
+            : it.quantityMax != null && it.quantityMax > it.quantity
+              ? it.quantityMax
+              : it.quantity
+          : null;
+      const qty =
+        it.quantity != null
+          ? isOptional
+            ? it.quantityMax != null && it.quantityMax > 0
+              ? ` (optional, up to ${it.quantityMax})`
+              : " (optional)"
+            : it.quantityMax != null && it.quantityMax > it.quantity
+              ? ` ×${it.quantity}–${it.quantityMax}`
+              : ` ×${it.quantity}`
+          : "";
       let signUp = "";
       if (it.signUps.length > 0) {
         const parts = it.signUps.map((s) => {
           const q =
             s.quantity != null
-              ? `${s.quantity}${it.quantity != null ? ` of ${it.quantity}` : ""}`
-              : it.quantity != null
-                ? `all ${it.quantity}`
+              ? `${s.quantity}${cap != null ? ` of up to ${cap}` : ""}`
+              : cap != null
+                ? `up to ${cap} total`
                 : "(amount not set)";
           const pk = s.packed ? "packed" : "not packed yet";
           let extra = `${s.displayName} bringing ${q} (${pk})`;

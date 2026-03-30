@@ -12,8 +12,12 @@ export type PackingSignUpStorage = {
 
 export type PackingItemStorage = {
   id: string;
+  /** Optional section header grouping; omit or null for uncategorized rows. */
+  section?: string | null;
   name: string;
   quantity: number | null;
+  /** Upper bound inclusive; omit or null = exact count of `quantity`. */
+  quantityMax?: number | null;
   signUps: LiveList<LiveObject<PackingSignUpStorage>>;
 };
 

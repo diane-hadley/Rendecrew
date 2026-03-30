@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { itemQuantityCap } from "@/lib/packing-quantity";
 
 export type PackingSignUpPayload = {
   id: string;
@@ -12,13 +13,18 @@ export type PackingSignUpPayload = {
 
 export type PackingItemPayload = {
   id: string;
+  /** Trimmed section label, or null/omitted for items above the first named section. */
+  section?: string | null;
   name: string;
   quantity: number | null;
+  /** Upper inclusive bound; null/omit with quantity set = need exactly `quantity`. */
+  quantityMax?: number | null;
   signUps: PackingSignUpPayload[];
 };
 
 const MAX_ITEMS = 500;
 const MAX_SIGN_UPS_PER_ITEM = 40;
+const MAX_SECTION_LEN = 120;
 
 function generateLiveblocksRoomId(): string {
   return randomBytes(24).toString("base64url");
@@ -67,6 +73,7 @@ export function listPackingCommitmentsForUser(
       id: string;
       name: string;
       quantity: number | null;
+      quantityMax: number | null;
       signUps: Array<{
         id: string;
         userId: string | null;
@@ -135,14 +142,11 @@ export async function backfillPackingItemSignUpsForUser(
   });
 }
 
-function sumSignUpQuantities(
-  signUps: { quantity: number | null }[],
-  itemQuantity: number | null,
-): number {
-  return signUps.reduce((acc, s) => {
-    if (itemQuantity == null) return acc;
-    return acc + (typeof s.quantity === "number" ? s.quantity : 0);
-  }, 0);
+function sumSignUpQuantities(signUps: { quantity: number | null }[]): number {
+  return signUps.reduce(
+    (acc, s) => acc + (typeof s.quantity === "number" ? s.quantity : 0),
+    0,
+  );
 }
 
 export async function persistPackingListItems(
@@ -169,9 +173,26 @@ export async function persistPackingListItems(
     if (!name || name.length > 200) {
       return { ok: false, error: "Invalid item name" };
     }
+    const sectionRaw = it.section?.trim() ?? "";
+    if (sectionRaw.length > MAX_SECTION_LEN) {
+      return { ok: false, error: "Section name too long" };
+    }
     if (it.quantity != null && (!Number.isInteger(it.quantity) || it.quantity < 0)) {
       return { ok: false, error: "Invalid quantity" };
     }
+    const qMaxRaw = it.quantityMax;
+    if (qMaxRaw != null) {
+      if (it.quantity == null) {
+        return { ok: false, error: "Quantity max requires a minimum quantity" };
+      }
+      if (!Number.isInteger(qMaxRaw) || qMaxRaw < 0) {
+        return { ok: false, error: "Invalid quantity max" };
+      }
+      if (qMaxRaw < it.quantity) {
+        return { ok: false, error: "Quantity max must be at least the minimum" };
+      }
+    }
+    const cap = itemQuantityCap(it.quantity, qMaxRaw ?? null);
     if (!Array.isArray(it.signUps) || it.signUps.length > MAX_SIGN_UPS_PER_ITEM) {
       return { ok: false, error: "Invalid sign-ups" };
     }
@@ -189,8 +210,8 @@ export async function persistPackingListItems(
         if (!Number.isInteger(su.quantity) || su.quantity < 1) {
           return { ok: false, error: "Invalid quantity for sign-up" };
         }
-        if (it.quantity != null && su.quantity > it.quantity) {
-          return { ok: false, error: "Sign-up exceeds item quantity" };
+        if (cap != null && su.quantity != null && su.quantity > cap) {
+          return { ok: false, error: "Sign-up exceeds quantity needed" };
         }
       }
       if (it.quantity != null && su.quantity == null) {
@@ -212,9 +233,9 @@ export async function persistPackingListItems(
       }
     }
 
-    if (it.quantity != null) {
-      const sum = sumSignUpQuantities(it.signUps, it.quantity);
-      if (sum > it.quantity) {
+    if (cap != null) {
+      const sum = sumSignUpQuantities(it.signUps);
+      if (sum > cap) {
         return { ok: false, error: "Sign-ups exceed total quantity needed" };
       }
     }
@@ -259,19 +280,32 @@ export async function persistPackingListItems(
 
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
+        const sectionTrim = it.section?.trim() ?? "";
+        const section = sectionTrim === "" ? null : sectionTrim;
+
+        const quantityMax =
+          it.quantity != null &&
+          it.quantityMax != null &&
+          it.quantityMax > it.quantity
+            ? it.quantityMax
+            : null;
 
         await tx.packingItem.upsert({
           where: { id: it.id },
           create: {
             id: it.id,
             packingListId: list.id,
+            section,
             name: it.name.trim(),
             quantity: it.quantity,
+            quantityMax,
             sortOrder: i,
           },
           update: {
+            section,
             name: it.name.trim(),
             quantity: it.quantity,
+            quantityMax,
             sortOrder: i,
           },
         });

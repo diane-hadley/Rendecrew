@@ -5,6 +5,7 @@ import { useMutation, useStorage, useSyncStatus } from "@liveblocks/react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type { PackingItemPayload } from "@/lib/packing-list";
+import { isOptionalPackingMin, itemQuantityCap } from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
   PackingSignUpStorage,
@@ -23,14 +24,23 @@ type StorageSignUp = {
 
 type StorageRow = {
   id: string;
+  section?: string | null;
   name: string;
   quantity: number | null;
+  quantityMax?: number | null;
   signUps?: readonly StorageSignUp[] | null;
   claimedByName?: string | null;
   claimedByEmail?: string | null;
   claimedByUserId?: string | null;
   claimedQuantity?: number | null;
 };
+
+function normalizedSection(row: StorageRow): string | null {
+  const s = row.section;
+  if (s == null || typeof s !== "string") return null;
+  const t = s.trim();
+  return t === "" ? null : t;
+}
 
 function readSignUps(row: StorageRow): StorageSignUp[] {
   if (Array.isArray(row.signUps) && row.signUps.length > 0) {
@@ -77,8 +87,10 @@ function storageToPayload(
   if (!items?.length) return [];
   return items.map((row) => ({
     id: row.id,
+    section: normalizedSection(row),
     name: row.name,
     quantity: row.quantity,
+    quantityMax: row.quantityMax ?? null,
     signUps: readSignUps(row).map((s) => ({
       id: s.id,
       quantity: s.quantity,
@@ -94,12 +106,41 @@ function allocatedSum(signUps: StorageSignUp[]): number {
   return signUps.reduce((a, s) => a + (s.quantity ?? 0), 0);
 }
 
-function remainingQuantity(
-  total: number | null,
+function remainingUntilCap(
+  cap: number | null,
   signUps: StorageSignUp[],
 ): number | null {
-  if (total == null) return null;
-  return Math.max(0, total - allocatedSum(signUps));
+  if (cap == null) return null;
+  return Math.max(0, cap - allocatedSum(signUps));
+}
+
+function remainingUntilMin(
+  min: number | null,
+  signUps: StorageSignUp[],
+): number | null {
+  if (min == null) return null;
+  return Math.max(0, min - allocatedSum(signUps));
+}
+
+/** Clamp total sign-ups to cap by trimming from the end of the list. */
+function clampSignUpsOverCap(
+  signUps: LiveList<LiveObject<PackingSignUpStorage>>,
+  cap: number,
+): void {
+  let over = allocatedSum(snapshotSignUps(signUps)) - cap;
+  while (over > 0 && signUps.length > 0) {
+    const lastIdx = signUps.length - 1;
+    const su = signUps.get(lastIdx);
+    if (!su) break;
+    const q = (su.get("quantity") as number | null) ?? 1;
+    if (q <= over) {
+      over -= q;
+      signUps.delete(lastIdx);
+    } else {
+      su.set("quantity", q - over);
+      over = 0;
+    }
+  }
 }
 
 function isMineSignUp(
@@ -137,6 +178,9 @@ export function PackingListEditor({
   const syncStatus = useSyncStatus({ smooth: true });
   const [saveError, setSaveError] = useState<string | null>(null);
   const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({});
+  const [editingNeededIndex, setEditingNeededIndex] = useState<number | null>(
+    null,
+  );
   const migratedRef = useRef(false);
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -214,15 +258,73 @@ export function PackingListEditor({
     };
   }, [rawItems, schedulePersist]);
 
+  useEffect(() => {
+    if (editingNeededIndex == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setEditingNeededIndex(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingNeededIndex]);
+
+  useEffect(() => {
+    if (
+      editingNeededIndex != null &&
+      rawItems != null &&
+      editingNeededIndex >= rawItems.length
+    ) {
+      setEditingNeededIndex(null);
+    }
+  }, [rawItems, editingNeededIndex]);
+
   const addItem = useMutation(
-    ({ storage }) => {
+    (
+      { storage },
+      opts?: { startIndex: number; runSection: string | null },
+    ) => {
       const items = storage.get("items");
+      const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+
+      if (opts && typeof opts.startIndex === "number") {
+        const targetSec =
+          opts.runSection === null
+            ? null
+            : (() => {
+                const t = opts.runSection.trim();
+                return t === "" ? null : t;
+              })();
+        let lastInRun = opts.startIndex;
+        for (let k = opts.startIndex + 1; k < items.length; k++) {
+          const row = items.get(k);
+          if (!row) break;
+          const raw = row.get("section") as string | null | undefined;
+          const t = typeof raw === "string" ? raw.trim() : "";
+          const rowSec = t === "" ? null : t;
+          if (rowSec === targetSec) lastInRun = k;
+          else break;
+        }
+        items.insert(
+          new LiveObject({
+            id: crypto.randomUUID(),
+            section: targetSec,
+            name: "New item",
+            quantity: null,
+            quantityMax: null,
+            signUps,
+          }),
+          lastInRun + 1,
+        );
+        return;
+      }
+
       items.push(
         new LiveObject({
           id: crypto.randomUUID(),
+          section: null,
           name: "New item",
           quantity: null,
-          signUps: new LiveList<LiveObject<PackingSignUpStorage>>([]),
+          quantityMax: null,
+          signUps,
         }),
       );
     },
@@ -246,29 +348,92 @@ export function PackingListEditor({
     [],
   );
 
+  const updateSection = useMutation(
+    ({ storage }, { index, section }: { index: number; section: string }) => {
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      row.set("section", section.trim() === "" ? null : section);
+    },
+    [],
+  );
+
   const updateQuantity = useMutation(
     ({ storage }, { index, quantity }: { index: number; quantity: number | null }) => {
       const items = storage.get("items");
       const row = items.get(index);
       if (!row) return;
       row.set("quantity", quantity);
-      if (quantity == null) return;
+      if (quantity == null) {
+        row.set("quantityMax", null);
+        return;
+      }
+      const maxRaw = row.get("quantityMax") as number | null | undefined;
+      let nextMax: number | null =
+        maxRaw != null && typeof maxRaw === "number" ? maxRaw : null;
+      if (quantity > 0 && nextMax != null && nextMax <= quantity) {
+        nextMax = null;
+      }
+      row.set("quantityMax", nextMax);
       const signUps = row.get("signUps");
       if (!signUps) return;
-      let over = allocatedSum(snapshotSignUps(signUps)) - quantity;
-      while (over > 0 && signUps.length > 0) {
-        const lastIdx = signUps.length - 1;
-        const su = signUps.get(lastIdx);
-        if (!su) break;
-        const q = (su.get("quantity") as number | null) ?? 1;
-        if (q <= over) {
-          over -= q;
-          signUps.delete(lastIdx);
-        } else {
-          su.set("quantity", q - over);
-          over = 0;
-        }
+      const cap = itemQuantityCap(quantity, nextMax);
+      if (cap == null) return;
+      clampSignUpsOverCap(signUps, cap);
+    },
+    [],
+  );
+
+  const updateQuantityMax = useMutation(
+    (
+      { storage },
+      { index, quantityMax }: { index: number; quantityMax: number | null },
+    ) => {
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      const min = row.get("quantity") as number | null;
+      if (min == null) {
+        row.set("quantityMax", null);
+        return;
       }
+      let nextMax = quantityMax;
+      if (nextMax != null && nextMax < min) nextMax = min;
+      if (min > 0 && nextMax != null && nextMax <= min) nextMax = null;
+      row.set("quantityMax", nextMax);
+      const signUps = row.get("signUps");
+      if (!signUps) return;
+      const cap = itemQuantityCap(min, nextMax);
+      if (cap == null) return;
+      clampSignUpsOverCap(signUps, cap);
+    },
+    [],
+  );
+
+  /** Optional items are stored as min 0 + max cap (no DB flag). */
+  const setItemOptionalMode = useMutation(
+    ({ storage }, { index, optional }: { index: number; optional: boolean }) => {
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      if (optional) {
+        const prevMax = row.get("quantityMax") as number | null | undefined;
+        row.set("quantity", 0);
+        const keepMax =
+          prevMax != null && typeof prevMax === "number" && prevMax > 0
+            ? prevMax
+            : null;
+        row.set("quantityMax", keepMax);
+      } else {
+        row.set("quantity", null);
+        row.set("quantityMax", null);
+      }
+      const signUps = row.get("signUps");
+      if (!signUps) return;
+      const q = row.get("quantity") as number | null;
+      const qm = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(q, qm ?? null);
+      if (cap != null) clampSignUpsOverCap(signUps, cap);
     },
     [],
   );
@@ -294,19 +459,21 @@ export function PackingListEditor({
         if (!au && g && !s.get("userId") && s.get("displayName") === g) return;
       }
       const itemQty = row.get("quantity") as number | null;
+      const itemMax = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(itemQty, itemMax ?? null);
       let sum = 0;
       for (let i = 0; i < signUps.length; i++) {
         const s = signUps.get(i);
         if (!s) continue;
         sum += (s.get("quantity") as number | null) ?? 0;
       }
-      const rem = itemQty != null ? Math.max(0, itemQty - sum) : null;
-      if (itemQty != null && rem != null && rem < 1) return;
+      const rem = cap != null ? Math.max(0, cap - sum) : null;
+      if (cap != null && rem != null && rem < 1) return;
 
       signUps.push(
         new LiveObject({
           id: crypto.randomUUID(),
-          quantity: itemQty != null ? rem : null,
+          quantity: cap != null ? rem : null,
           displayName: au ? au.name : g!,
           email: au ? au.email.trim().toLowerCase() : null,
           userId: au ? au.dbUserId : null,
@@ -357,6 +524,8 @@ export function PackingListEditor({
       const signUps = row.get("signUps");
       if (!signUps) return;
       const itemQty = row.get("quantity") as number | null;
+      const itemMax = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(itemQty, itemMax ?? null);
       let target: NonNullable<ReturnType<typeof signUps.get>> | null = null;
       for (let i = 0; i < signUps.length; i++) {
         const s = signUps.get(i);
@@ -376,8 +545,8 @@ export function PackingListEditor({
         otherSum += (s.get("quantity") as number | null) ?? 0;
       }
       const maxForMe =
-        itemQty != null ? Math.max(1, itemQty - otherSum) : 999_999;
-      if (itemQty != null) {
+        cap != null ? Math.max(1, cap - otherSum) : 999_999;
+      if (cap != null) {
         const n =
           nextQty == null
             ? maxForMe
@@ -439,9 +608,15 @@ export function PackingListEditor({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 shadow-sm">
-        <table className="w-full min-w-[800px] border-collapse text-sm tabular-nums">
+        <table className="w-full min-w-[920px] border-collapse text-sm tabular-nums">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-900">
+              <th
+                scope="col"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-32"
+              >
+                Section
+              </th>
               <th
                 scope="col"
                 className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300"
@@ -450,9 +625,9 @@ export function PackingListEditor({
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-20"
+                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-32"
               >
-                Qty
+                Needed
               </th>
               <th
                 scope="col"
@@ -483,21 +658,85 @@ export function PackingListEditor({
           <tbody>
             {items.map((item, index) => {
               const signUps = readSignUps(item);
-              const total = item.quantity;
+              const qMin = item.quantity;
+              const qMax =
+                item.quantityMax != null &&
+                qMin != null &&
+                item.quantityMax >= qMin
+                  ? item.quantityMax
+                  : null;
+              const cap = itemQuantityCap(qMin, qMax);
+              const isOptionalItem = isOptionalPackingMin(qMin);
+              const isRange =
+                qMin != null &&
+                qMin > 0 &&
+                qMax != null &&
+                qMax > qMin;
               const sum = allocatedSum(signUps);
-              const rem = remainingQuantity(total, signUps);
+              const remCap = remainingUntilCap(cap, signUps);
+              const remMin = remainingUntilMin(qMin, signUps);
               const mySu = findMySignUp(signUps, authUser, guestDisplayName);
               const canSignUpMore =
                 authUser || guestDisplayName
-                  ? total == null || (rem != null && rem >= 1)
+                  ? cap == null || (remCap != null && remCap >= 1)
                   : false;
+
+              const sec = normalizedSection(item);
+              const prevSec =
+                index > 0 ? normalizedSection(items[index - 1]!) : null;
+              const showNamedSectionHeader = sec != null && sec !== prevSec;
+              const showUncategorizedHeader =
+                sec == null && (index === 0 || prevSec != null);
+              const sectionHeader = showNamedSectionHeader
+                ? { label: sec, runSection: sec }
+                : showUncategorizedHeader
+                  ? { label: "Uncategorized", runSection: null }
+                  : null;
 
               const cellBorder =
                 "border border-gray-300 dark:border-gray-600 align-middle";
 
               return (
                 <Fragment key={item.id}>
+                  {sectionHeader && (
+                    <tr className="bg-gray-200/90 dark:bg-gray-800">
+                      <td
+                        colSpan={7}
+                        className="border border-gray-300 dark:border-gray-600 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
+                            {sectionHeader.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              addItem({
+                                startIndex: index,
+                                runSection: sectionHeader.runSection,
+                              })
+                            }
+                            className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                          >
+                            Add item
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   <tr className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900/80">
+                    <td className={`${cellBorder} p-0`}>
+                      <input
+                        type="text"
+                        value={item.section ?? ""}
+                        onChange={(e) =>
+                          updateSection({ index, section: e.target.value })
+                        }
+                        placeholder="—"
+                        className="w-full min-w-[6rem] border-0 bg-transparent px-2 py-2 text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        aria-label="Section"
+                      />
+                    </td>
                     <td className={`${cellBorder} p-0`}>
                       <input
                         type="text"
@@ -510,40 +749,203 @@ export function PackingListEditor({
                       />
                     </td>
                     <td className={`${cellBorder} p-0 text-center`}>
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="—"
-                        value={item.quantity ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          updateQuantity({
-                            index,
-                            quantity:
-                              v === ""
-                                ? null
-                                : Math.max(0, parseInt(v, 10) || 0),
-                          });
-                        }}
-                        className="w-full max-w-[5rem] border-0 bg-transparent px-2 py-2 text-center text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
-                        aria-label="Quantity"
-                      />
+                      {editingNeededIndex === index ? (
+                        <div
+                          className="flex flex-col gap-1.5 p-1"
+                          onBlur={(e) => {
+                            const next = e.relatedTarget as Node | null;
+                            if (next && e.currentTarget.contains(next)) return;
+                            setEditingNeededIndex(null);
+                          }}
+                        >
+                          <label className="flex cursor-pointer items-center gap-2 px-0.5 text-left text-[0.7rem] text-gray-600 dark:text-gray-400">
+                            <input
+                              type="checkbox"
+                              checked={isOptionalItem}
+                              onChange={(e) =>
+                                setItemOptionalMode({
+                                  index,
+                                  optional: e.target.checked,
+                                })
+                              }
+                              className="rounded border-gray-300 dark:border-gray-600"
+                            />
+                            <span>Optional (no minimum)</span>
+                          </label>
+                          {isOptionalItem ? (
+                            <input
+                              type="number"
+                              min={1}
+                              placeholder="Up to (if brought)"
+                              autoFocus
+                              value={
+                                item.quantityMax != null &&
+                                item.quantityMax > 0
+                                  ? item.quantityMax
+                                  : ""
+                              }
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateQuantityMax({
+                                  index,
+                                  quantityMax:
+                                    v === ""
+                                      ? null
+                                      : Math.max(1, parseInt(v, 10) || 0),
+                                });
+                              }}
+                              className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                              aria-label="Maximum to bring if optional item is covered"
+                            />
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Min"
+                                autoFocus
+                                value={item.quantity ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateQuantity({
+                                    index,
+                                    quantity:
+                                      v === ""
+                                        ? null
+                                        : Math.max(0, parseInt(v, 10) || 0),
+                                  });
+                                }}
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                                aria-label="Minimum quantity needed"
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="Max (optional range)"
+                                disabled={item.quantity == null}
+                                value={
+                                  item.quantity == null
+                                    ? ""
+                                    : (item.quantityMax ?? "")
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateQuantityMax({
+                                    index,
+                                    quantityMax:
+                                      v === ""
+                                        ? null
+                                        : Math.max(0, parseInt(v, 10) || 0),
+                                  });
+                                }}
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400 disabled:opacity-40"
+                                aria-label="Maximum quantity (optional range above min)"
+                              />
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingNeededIndex(index)}
+                          className="w-full min-h-[2.75rem] px-2 py-2 text-center text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-900/80"
+                          aria-label={
+                            qMin == null
+                              ? "Needed: not set, click to edit"
+                              : isOptionalItem
+                                ? qMax != null
+                                  ? `Needed: optional, up to ${qMax}, click to edit`
+                                  : "Needed: optional, click to edit"
+                                : isRange
+                                  ? `Needed: ${qMin} to ${qMax}, click to edit`
+                                  : `Needed: ${qMin}, click to edit`
+                          }
+                        >
+                          {qMin == null ? (
+                            "—"
+                          ) : isOptionalItem ? (
+                            <span className="flex flex-col items-center gap-0.5 leading-tight">
+                              <span>Optional</span>
+                              {qMax != null ? (
+                                <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
+                                  up to {qMax}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : isRange ? (
+                            `${qMin} – ${qMax}`
+                          ) : (
+                            qMin
+                          )}
+                        </button>
+                      )}
                     </td>
                     <td className={`${cellBorder} px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400`}>
-                      {total != null ? (
+                      {qMin != null ? (
                         <div>
                           <div>
-                            {sum} / {total}
+                            {isOptionalItem ? (
+                              qMax != null ? (
+                                <>
+                                  {sum} / {qMax}
+                                </>
+                              ) : (
+                                sum
+                              )
+                            ) : isRange ? (
+                              <>
+                                {sum} / {qMin} – {qMax}
+                              </>
+                            ) : (
+                              sum
+                            )}
                           </div>
-                          {rem != null && rem > 0 && (
-                            <div className="text-amber-700 dark:text-amber-400 mt-0.5">
-                              {rem} left
-                            </div>
-                          )}
-                          {rem === 0 && signUps.length > 0 && (
-                            <div className="text-green-700 dark:text-green-400 mt-0.5">
-                              Covered
-                            </div>
+                          {isOptionalItem ? (
+                            <>
+                              {qMax != null && remCap != null && remCap > 0 && (
+                                <div className="text-sky-700 dark:text-sky-400 mt-0.5">
+                                  {remCap} more welcome
+                                </div>
+                              )}
+                              {qMax != null &&
+                                remCap === 0 &&
+                                signUps.length > 0 && (
+                                  <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                    Covered
+                                  </div>
+                                )}
+                            </>
+                          ) : isRange ? (
+                            <>
+                              {remMin != null && remMin > 0 && (
+                                <div className="text-amber-700 dark:text-amber-400 mt-0.5">
+                                  {remMin} to minimum
+                                </div>
+                              )}
+                              {remMin === 0 && remCap != null && remCap > 0 && (
+                                <div className="text-sky-700 dark:text-sky-400 mt-0.5">
+                                  Min met · {remCap} until max
+                                </div>
+                              )}
+                              {remCap === 0 && signUps.length > 0 && (
+                                <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                  At max
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {remCap != null && remCap > 0 && (
+                                <div className="text-amber-700 dark:text-amber-400 mt-0.5">
+                                  {remCap} left
+                                </div>
+                              )}
+                              {remCap === 0 && signUps.length > 0 && (
+                                <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                  Covered
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       ) : (
@@ -596,7 +998,7 @@ export function PackingListEditor({
                                   <input
                                     type="number"
                                     min={1}
-                                    max={total ?? undefined}
+                                    max={cap ?? undefined}
                                     value={su.quantity ?? ""}
                                     onChange={(e) => {
                                       const v = e.target.value.trim();
@@ -641,7 +1043,7 @@ export function PackingListEditor({
                   {mySu && !authUser && (
                     <tr className="bg-gray-50 dark:bg-gray-900/60">
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="border border-gray-300 dark:border-gray-600 px-3 py-2"
                       >
                         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
@@ -740,8 +1142,10 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
         (i) =>
           new LiveObject({
             id: i.id,
+            section: i.section ?? null,
             name: i.name,
             quantity: i.quantity,
+            quantityMax: i.quantityMax ?? null,
             signUps: new LiveList(
               (i.signUps ?? []).map((s) =>
                 new LiveObject({
