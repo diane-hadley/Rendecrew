@@ -17,12 +17,12 @@ export type EventAIContext = {
     items: Array<{
       name: string;
       quantity: number | null;
-      packed: boolean;
       signUps: Array<{
         displayName: string;
         quantity: number | null;
         email: string | null;
         hasLinkedUser: boolean;
+        packed: boolean;
       }>;
     }>;
   };
@@ -65,12 +65,12 @@ export async function getEventContextForAI(
           items: packingList.items.map((it) => ({
             name: it.name,
             quantity: it.quantity,
-            packed: it.packed,
             signUps: it.signUps.map((s) => ({
               displayName: s.displayName,
               quantity: s.quantity,
               email: s.email,
               hasLinkedUser: s.userId != null,
+              packed: s.packed,
             })),
           })),
         }
@@ -109,7 +109,6 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
     lines.push("Packing list:");
     for (const it of ctx.packingList.items) {
       const qty = it.quantity != null ? ` ×${it.quantity}` : "";
-      const status = it.packed ? "packed" : "not packed";
       let signUp = "";
       if (it.signUps.length > 0) {
         const parts = it.signUps.map((s) => {
@@ -119,14 +118,15 @@ export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string
               : it.quantity != null
                 ? `all ${it.quantity}`
                 : "(amount not set)";
-          let extra = `${s.displayName} bringing ${q}`;
+          const pk = s.packed ? "packed" : "not packed yet";
+          let extra = `${s.displayName} bringing ${q} (${pk})`;
           if (s.email) extra += `; email ${s.email}`;
           if (s.hasLinkedUser) extra += "; linked Rendecrew account";
           return extra;
         });
         signUp = `; ${parts.join("; ")}`;
       }
-      lines.push(`  - ${it.name}${qty} — ${status}${signUp}`);
+      lines.push(`  - ${it.name}${qty}${signUp}`);
     }
   }
 

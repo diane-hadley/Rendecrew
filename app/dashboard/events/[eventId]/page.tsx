@@ -4,9 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { DeleteEventPanel } from "@/components/DeleteEventPanel";
 import { EditEventForm } from "@/components/EditEventForm";
+import { MyEventPackingCommitments } from "@/components/MyEventPackingCommitments";
 import { PackingListEventPanel } from "@/components/PackingListEventPanel";
 import { canManageEvent, getEventForUser } from "@/lib/events";
-import { getPackingListForEvent } from "@/lib/packing-list";
+import {
+  getPackingListForEvent,
+  listPackingCommitmentsForUser,
+} from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 
 function formatRange(start: Date | null, end: Date | null) {
@@ -39,6 +43,12 @@ export default async function EventDetailPage({
   const { event, role } = row;
   const editable = canManageEvent(role);
   const packingList = await getPackingListForEvent(event.id);
+  const myPackingCommitments = packingList
+    ? listPackingCommitmentsForUser(packingList, dbUser.id)
+    : [];
+  const packingListPath = packingList
+    ? `/packing/${packingList.liveblocksRoomId}`
+    : null;
 
   return (
     <div className="min-h-screen p-8">
@@ -79,6 +89,11 @@ export default async function EventDetailPage({
               eventId={event.id}
               liveblocksRoomId={packingList?.liveblocksRoomId ?? null}
             />
+            <MyEventPackingCommitments
+              eventId={event.id}
+              commitments={myPackingCommitments}
+              packingListPath={packingListPath}
+            />
             <DeleteEventPanel eventId={event.id} eventTitle={event.title} />
           </div>
         ) : (
@@ -103,16 +118,13 @@ export default async function EventDetailPage({
               </p>
             )}
             {packingList && (
-              <p className="mt-6 text-sm">
-                <Link
-                  href={`/packing/${packingList.liveblocksRoomId}`}
-                  className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open collaborative packing list
-                </Link>
-              </p>
+              <div className="mt-6">
+                <MyEventPackingCommitments
+                  eventId={event.id}
+                  commitments={myPackingCommitments}
+                  packingListPath={packingListPath}
+                />
+              </div>
             )}
             <Link
               href="/dashboard"

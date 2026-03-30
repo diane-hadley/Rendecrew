@@ -62,7 +62,6 @@ model PackingItem {
   packingListId String   @map("packing_list_id")
   name          String
   quantity      Int?
-  packed        Boolean  @default(false)
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -78,6 +77,8 @@ model PackingItemSignUp {
   id            String   @id @default(uuid())
   packingItemId String   @map("packing_item_id")
   quantity      Int?
+  /** Whether this person marked their contribution as packed (personal checklist; not edited on the shared list). */
+  packed        Boolean  @default(false)
   displayName   String   @map("display_name")
   email         String?
   userId        String?  @map("user_id")

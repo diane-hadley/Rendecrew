@@ -7,13 +7,13 @@ export type PackingSignUpPayload = {
   displayName: string;
   email: string | null;
   userId: string | null;
+  packed: boolean;
 };
 
 export type PackingItemPayload = {
   id: string;
   name: string;
   quantity: number | null;
-  packed: boolean;
   signUps: PackingSignUpPayload[];
 };
 
@@ -49,6 +49,50 @@ export async function getPackingListForEvent(eventId: string) {
       items: { orderBy: { sortOrder: "asc" }, include: { signUps: signUpsInclude } },
     },
   });
+}
+
+/** Rows where the given Rendecrew user has a packing-list sign-up (linked `userId`). */
+export type PackingCommitmentForUser = {
+  signUpId: string;
+  itemId: string;
+  itemName: string;
+  itemQuantity: number | null;
+  signUpQuantity: number | null;
+  signUpPacked: boolean;
+};
+
+export function listPackingCommitmentsForUser(
+  packingList: {
+    items: Array<{
+      id: string;
+      name: string;
+      quantity: number | null;
+      signUps: Array<{
+        id: string;
+        userId: string | null;
+        quantity: number | null;
+        packed: boolean;
+      }>;
+    }>;
+  },
+  userId: string,
+): PackingCommitmentForUser[] {
+  const out: PackingCommitmentForUser[] = [];
+  for (const item of packingList.items) {
+    for (const su of item.signUps) {
+      if (su.userId === userId) {
+        out.push({
+          signUpId: su.id,
+          itemId: item.id,
+          itemName: item.name,
+          itemQuantity: item.quantity,
+          signUpQuantity: su.quantity,
+          signUpPacked: su.packed,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 export async function createPackingListForEvent(eventId: string) {
@@ -163,6 +207,9 @@ export async function persistPackingListItems(
       if (em && em.length > 254) {
         return { ok: false, error: "Invalid email on sign-up" };
       }
+      if (typeof su.packed !== "boolean") {
+        return { ok: false, error: "Invalid packed flag on sign-up" };
+      }
     }
 
     if (it.quantity != null) {
@@ -220,16 +267,22 @@ export async function persistPackingListItems(
             packingListId: list.id,
             name: it.name.trim(),
             quantity: it.quantity,
-            packed: it.packed,
             sortOrder: i,
           },
           update: {
             name: it.name.trim(),
             quantity: it.quantity,
-            packed: it.packed,
             sortOrder: i,
           },
         });
+
+        const priorPacked = await tx.packingItemSignUp.findMany({
+          where: { packingItemId: it.id },
+          select: { id: true, packed: true },
+        });
+        const packedBySignUpId = new Map(
+          priorPacked.map((r) => [r.id, r.packed]),
+        );
 
         await tx.packingItemSignUp.deleteMany({
           where: { packingItemId: it.id },
@@ -241,6 +294,7 @@ export async function persistPackingListItems(
               id: su.id,
               packingItemId: it.id,
               quantity: su.quantity,
+              packed: packedBySignUpId.get(su.id) ?? su.packed,
               displayName: su.displayName.trim(),
               email:
                 su.email?.trim() != null && su.email.trim() !== ""
