@@ -1,17 +1,21 @@
 "use client";
 
 import { createEvent } from "@/app/actions/events";
+import { EventDateTimeFields } from "@/components/EventDateTimeFields";
+import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
 export function CreateEventForm() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <form
-        className="flex flex-col gap-4 max-w-xl"
+        className="flex w-full max-w-4xl flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
           const form = e.currentTarget;
@@ -19,8 +23,6 @@ export function CreateEventForm() {
           const title = String(fd.get("title") ?? "");
           const description = String(fd.get("description") ?? "");
           const location = String(fd.get("location") ?? "");
-          const startAt = String(fd.get("startAt") ?? "");
-          const endAt = String(fd.get("endAt") ?? "");
 
           setError(null);
 
@@ -90,29 +92,24 @@ export function CreateEventForm() {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="event-start" className="text-sm font-medium">
-              Start
-            </label>
-            <input
-              id="event-start"
-              name="startAt"
-              type="datetime-local"
-              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="event-end" className="text-sm font-medium">
-              End
-            </label>
-            <input
-              id="event-end"
-              name="endAt"
-              type="datetime-local"
-              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
+          <EventDateTimeFields
+            id="event-start"
+            label="Start"
+            value={startAt}
+            onChange={(next) => {
+              setStartAt(next);
+              setEndAt((prev) =>
+                shouldSyncEndToStart(next, prev) ? next : prev,
+              );
+            }}
+          />
+          <EventDateTimeFields
+            id="event-end"
+            label="End"
+            value={endAt}
+            onChange={setEndAt}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
