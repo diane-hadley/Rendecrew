@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { DeleteEventPanel } from "@/components/DeleteEventPanel";
 import { EditEventForm } from "@/components/EditEventForm";
+import { EventChat } from "@/components/EventChat";
 import { MyEventPackingCommitments } from "@/components/MyEventPackingCommitments";
 import { PackingListEventPanel } from "@/components/PackingListEventPanel";
 import { canManageEvent, getEventForUser } from "@/lib/events";
@@ -94,6 +95,9 @@ export default async function EventDetailPage({
               commitments={myPackingCommitments}
               packingListPath={packingListPath}
             />
+            <div className="max-w-2xl">
+              <EventChat eventId={event.id} />
+            </div>
             <DeleteEventPanel eventId={event.id} eventTitle={event.title} />
           </div>
         ) : (
@@ -132,6 +136,12 @@ export default async function EventDetailPage({
             >
               Back to dashboard
             </Link>
+          </div>
+        )}
+
+        {!editable && (
+          <div className="max-w-2xl">
+            <EventChat eventId={event.id} />
           </div>
         )}
       </div>
