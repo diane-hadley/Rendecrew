@@ -16,7 +16,7 @@ export function EventChat({ eventId }: { eventId: string }) {
   }, [messages]);
 
   return (
-    <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex flex-col max-h-[min(32rem,70vh)]">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex flex-col max-h-[min(32rem,70vh)]">
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
         <h2 className="text-lg font-semibold">Event assistant</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
@@ -27,7 +27,7 @@ export function EventChat({ eventId }: { eventId: string }) {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Example: &quot;When does this start?&quot; or &quot;What still needs volunteers?&quot;
+            Example: &quot;Which items aren't yet signed up for?&quot; or &quot;How soon does this event start?&quot;
           </p>
         )}
         {messages.map((m, i) => (
