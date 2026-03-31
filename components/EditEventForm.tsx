@@ -1,7 +1,6 @@
 "use client";
 
 import { updateEvent } from "@/app/actions/events";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -22,17 +21,19 @@ export type EditEventFormProps = {
     startAt: Date | string | null;
     endAt: Date | string | null;
   };
+  onCancel?: () => void;
+  onSaved?: () => void;
 };
 
-export function EditEventForm({ eventId, initial }: EditEventFormProps) {
+export function EditEventForm({ eventId, initial, onCancel, onSaved }: EditEventFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
       <form
-        className="flex flex-col gap-4 max-w-xl"
+        className="flex w-full flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
           const form = e.currentTarget;
@@ -59,6 +60,7 @@ export function EditEventForm({ eventId, initial }: EditEventFormProps) {
               setError(result.error);
             } else {
               router.refresh();
+              onSaved?.();
             }
           });
         }}
@@ -153,12 +155,16 @@ export function EditEventForm({ eventId, initial }: EditEventFormProps) {
           >
             {isPending ? "Saving…" : "Save changes"}
           </button>
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            Back to dashboard
-          </Link>
+          {onCancel && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={onCancel}
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </form>
     </div>

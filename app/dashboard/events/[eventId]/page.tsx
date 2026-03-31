@@ -2,11 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { DeleteEventPanel } from "@/components/DeleteEventPanel";
-import { EditEventForm } from "@/components/EditEventForm";
-import { EventChat } from "@/components/EventChat";
-import { MyEventPackingCommitments } from "@/components/MyEventPackingCommitments";
-import { PackingListEventPanel } from "@/components/PackingListEventPanel";
+import { EventDetailClient } from "@/components/EventDetailClient";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListForEvent,
@@ -51,6 +47,8 @@ export default async function EventDetailPage({
     ? `/packing/${packingList.liveblocksRoomId}`
     : null;
 
+  const dateRangeLabel = formatRange(event.startAt, event.endAt);
+
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
@@ -67,83 +65,30 @@ export default async function EventDetailPage({
           <UserButton afterSignOutUrl="/" />
         </div>
 
-        {editable ? (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              You can edit this event as{" "}
-              <span className="font-medium text-gray-800 dark:text-gray-200 capitalize">
-                {role}
-              </span>
-              .
-            </p>
-            <EditEventForm
-              eventId={event.id}
-              initial={{
-                title: event.title,
-                description: event.description,
-                location: event.location,
-                startAt: event.startAt,
-                endAt: event.endAt,
-              }}
-            />
-            <PackingListEventPanel
-              eventId={event.id}
-              liveblocksRoomId={packingList?.liveblocksRoomId ?? null}
-            />
-            <MyEventPackingCommitments
-              eventId={event.id}
-              commitments={myPackingCommitments}
-              packingListPath={packingListPath}
-            />
-            <div className="max-w-2xl">
-              <EventChat eventId={event.id} />
-            </div>
-            <DeleteEventPanel eventId={event.id} eventTitle={event.title} />
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-w-xl">
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
-              <h2 className="text-2xl font-semibold">{event.title}</h2>
-              <span className="shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:text-gray-200 capitalize">
-                {role}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              {formatRange(event.startAt, event.endAt)}
-            </p>
-            {event.location && (
-              <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                {event.location}
-              </p>
-            )}
-            {event.description && (
-              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {event.description}
-              </p>
-            )}
-            {packingList && (
-              <div className="mt-6">
-                <MyEventPackingCommitments
-                  eventId={event.id}
-                  commitments={myPackingCommitments}
-                  packingListPath={packingListPath}
-                />
-              </div>
-            )}
-            <Link
-              href="/dashboard"
-              className="inline-block mt-6 text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              Back to dashboard
-            </Link>
-          </div>
-        )}
-
-        {!editable && (
-          <div className="max-w-2xl">
-            <EventChat eventId={event.id} />
-          </div>
-        )}
+        <EventDetailClient
+          eventId={event.id}
+          editable={editable}
+          role={role}
+          display={{
+            title: event.title,
+            description: event.description,
+            location: event.location,
+            dateRangeLabel,
+          }}
+          editInitial={{
+            title: event.title,
+            description: event.description,
+            location: event.location,
+            startAt: event.startAt,
+            endAt: event.endAt,
+          }}
+          packing={{
+            canManagePacking: editable,
+            liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
+            commitments: myPackingCommitments,
+            packingListPath,
+          }}
+        />
       </div>
     </div>
   );

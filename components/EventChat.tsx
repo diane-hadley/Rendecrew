@@ -16,7 +16,7 @@ export function EventChat({ eventId }: { eventId: string }) {
   }, [messages]);
 
   return (
-    <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex flex-col max-h-[min(32rem,70vh)]">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex flex-col max-h-[min(32rem,70vh)]">
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
         <h2 className="text-lg font-semibold">Event assistant</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">

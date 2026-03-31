@@ -16,18 +16,32 @@ export function MyEventPackingCommitments({
   eventId,
   commitments,
   packingListPath,
+  embedded = false,
+  showTopBorder = false,
+  showOpenListLink = true,
 }: {
   eventId: string;
   commitments: PackingCommitmentForUser[];
   packingListPath: string | null;
+  embedded?: boolean;
+  /** When embedded with the collaborative section above, add a divider. */
+  showTopBorder?: boolean;
+  /** Set false when the collaborative panel already provides an open link (e.g. for organizers). */
+  showOpenListLink?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   if (!packingListPath) return null;
 
+  const shell = embedded
+    ? showTopBorder
+      ? "border-t border-gray-200 dark:border-gray-700 pt-4 mt-1 space-y-3"
+      : "space-y-3"
+    : "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-4";
+
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-4">
+    <div className={shell}>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
         You&apos;re bringing
       </h3>
@@ -74,14 +88,16 @@ export function MyEventPackingCommitments({
           ))}
         </ul>
       )}
-      <Link
-        href={packingListPath}
-        className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Open collaborative packing list
-      </Link>
+      {showOpenListLink && (
+        <Link
+          href={packingListPath}
+          className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open collaborative packing list
+        </Link>
+      )}
     </div>
   );
 }

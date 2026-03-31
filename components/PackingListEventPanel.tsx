@@ -7,9 +7,12 @@ import { useEffect, useState, useTransition } from "react";
 export function PackingListEventPanel({
   eventId,
   liveblocksRoomId,
+  embedded = false,
 }: {
   eventId: string;
   liveblocksRoomId: string | null;
+  /** Omit outer card when nested inside the event packing section. */
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +29,14 @@ export function PackingListEventPanel({
   const fullUrl =
     sharePath && origin ? `${origin}${sharePath}` : null;
 
+  const shell =
+    embedded
+      ? "space-y-3"
+      : "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4";
+
   if (!liveblocksRoomId) {
     return (
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+      <div className={shell}>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
           Collaborative packing list
         </h3>
@@ -61,7 +69,7 @@ export function PackingListEventPanel({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+    <div className={shell}>
       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
         Collaborative packing list
       </h3>
