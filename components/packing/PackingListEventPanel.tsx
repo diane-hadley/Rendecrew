@@ -26,13 +26,11 @@ export function PackingListEventPanel({
   }, []);
 
   const sharePath = liveblocksRoomId ? `/packing/${liveblocksRoomId}` : null;
-  const fullUrl =
-    sharePath && origin ? `${origin}${sharePath}` : null;
+  const fullUrl = sharePath && origin ? `${origin}${sharePath}` : null;
 
-  const shell =
-    embedded
-      ? "space-y-3"
-      : "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4";
+  const shell = embedded
+    ? "space-y-3"
+    : "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4";
 
   if (!liveblocksRoomId) {
     return (
@@ -45,7 +43,10 @@ export function PackingListEventPanel({
           to use the link.
         </p>
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400 mb-2" role="alert">
+          <p
+            className="text-sm text-red-600 dark:text-red-400 mb-2"
+            role="alert"
+          >
             {error}
           </p>
         )}

@@ -1,4 +1,7 @@
-export function splitDatetimeLocal(value: string): { date: string; time: string } {
+export function splitDatetimeLocal(value: string): {
+  date: string;
+  time: string;
+} {
   if (!value.trim()) return { date: "", time: "" };
   const [datePart, rest] = value.split("T");
   if (!rest) return { date: datePart ?? "", time: "" };
@@ -69,7 +72,10 @@ export function hour24ToHour12AndPeriod(hour24: string): {
 }
 
 /** `hour12` is 1–12 as string (e.g. "1" … "12"). Returns two-digit 00–23. */
-export function hour12PeriodToHour24(hour12: string, period: "AM" | "PM"): string {
+export function hour12PeriodToHour24(
+  hour12: string,
+  period: "AM" | "PM",
+): string {
   const h = parseInt(hour12, 10);
   if (Number.isNaN(h) || h < 1 || h > 12) return "00";
   if (period === "AM") {
@@ -90,7 +96,10 @@ export function shouldSyncEndToStart(start: string, end: string): boolean {
   return endMs < startMs;
 }
 
-export function normalizeStartEndPair(start: string, end: string): { start: string; end: string } {
+export function normalizeStartEndPair(
+  start: string,
+  end: string,
+): { start: string; end: string } {
   const s = snapDatetimeLocalToFiveMinutes(start);
   const e = snapDatetimeLocalToFiveMinutes(end);
   if (!s) return { start: s, end: e };

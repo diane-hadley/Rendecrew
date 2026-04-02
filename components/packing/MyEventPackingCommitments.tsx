@@ -46,8 +46,8 @@ export function MyEventPackingCommitments({
         You&apos;re bringing
       </h3>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        Mark items as packed when you&apos;re done — only you see these checkboxes
-        here.
+        Mark items as packed when you&apos;re done — only you see these
+        checkboxes here.
       </p>
       {commitments.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">

@@ -43,7 +43,10 @@ export async function getPackingListByRoomId(roomId: string) {
     where: { liveblocksRoomId: roomId },
     include: {
       event: { select: { id: true, title: true } },
-      items: { orderBy: { sortOrder: "asc" }, include: { signUps: signUpsInclude } },
+      items: {
+        orderBy: { sortOrder: "asc" },
+        include: { signUps: signUpsInclude },
+      },
     },
   });
 }
@@ -52,7 +55,10 @@ export async function getPackingListForEvent(eventId: string) {
   return prisma.packingList.findUnique({
     where: { eventId },
     include: {
-      items: { orderBy: { sortOrder: "asc" }, include: { signUps: signUpsInclude } },
+      items: {
+        orderBy: { sortOrder: "asc" },
+        include: { signUps: signUpsInclude },
+      },
     },
   });
 }
@@ -177,7 +183,10 @@ export async function persistPackingListItems(
     if (sectionRaw.length > MAX_SECTION_LEN) {
       return { ok: false, error: "Section name too long" };
     }
-    if (it.quantity != null && (!Number.isInteger(it.quantity) || it.quantity < 0)) {
+    if (
+      it.quantity != null &&
+      (!Number.isInteger(it.quantity) || it.quantity < 0)
+    ) {
       return { ok: false, error: "Invalid quantity" };
     }
     const qMaxRaw = it.quantityMax;
@@ -189,11 +198,17 @@ export async function persistPackingListItems(
         return { ok: false, error: "Invalid quantity max" };
       }
       if (qMaxRaw < it.quantity) {
-        return { ok: false, error: "Quantity max must be at least the minimum" };
+        return {
+          ok: false,
+          error: "Quantity max must be at least the minimum",
+        };
       }
     }
     const cap = itemQuantityCap(it.quantity, qMaxRaw ?? null);
-    if (!Array.isArray(it.signUps) || it.signUps.length > MAX_SIGN_UPS_PER_ITEM) {
+    if (
+      !Array.isArray(it.signUps) ||
+      it.signUps.length > MAX_SIGN_UPS_PER_ITEM
+    ) {
       return { ok: false, error: "Invalid sign-ups" };
     }
 
@@ -215,12 +230,18 @@ export async function persistPackingListItems(
         }
       }
       if (it.quantity != null && su.quantity == null) {
-        return { ok: false, error: "Sign-up needs a quantity when item has a total" };
+        return {
+          ok: false,
+          error: "Sign-up needs a quantity when item has a total",
+        };
       }
       if (su.userId?.trim()) {
         const uid = su.userId.trim();
         if (seenUser.has(uid)) {
-          return { ok: false, error: "Duplicate sign-up for same user on an item" };
+          return {
+            ok: false,
+            error: "Duplicate sign-up for same user on an item",
+          };
         }
         seenUser.add(uid);
       }
@@ -243,11 +264,16 @@ export async function persistPackingListItems(
 
   const userIds = new Set(
     items.flatMap((i) =>
-      i.signUps.map((s) => s.userId).filter((x): x is string => Boolean(x?.trim())),
+      i.signUps
+        .map((s) => s.userId)
+        .filter((x): x is string => Boolean(x?.trim())),
     ),
   );
   for (const uid of userIds) {
-    const u = await prisma.user.findUnique({ where: { id: uid }, select: { id: true } });
+    const u = await prisma.user.findUnique({
+      where: { id: uid },
+      select: { id: true },
+    });
     if (!u) {
       return { ok: false, error: "Invalid user for sign-up" };
     }
@@ -271,7 +297,9 @@ export async function persistPackingListItems(
         select: { id: true },
       });
       const incomingSet = new Set(incomingIds);
-      const toDelete = existing.filter((e) => !incomingSet.has(e.id)).map((e) => e.id);
+      const toDelete = existing
+        .filter((e) => !incomingSet.has(e.id))
+        .map((e) => e.id);
       if (toDelete.length) {
         await tx.packingItem.deleteMany({
           where: { id: { in: toDelete }, packingListId: list.id },

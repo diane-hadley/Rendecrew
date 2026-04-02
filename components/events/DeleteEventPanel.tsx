@@ -9,7 +9,10 @@ type DeleteEventPanelProps = {
   eventTitle: string;
 };
 
-export function DeleteEventPanel({ eventId, eventTitle }: DeleteEventPanelProps) {
+export function DeleteEventPanel({
+  eventId,
+  eventTitle,
+}: DeleteEventPanelProps) {
   const router = useRouter();
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);

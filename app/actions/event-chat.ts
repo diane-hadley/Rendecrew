@@ -105,7 +105,9 @@ ${contextBlock}`;
     return { ok: true, reply: block.text.trim() };
   } catch (e) {
     const message =
-      e instanceof Error ? e.message : "Failed to get a response from the assistant";
+      e instanceof Error
+        ? e.message
+        : "Failed to get a response from the assistant";
     return { ok: false, error: message };
   }
 }

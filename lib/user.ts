@@ -1,6 +1,6 @@
-import { prisma } from './prisma'
-import { currentUser } from '@clerk/nextjs/server'
-import { backfillPackingItemSignUpsForUser } from '@/lib/packing-list'
+import { prisma } from "./prisma";
+import { currentUser } from "@clerk/nextjs/server";
+import { backfillPackingItemSignUpsForUser } from "@/lib/packing-list";
 
 /**
  * Get or create a user in the database based on Clerk authentication
@@ -8,22 +8,22 @@ import { backfillPackingItemSignUpsForUser } from '@/lib/packing-list'
  * to ensure the user exists in the database
  */
 export async function getOrCreateUser() {
-  const clerkUser = await currentUser()
-  
+  const clerkUser = await currentUser();
+
   if (!clerkUser) {
-    throw new Error('User not authenticated')
+    throw new Error("User not authenticated");
   }
 
   // Get user's email (Clerk provides primaryEmailAddress)
-  const email = clerkUser.emailAddresses[0]?.emailAddress
+  const email = clerkUser.emailAddresses[0]?.emailAddress;
   if (!email) {
-    throw new Error('User email not found')
+    throw new Error("User email not found");
   }
 
   const name =
     clerkUser.firstName && clerkUser.lastName
       ? `${clerkUser.firstName} ${clerkUser.lastName}`
-      : clerkUser.firstName || clerkUser.lastName || email
+      : clerkUser.firstName || clerkUser.lastName || email;
 
   // Upsert: create with Clerk-derived name; updates only sync email so `name` stays the DB display value.
   const user = await prisma.user.upsert({
@@ -38,11 +38,11 @@ export async function getOrCreateUser() {
       email,
       name,
     },
-  })
+  });
 
-  await backfillPackingItemSignUpsForUser(user.id, email)
+  await backfillPackingItemSignUpsForUser(user.id, email);
 
-  return user
+  return user;
 }
 
 /**
@@ -53,18 +53,18 @@ export async function getUserByClerkId(clerkId: string) {
     where: {
       clerkId,
     },
-  })
+  });
 }
 
 /**
  * Get current authenticated user from database
  */
 export async function getCurrentUser() {
-  const clerkUser = await currentUser()
-  
+  const clerkUser = await currentUser();
+
   if (!clerkUser) {
-    return null
+    return null;
   }
 
-  return getUserByClerkId(clerkUser.id)
+  return getUserByClerkId(clerkUser.id);
 }

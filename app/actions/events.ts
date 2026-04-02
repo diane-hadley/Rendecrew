@@ -95,8 +95,7 @@ async function createEventRecord(
     });
     return { ok: true, eventId };
   } catch (e) {
-    const message =
-      e instanceof Error ? e.message : "Failed to create event";
+    const message = e instanceof Error ? e.message : "Failed to create event";
     return { ok: false, error: message };
   }
 }
@@ -172,7 +171,10 @@ export async function updateEvent(
   const user = await getOrCreateUser();
   const row = await getEventForUser(input.eventId, user.id);
   if (!row || !canManageEvent(row.role)) {
-    return { ok: false, error: "You do not have permission to edit this event" };
+    return {
+      ok: false,
+      error: "You do not have permission to edit this event",
+    };
   }
 
   try {
@@ -187,8 +189,7 @@ export async function updateEvent(
       },
     });
   } catch (e) {
-    const message =
-      e instanceof Error ? e.message : "Failed to update event";
+    const message = e instanceof Error ? e.message : "Failed to update event";
     return { ok: false, error: message };
   }
 
@@ -210,8 +211,7 @@ export async function deleteEvent(eventId: string): Promise<DeleteEventResult> {
   try {
     await prisma.event.delete({ where: { id: eventId } });
   } catch (e) {
-    const message =
-      e instanceof Error ? e.message : "Failed to delete event";
+    const message = e instanceof Error ? e.message : "Failed to delete event";
     return { ok: false, error: message };
   }
 

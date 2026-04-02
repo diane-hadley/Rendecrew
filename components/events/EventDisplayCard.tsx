@@ -27,12 +27,18 @@ export function EventDisplayCard({
           {headerRight}
         </div>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{dateRangeLabel}</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+        {dateRangeLabel}
+      </p>
       {location && (
-        <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">{location}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
+          {location}
+        </p>
       )}
       {description && (
-        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{description}</p>
+        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+          {description}
+        </p>
       )}
     </div>
   );

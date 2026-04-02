@@ -57,7 +57,10 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Invalid Liveblocks secret key format";
-      console.error("[liveblocks-auth] Liveblocks client init failed:", message);
+      console.error(
+        "[liveblocks-auth] Liveblocks client init failed:",
+        message,
+      );
       return NextResponse.json(
         {
           error: "forbidden",
