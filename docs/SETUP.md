@@ -4,15 +4,15 @@
 
 Before you begin, make sure you have:
 
-- **Node.js 18.17.0 or higher** (check with `node --version`)
+- **Node.js** in a version Prisma supports: **20.19+**, **22.12+**, or **24.0+** (check with `node --version`). Other major versions (for example 18, 21, or 23) are not supported for this project.
 - **npm 9.0.0 or higher** (check with `npm --version`)
 
 ### Installing/Upgrading Node.js
 
-If you don't have Node.js 18.17.0+, download and install it:
+If you need to install or switch Node, use a release that satisfies the versions above:
 
 1. Go to https://nodejs.org/
-2. Download the **LTS version** (v18.x.x or v20.x.x)
+2. Download an **Active LTS** or **Current** release that meets **20.19+**, **22.12+**, or **24.0+** (for example the latest **20.x**, **22.x**, or **24.x**)
 3. Choose the macOS installer (.pkg file)
 4. Run the downloaded installer and follow the installation wizard
 5. This will install both Node.js and npm
@@ -20,7 +20,7 @@ If you don't have Node.js 18.17.0+, download and install it:
 After installation, verify your version:
 
 ```bash
-node --version  # Should show v18.17.0 or higher
+node --version  # Should show v20.19+, v22.12+, or v24.0+ (see prerequisites)
 npm --version    # Should show 9.0.0 or higher
 ```
 
