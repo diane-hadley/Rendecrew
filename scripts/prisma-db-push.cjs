@@ -17,7 +17,7 @@ if (!url) {
 if (url.includes(":6543")) {
   url = url.replace(":6543", ":5432");
   process.stderr.write(
-    "Note: using port 5432 for db push (6543 transaction pooler is unreliable for schema changes).\n"
+    "Note: using port 5432 for db push (6543 transaction pooler is unreliable for schema changes).\n",
   );
 }
 

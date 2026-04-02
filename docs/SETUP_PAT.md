@@ -17,14 +17,17 @@
 ## Step 2: Use the PAT with Git
 
 1. Configure Git to use macOS keychain:
+
    ```bash
    git config --global credential.helper osxkeychain
    ```
 
 2. Update your remote URL to include your username (this helps ensure Git prompts correctly):
+
    ```bash
    git remote set-url origin https://YOUR_USERNAME@github.com/YOUR_USERNAME/YOUR_REPO.git
    ```
+
    Replace `YOUR_USERNAME` and `YOUR_REPO` with your actual values.
 
 3. When you push, Git will prompt for credentials:
@@ -36,6 +39,7 @@
 ## Step 3: Test Your Setup
 
 Try pushing again:
+
 ```bash
 git push origin main
 ```
@@ -45,21 +49,25 @@ git push origin main
 - **Token not working?** Make sure you selected the `repo` scope when creating the token
 
 - **Credential helper not prompting for credentials?** Update your remote URL to explicitly include your username:
+
   ```bash
   git remote set-url origin https://YOUR_USERNAME@github.com/YOUR_USERNAME/YOUR_REPO.git
   ```
+
   Replace `YOUR_USERNAME` and `YOUR_REPO` with your actual values. This ensures Git knows which username to use and will prompt for the PAT.
 
 - **Still asking for password or using old credentials?** Clear cached credentials from macOS Keychain:
+
   ```bash
   # Method 1: Clear via security command
   security delete-internet-password -s github.com
-  
+
   # Method 2: Clear via git credential helper
   git credential-osxkeychain erase
   host=github.com
   protocol=https
   ```
+
   (For Method 2, press Enter twice after the last line)
 
 - **Git not prompting at all?** Force terminal prompts:

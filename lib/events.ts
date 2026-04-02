@@ -19,13 +19,12 @@ export type DashboardEventRow = {
 /**
  * Events the user is part of as a member, or created (owner), deduplicated.
  */
-export async function getEventsForUser(userId: string): Promise<DashboardEventRow[]> {
+export async function getEventsForUser(
+  userId: string,
+): Promise<DashboardEventRow[]> {
   const events = await prisma.event.findMany({
     where: {
-      OR: [
-        { eventMembers: { some: { userId } } },
-        { createdById: userId },
-      ],
+      OR: [{ eventMembers: { some: { userId } } }, { createdById: userId }],
     },
     include: {
       eventMembers: {
@@ -40,7 +39,8 @@ export async function getEventsForUser(userId: string): Promise<DashboardEventRo
     const membership = event.eventMembers[0];
     const role =
       membership?.role ?? (event.createdById === userId ? "owner" : "member");
-    const { eventMembers: _, ...eventRow } = event;
+    const { eventMembers, ...eventRow } = event;
+    void eventMembers;
     return { event: eventRow, role };
   });
 }
@@ -70,7 +70,8 @@ export async function getEventForUser(
   const membership = event.eventMembers[0];
   const role =
     membership?.role ?? (event.createdById === userId ? "owner" : "member");
-  const { eventMembers: _, ...eventRow } = event;
+  const { eventMembers, ...eventRow } = event;
+  void eventMembers;
   return { event: eventRow, role };
 }
 

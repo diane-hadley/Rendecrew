@@ -94,14 +94,18 @@ export async function getEventAISystemPromptSection(
   return formatEventContextForAISystemPrompt(ctx);
 }
 
-export function formatEventContextForAISystemPrompt(ctx: EventAIContext): string {
+export function formatEventContextForAISystemPrompt(
+  ctx: EventAIContext,
+): string {
   const lines: string[] = [
     "Current event context:",
     `- Title: ${ctx.event.title}`,
     ctx.event.description
       ? `- Description: ${ctx.event.description}`
       : "- Description: (none)",
-    ctx.event.location ? `- Location: ${ctx.event.location}` : "- Location: (none)",
+    ctx.event.location
+      ? `- Location: ${ctx.event.location}`
+      : "- Location: (none)",
     ctx.event.startAt && ctx.event.endAt
       ? `- When: ${ctx.event.startAt} to ${ctx.event.endAt}`
       : "- When: (not set)",

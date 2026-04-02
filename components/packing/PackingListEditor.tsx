@@ -159,7 +159,9 @@ function findMySignUp(
   authUser: AuthUser | null,
   guestDisplayName: string | null,
 ): StorageSignUp | null {
-  return signUps.find((s) => isMineSignUp(s, authUser, guestDisplayName)) ?? null;
+  return (
+    signUps.find((s) => isMineSignUp(s, authUser, guestDisplayName)) ?? null
+  );
 }
 
 export function PackingListEditor({
@@ -219,9 +221,9 @@ export function PackingListEditor({
       const qty = row.get("quantity") as number | null;
       if (ln || lu) {
         list.push(
-        new LiveObject({
-          id: crypto.randomUUID(),
-          quantity:
+          new LiveObject({
+            id: crypto.randomUUID(),
+            quantity:
               typeof lq === "number"
                 ? lq
                 : typeof qty === "number" && qty > 0
@@ -278,10 +280,7 @@ export function PackingListEditor({
   }, [rawItems, editingNeededIndex]);
 
   const addItem = useMutation(
-    (
-      { storage },
-      opts?: { startIndex: number; runSection: string | null },
-    ) => {
+    ({ storage }, opts?: { startIndex: number; runSection: string | null }) => {
       const items = storage.get("items");
       const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
 
@@ -331,13 +330,10 @@ export function PackingListEditor({
     [],
   );
 
-  const removeItem = useMutation(
-    ({ storage }, index: number) => {
-      const items = storage.get("items");
-      items.delete(index);
-    },
-    [],
-  );
+  const removeItem = useMutation(({ storage }, index: number) => {
+    const items = storage.get("items");
+    items.delete(index);
+  }, []);
 
   const updateName = useMutation(
     ({ storage }, { index, name }: { index: number; name: string }) => {
@@ -359,7 +355,10 @@ export function PackingListEditor({
   );
 
   const updateQuantity = useMutation(
-    ({ storage }, { index, quantity }: { index: number; quantity: number | null }) => {
+    (
+      { storage },
+      { index, quantity }: { index: number; quantity: number | null },
+    ) => {
       const items = storage.get("items");
       const row = items.get(index);
       if (!row) return;
@@ -412,7 +411,10 @@ export function PackingListEditor({
 
   /** Optional items are stored as min 0 + max cap (no DB flag). */
   const setItemOptionalMode = useMutation(
-    ({ storage }, { index, optional }: { index: number; optional: boolean }) => {
+    (
+      { storage },
+      { index, optional }: { index: number; optional: boolean },
+    ) => {
       const items = storage.get("items");
       const row = items.get(index);
       if (!row) return;
@@ -438,76 +440,70 @@ export function PackingListEditor({
     [],
   );
 
-  const addMySignUp = useMutation(
-    ({ storage }, index: number) => {
-      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
-      if (!au && !gn?.trim()) return;
-      const items = storage.get("items");
-      const row = items.get(index);
-      if (!row) return;
-      let signUps = row.get("signUps");
-      if (!signUps) {
-        const list = new LiveList<LiveObject<PackingSignUpStorage>>([]);
-        row.set("signUps", list as never);
-        signUps = list as never;
-      }
-      const g = gn?.trim() ?? null;
-      for (let i = 0; i < signUps.length; i++) {
-        const s = signUps.get(i);
-        if (!s) continue;
-        if (au && s.get("userId") === au.dbUserId) return;
-        if (!au && g && !s.get("userId") && s.get("displayName") === g) return;
-      }
-      const itemQty = row.get("quantity") as number | null;
-      const itemMax = row.get("quantityMax") as number | null | undefined;
-      const cap = itemQuantityCap(itemQty, itemMax ?? null);
-      let sum = 0;
-      for (let i = 0; i < signUps.length; i++) {
-        const s = signUps.get(i);
-        if (!s) continue;
-        sum += (s.get("quantity") as number | null) ?? 0;
-      }
-      const rem = cap != null ? Math.max(0, cap - sum) : null;
-      if (cap != null && rem != null && rem < 1) return;
+  const addMySignUp = useMutation(({ storage }, index: number) => {
+    const { authUser: au, guestDisplayName: gn } = ctxRef.current;
+    if (!au && !gn?.trim()) return;
+    const items = storage.get("items");
+    const row = items.get(index);
+    if (!row) return;
+    let signUps = row.get("signUps");
+    if (!signUps) {
+      const list = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+      row.set("signUps", list as never);
+      signUps = list as never;
+    }
+    const g = gn?.trim() ?? null;
+    for (let i = 0; i < signUps.length; i++) {
+      const s = signUps.get(i);
+      if (!s) continue;
+      if (au && s.get("userId") === au.dbUserId) return;
+      if (!au && g && !s.get("userId") && s.get("displayName") === g) return;
+    }
+    const itemQty = row.get("quantity") as number | null;
+    const itemMax = row.get("quantityMax") as number | null | undefined;
+    const cap = itemQuantityCap(itemQty, itemMax ?? null);
+    let sum = 0;
+    for (let i = 0; i < signUps.length; i++) {
+      const s = signUps.get(i);
+      if (!s) continue;
+      sum += (s.get("quantity") as number | null) ?? 0;
+    }
+    const rem = cap != null ? Math.max(0, cap - sum) : null;
+    if (cap != null && rem != null && rem < 1) return;
 
-      signUps.push(
-        new LiveObject({
-          id: crypto.randomUUID(),
-          quantity: cap != null ? rem : null,
-          displayName: au ? au.name : g!,
-          email: au ? au.email.trim().toLowerCase() : null,
-          userId: au ? au.dbUserId : null,
-          packed: false,
-        }),
-      );
-    },
-    [],
-  );
+    signUps.push(
+      new LiveObject({
+        id: crypto.randomUUID(),
+        quantity: cap != null ? rem : null,
+        displayName: au ? au.name : g!,
+        email: au ? au.email.trim().toLowerCase() : null,
+        userId: au ? au.dbUserId : null,
+        packed: false,
+      }),
+    );
+  }, []);
 
-  const removeMySignUp = useMutation(
-    ({ storage }, index: number) => {
-      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
-      const items = storage.get("items");
-      const row = items.get(index);
-      if (!row) return;
-      const signUps = row.get("signUps");
-      if (!signUps) return;
-      const g = gn?.trim() ?? null;
-      for (let i = signUps.length - 1; i >= 0; i--) {
-        const s = signUps.get(i);
-        if (!s) continue;
-        if (au && s.get("userId") === au.dbUserId) {
-          signUps.delete(i);
-          return;
-        }
-        if (!au && g && !s.get("userId") && s.get("displayName") === g) {
-          signUps.delete(i);
-          return;
-        }
+  const removeMySignUp = useMutation(({ storage }, index: number) => {
+    const { authUser: au, guestDisplayName: gn } = ctxRef.current;
+    const items = storage.get("items");
+    const row = items.get(index);
+    if (!row) return;
+    const signUps = row.get("signUps");
+    if (!signUps) return;
+    const g = gn?.trim() ?? null;
+    for (let i = signUps.length - 1; i >= 0; i--) {
+      const s = signUps.get(i);
+      if (!s) continue;
+      if (au && s.get("userId") === au.dbUserId) {
+        signUps.delete(i);
+        return;
       }
-    },
-    [],
-  );
+      if (!au && g && !s.get("userId") && s.get("displayName") === g) {
+        signUps.delete(i);
+        return;
+      }
+    }
+  }, []);
 
   const updateSignUpQuantity = useMutation(
     (
@@ -544,13 +540,10 @@ export function PackingListEditor({
         if (s.get("id") === signUpId) continue;
         otherSum += (s.get("quantity") as number | null) ?? 0;
       }
-      const maxForMe =
-        cap != null ? Math.max(1, cap - otherSum) : 999_999;
+      const maxForMe = cap != null ? Math.max(1, cap - otherSum) : 999_999;
       if (cap != null) {
         const n =
-          nextQty == null
-            ? maxForMe
-            : Math.max(1, Math.min(nextQty, maxForMe));
+          nextQty == null ? maxForMe : Math.max(1, Math.min(nextQty, maxForMe));
         target.set("quantity", n);
       } else {
         if (nextQty == null) target.set("quantity", null);
@@ -668,10 +661,7 @@ export function PackingListEditor({
               const cap = itemQuantityCap(qMin, qMax);
               const isOptionalItem = isOptionalPackingMin(qMin);
               const isRange =
-                qMin != null &&
-                qMin > 0 &&
-                qMax != null &&
-                qMax > qMin;
+                qMin != null && qMin > 0 && qMax != null && qMax > qMin;
               const sum = allocatedSum(signUps);
               const remCap = remainingUntilCap(cap, signUps);
               const remMin = remainingUntilMin(qMin, signUps);
@@ -779,8 +769,7 @@ export function PackingListEditor({
                               placeholder="Up to (if brought)"
                               autoFocus
                               value={
-                                item.quantityMax != null &&
-                                item.quantityMax > 0
+                                item.quantityMax != null && item.quantityMax > 0
                                   ? item.quantityMax
                                   : ""
                               }
@@ -880,7 +869,9 @@ export function PackingListEditor({
                         </button>
                       )}
                     </td>
-                    <td className={`${cellBorder} px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400`}>
+                    <td
+                      className={`${cellBorder} px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400`}
+                    >
                       {qMin != null ? (
                         <div>
                           <div>
@@ -949,7 +940,9 @@ export function PackingListEditor({
                           )}
                         </div>
                       ) : (
-                        <span>{signUps.length ? `${signUps.length} signed up` : "—"}</span>
+                        <span>
+                          {signUps.length ? `${signUps.length} signed up` : "—"}
+                        </span>
                       )}
                     </td>
                     <td className={`${cellBorder} px-2 py-1.5`}>
@@ -967,7 +960,9 @@ export function PackingListEditor({
                         {mySu ? "Cancel sign-up" : "Sign up to bring"}
                       </button>
                     </td>
-                    <td className={`${cellBorder} px-2 py-2 text-gray-600 dark:text-gray-400`}>
+                    <td
+                      className={`${cellBorder} px-2 py-2 text-gray-600 dark:text-gray-400`}
+                    >
                       {signUps.length === 0 ? (
                         <span className="text-xs text-gray-400">—</span>
                       ) : (
@@ -1080,9 +1075,7 @@ export function PackingListEditor({
                                 itemIndex: index,
                                 signUpId: mySu.id,
                                 email:
-                                  trimmed === ""
-                                    ? null
-                                    : trimmed.toLowerCase(),
+                                  trimmed === "" ? null : trimmed.toLowerCase(),
                               });
                             }}
                           >
@@ -1147,15 +1140,16 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
             quantity: i.quantity,
             quantityMax: i.quantityMax ?? null,
             signUps: new LiveList(
-              (i.signUps ?? []).map((s) =>
-                new LiveObject({
-                  id: s.id,
-                  quantity: s.quantity,
-                  displayName: s.displayName,
-                  email: s.email,
-                  userId: s.userId,
-                  packed: s.packed,
-                }),
+              (i.signUps ?? []).map(
+                (s) =>
+                  new LiveObject({
+                    id: s.id,
+                    quantity: s.quantity,
+                    displayName: s.displayName,
+                    email: s.email,
+                    userId: s.userId,
+                    packed: s.packed,
+                  }),
               ),
             ),
           }),

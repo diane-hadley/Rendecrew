@@ -18,6 +18,7 @@ If you don't have Node.js 18.17.0+, download and install it:
 5. This will install both Node.js and npm
 
 After installation, verify your version:
+
 ```bash
 node --version  # Should show v18.17.0 or higher
 npm --version    # Should show 9.0.0 or higher
@@ -71,6 +72,7 @@ Rendecrew uses the **Anthropic TypeScript SDK** (`@anthropic-ai/sdk`) to call th
 ### Step 5: Configure Environment Variables
 
 1. Create your environment file:
+
    ```bash
    cp .env.example .env.local
    ```
@@ -92,7 +94,7 @@ Run the Prisma migration to create your database tables:
 npm run prisma:push
 ```
 
-This syncs `prisma/schema.prisma` to your empty database. If your `DATABASE_URL` uses Supabase’s **transaction pooler** (port `6543`), the script switches to port `5432` for the push, because DDL on `6543` often hangs. Prefer a **direct** or **session** connection string (port `5432`) in `.env.local` when possible. 
+This syncs `prisma/schema.prisma` to your empty database. If your `DATABASE_URL` uses Supabase’s **transaction pooler** (port `6543`), the script switches to port `5432` for the push, because DDL on `6543` often hangs. Prefer a **direct** or **session** connection string (port `5432`) in `.env.local` when possible.
 
 When you want versioned migrations later, switch to `prisma migrate dev`.
 

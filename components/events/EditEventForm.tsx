@@ -23,7 +23,12 @@ export type EditEventFormProps = {
   onSaved?: () => void;
 };
 
-export function EditEventForm({ eventId, initial, onCancel, onSaved }: EditEventFormProps) {
+export function EditEventForm({
+  eventId,
+  initial,
+  onCancel,
+  onSaved,
+}: EditEventFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -99,7 +104,10 @@ export function EditEventForm({ eventId, initial, onCancel, onSaved }: EditEvent
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="edit-event-description" className="text-sm font-medium">
+          <label
+            htmlFor="edit-event-description"
+            className="text-sm font-medium"
+          >
             Description
           </label>
           <textarea

@@ -27,7 +27,8 @@ export function EventChat({ eventId }: { eventId: string }) {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Example: &quot;Which items aren't yet signed up for?&quot; or &quot;How soon does this event start?&quot;
+            Example: &quot;Which items aren&apos;t yet signed up for?&quot; or
+            &quot;How soon does this event start?&quot;
           </p>
         )}
         {messages.map((m, i) => (
@@ -82,7 +83,10 @@ export function EventChat({ eventId }: { eventId: string }) {
               setInput(text);
               return;
             }
-            setMessages([...next, { role: "assistant", content: result.reply }]);
+            setMessages([
+              ...next,
+              { role: "assistant", content: result.reply },
+            ]);
           });
         }}
       >

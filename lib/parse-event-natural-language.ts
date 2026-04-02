@@ -81,7 +81,10 @@ Rules:
   try {
     parsed = JSON.parse(extractJsonObject(raw));
   } catch {
-    return { ok: false, error: "Could not parse event details from the response" };
+    return {
+      ok: false,
+      error: "Could not parse event details from the response",
+    };
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -91,7 +94,11 @@ Rules:
   const o = parsed as Record<string, unknown>;
   const title = typeof o.title === "string" ? o.title.trim() : "";
   if (!title) {
-    return { ok: false, error: "The model did not produce a title; try adding a clearer name for the event" };
+    return {
+      ok: false,
+      error:
+        "The model did not produce a title; try adding a clearer name for the event",
+    };
   }
 
   const startAt = asNullableString(o.startAt);
@@ -99,7 +106,8 @@ Rules:
   if ((startAt == null) !== (endAt == null)) {
     return {
       ok: false,
-      error: "Parsed start and end times were inconsistent; try including both date and time",
+      error:
+        "Parsed start and end times were inconsistent; try including both date and time",
     };
   }
 
