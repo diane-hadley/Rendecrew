@@ -2,8 +2,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { CreateEventForm } from "@/components/CreateEventForm";
-import { DescribeEventForm } from "@/components/DescribeEventForm";
+import { CreateEventForm } from "@/components/events/CreateEventForm";
+import { DescribeEventForm } from "@/components/events/DescribeEventForm";
 
 export default async function NewEventPage() {
   const clerkUser = await currentUser();

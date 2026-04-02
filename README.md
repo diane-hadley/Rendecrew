@@ -30,8 +30,8 @@ Rendecrew learns from your past events, making planning faster, smarter, and eas
 
 To set up Rendecrew on your local machine, follow these guides in order:
 
-1. **[SETUP.md](./SETUP.md)** - Complete setup guide
-2. **[SETUP_PAT.md](./SETUP_PAT.md)** - GitHub Personal Access Token setup (only if needed for pushing code)
+1. **[Setup guide](./docs/SETUP.md)** - Complete local setup
+2. **[GitHub PAT](./docs/SETUP_PAT.md)** - Personal Access Token (only if needed for pushing code)
 
 
 ## Tech Stack
@@ -71,6 +71,7 @@ To set up Rendecrew on your local machine, follow these guides in order:
 ## Project Structure
 
 ```
+docs/                     # Setup guides (see Getting Started above)
 app/
   ├── layout.tsx          # Root layout with ClerkProvider
   ├── page.tsx            # Home page with sign-in/sign-up
@@ -80,8 +81,9 @@ app/
   └── dashboard/          # Protected dashboard page
 
 components/
-  ├── UserButton.tsx      # User button component
-  └── ProtectedRoute.tsx  # Client-side route protection
+  ├── common/             # Shared UI (UserButton, ProtectedRoute)
+  ├── events/             # Event detail, forms, chat, display
+  └── packing/            # Packing list editor, collab, event packing panels
 
 lib/
   ├── anthropic.ts        # Anthropic SDK client (Claude API)

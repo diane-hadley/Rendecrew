@@ -72,7 +72,7 @@ Rendecrew uses the **Anthropic TypeScript SDK** (`@anthropic-ai/sdk`) to call th
 
 1. Create your environment file:
    ```bash
-   cp env.example .env.local
+   cp .env.example .env.local
    ```
 
 2. Open `.env.local` in your editor and add your credentials:
