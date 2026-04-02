@@ -80,8 +80,9 @@ app/
   └── dashboard/          # Protected dashboard page
 
 components/
-  ├── UserButton.tsx      # User button component
-  └── ProtectedRoute.tsx  # Client-side route protection
+  ├── common/             # Shared UI (UserButton, ProtectedRoute)
+  ├── events/             # Event detail, forms, chat, display
+  └── packing/            # Packing list editor, collab, event packing panels
 
 lib/
   ├── anthropic.ts        # Anthropic SDK client (Claude API)

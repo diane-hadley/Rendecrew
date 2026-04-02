@@ -1,10 +1,10 @@
 "use client";
 
-import { DeleteEventPanel } from "@/components/DeleteEventPanel";
-import { EditEventForm } from "@/components/EditEventForm";
-import { EventChat } from "@/components/EventChat";
-import { EventDisplayCard } from "@/components/EventDisplayCard";
-import { EventPackingSection } from "@/components/EventPackingSection";
+import { EventPackingSection } from "@/components/packing/EventPackingSection";
+import { DeleteEventPanel } from "./DeleteEventPanel";
+import { EditEventForm } from "./EditEventForm";
+import { EventChat } from "./EventChat";
+import { EventDisplayCard } from "./EventDisplayCard";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { useState } from "react";
 

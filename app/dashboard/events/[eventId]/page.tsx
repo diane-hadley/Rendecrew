@@ -2,7 +2,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { EventDetailClient } from "@/components/EventDetailClient";
+import { EventDetailClient } from "@/components/events/EventDetailClient";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListForEvent,

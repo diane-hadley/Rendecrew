@@ -1,5 +1,5 @@
-import { MyEventPackingCommitments } from "@/components/MyEventPackingCommitments";
-import { PackingListEventPanel } from "@/components/PackingListEventPanel";
+import { MyEventPackingCommitments } from "./MyEventPackingCommitments";
+import { PackingListEventPanel } from "./PackingListEventPanel";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 
 export function EventPackingSection({
