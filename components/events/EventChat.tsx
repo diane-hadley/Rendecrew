@@ -16,15 +16,15 @@ export function EventChat({ eventId }: { eventId: string }) {
   }, [messages]);
 
   return (
-    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex flex-col max-h-[min(32rem,70vh)]">
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+    <div className="flex max-h-[min(32rem,70vh)] w-full flex-col rounded-lg border border-gray-200 bg-white shadow dark:border-gray-700 dark:bg-gray-800">
+      <div className="shrink-0 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <h2 className="text-lg font-semibold">Event assistant</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+        <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
           Ask about this event—time, place, details, or the packing list.
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {messages.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Example: &quot;Which items aren&apos;t yet signed up for?&quot; or
@@ -36,15 +36,15 @@ export function EventChat({ eventId }: { eventId: string }) {
             key={i}
             className={
               m.role === "user"
-                ? "ml-6 rounded-lg bg-blue-50 dark:bg-blue-950/40 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
-                : "mr-6 rounded-lg bg-gray-100 dark:bg-gray-900/80 px-3 py-2 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap"
+                ? "ml-6 rounded-lg bg-blue-50 px-3 py-2 text-sm text-gray-900 dark:bg-blue-950/40 dark:text-gray-100"
+                : "mr-6 whitespace-pre-wrap rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-800 dark:bg-gray-900/80 dark:text-gray-200"
             }
           >
             {m.content}
           </div>
         ))}
         {isPending && (
-          <p className="mr-6 text-sm text-gray-500 dark:text-gray-400 italic">
+          <p className="mr-6 text-sm italic text-gray-500 dark:text-gray-400">
             Thinking…
           </p>
         )}
@@ -53,7 +53,7 @@ export function EventChat({ eventId }: { eventId: string }) {
 
       {error && (
         <div
-          className="mx-4 mb-2 text-sm text-red-700 dark:text-red-400 rounded-md bg-red-50 dark:bg-red-950/50 px-3 py-2 border border-red-200 dark:border-red-900"
+          className="mx-4 mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
           role="alert"
         >
           {error}
@@ -61,7 +61,7 @@ export function EventChat({ eventId }: { eventId: string }) {
       )}
 
       <form
-        className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0 flex gap-2"
+        className="flex shrink-0 gap-2 border-t border-gray-200 p-4 dark:border-gray-700"
         onSubmit={(e) => {
           e.preventDefault();
           const text = input.trim();
@@ -106,12 +106,12 @@ export function EventChat({ eventId }: { eventId: string }) {
             }
           }}
           placeholder="Ask about this event…"
-          className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-none disabled:opacity-60"
+          className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
         />
         <button
           type="submit"
           disabled={isPending || !input.trim()}
-          className="self-end shrink-0 inline-flex items-center justify-center rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:pointer-events-none h-fit"
+          className="inline-flex h-fit shrink-0 items-center justify-center self-end rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-800"
         >
           {isPending ? "…" : "Send"}
         </button>

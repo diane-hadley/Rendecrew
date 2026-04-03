@@ -600,49 +600,49 @@ export function PackingListEditor({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-950">
         <table className="w-full min-w-[920px] border-collapse text-sm tabular-nums">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-900">
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-32"
+                className="w-32 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Section
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300"
+                className="border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Item
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-32"
+                className="w-32 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Needed
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-28"
+                className="w-28 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Filled
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-36"
+                className="w-36 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Sign up
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 min-w-[10rem]"
+                className="min-w-40 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Who&apos;s bringing
               </th>
               <th
                 scope="col"
-                className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 w-24"
+                className="w-24 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
               >
                 Actions
               </th>
@@ -692,7 +692,7 @@ export function PackingListEditor({
                     <tr className="bg-gray-200/90 dark:bg-gray-800">
                       <td
                         colSpan={7}
-                        className="border border-gray-300 dark:border-gray-600 px-3 py-2"
+                        className="border border-gray-300 px-3 py-2 dark:border-gray-600"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
@@ -723,7 +723,7 @@ export function PackingListEditor({
                           updateSection({ index, section: e.target.value })
                         }
                         placeholder="—"
-                        className="w-full min-w-[6rem] border-0 bg-transparent px-2 py-2 text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        className="w-full min-w-24 border-0 bg-transparent p-2 text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:ring-blue-400"
                         aria-label="Section"
                       />
                     </td>
@@ -734,7 +734,7 @@ export function PackingListEditor({
                         onChange={(e) =>
                           updateName({ index, name: e.target.value })
                         }
-                        className="w-full min-w-[8rem] border-0 bg-transparent px-2 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400"
+                        className="w-full min-w-32 border-0 bg-transparent p-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400"
                         aria-label="Item name"
                       />
                     </td>
@@ -783,7 +783,7 @@ export function PackingListEditor({
                                       : Math.max(1, parseInt(v, 10) || 0),
                                 });
                               }}
-                              className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                              className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
                               aria-label="Maximum to bring if optional item is covered"
                             />
                           ) : (
@@ -804,7 +804,7 @@ export function PackingListEditor({
                                         : Math.max(0, parseInt(v, 10) || 0),
                                   });
                                 }}
-                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
                                 aria-label="Minimum quantity needed"
                               />
                               <input
@@ -827,7 +827,7 @@ export function PackingListEditor({
                                         : Math.max(0, parseInt(v, 10) || 0),
                                   });
                                 }}
-                                className="w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400 disabled:opacity-40"
+                                className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
                                 aria-label="Maximum quantity (optional range above min)"
                               />
                             </>
@@ -837,7 +837,7 @@ export function PackingListEditor({
                         <button
                           type="button"
                           onClick={() => setEditingNeededIndex(index)}
-                          className="w-full min-h-[2.75rem] px-2 py-2 text-center text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-900/80"
+                          className="min-h-11 w-full p-2 text-center text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-900/80"
                           aria-label={
                             qMin == null
                               ? "Needed: not set, click to edit"
@@ -870,7 +870,7 @@ export function PackingListEditor({
                       )}
                     </td>
                     <td
-                      className={`${cellBorder} px-2 py-2 text-center text-xs text-gray-600 dark:text-gray-400`}
+                      className={`${cellBorder} p-2 text-center text-xs text-gray-600 dark:text-gray-400`}
                     >
                       {qMin != null ? (
                         <div>
@@ -894,14 +894,14 @@ export function PackingListEditor({
                           {isOptionalItem ? (
                             <>
                               {qMax != null && remCap != null && remCap > 0 && (
-                                <div className="text-sky-700 dark:text-sky-400 mt-0.5">
+                                <div className="mt-0.5 text-sky-700 dark:text-sky-400">
                                   {remCap} more welcome
                                 </div>
                               )}
                               {qMax != null &&
                                 remCap === 0 &&
                                 signUps.length > 0 && (
-                                  <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                  <div className="mt-0.5 text-green-700 dark:text-green-400">
                                     Covered
                                   </div>
                                 )}
@@ -909,17 +909,17 @@ export function PackingListEditor({
                           ) : isRange ? (
                             <>
                               {remMin != null && remMin > 0 && (
-                                <div className="text-amber-700 dark:text-amber-400 mt-0.5">
+                                <div className="mt-0.5 text-amber-700 dark:text-amber-400">
                                   {remMin} to minimum
                                 </div>
                               )}
                               {remMin === 0 && remCap != null && remCap > 0 && (
-                                <div className="text-sky-700 dark:text-sky-400 mt-0.5">
+                                <div className="mt-0.5 text-sky-700 dark:text-sky-400">
                                   Min met · {remCap} until max
                                 </div>
                               )}
                               {remCap === 0 && signUps.length > 0 && (
-                                <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                <div className="mt-0.5 text-green-700 dark:text-green-400">
                                   At max
                                 </div>
                               )}
@@ -927,12 +927,12 @@ export function PackingListEditor({
                           ) : (
                             <>
                               {remCap != null && remCap > 0 && (
-                                <div className="text-amber-700 dark:text-amber-400 mt-0.5">
+                                <div className="mt-0.5 text-amber-700 dark:text-amber-400">
                                   {remCap} left
                                 </div>
                               )}
                               {remCap === 0 && signUps.length > 0 && (
-                                <div className="text-green-700 dark:text-green-400 mt-0.5">
+                                <div className="mt-0.5 text-green-700 dark:text-green-400">
                                   Covered
                                 </div>
                               )}
@@ -961,12 +961,12 @@ export function PackingListEditor({
                       </button>
                     </td>
                     <td
-                      className={`${cellBorder} px-2 py-2 text-gray-600 dark:text-gray-400`}
+                      className={`${cellBorder} p-2 text-gray-600 dark:text-gray-400`}
                     >
                       {signUps.length === 0 ? (
                         <span className="text-xs text-gray-400">—</span>
                       ) : (
-                        <ul className="text-xs space-y-2">
+                        <ul className="space-y-2 text-xs">
                           {signUps.map((su) => {
                             const mine = isMineSignUp(
                               su,
@@ -1013,7 +1013,7 @@ export function PackingListEditor({
                                         quantity: n,
                                       });
                                     }}
-                                    className="w-16 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-1 py-0.5 text-center"
+                                    className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
                                     aria-label="How many you bring"
                                   />
                                 ) : (
@@ -1039,7 +1039,7 @@ export function PackingListEditor({
                     <tr className="bg-gray-50 dark:bg-gray-900/60">
                       <td
                         colSpan={7}
-                        className="border border-gray-300 dark:border-gray-600 px-3 py-2"
+                        className="border border-gray-300 px-3 py-2 dark:border-gray-600"
                       >
                         <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                           Add your email (optional) so we can link this to your
@@ -1060,7 +1060,7 @@ export function PackingListEditor({
                                 [`${item.id}:${mySu.id}`]: e.target.value,
                               }))
                             }
-                            className="min-w-[12rem] flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+                            className="min-w-48 flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
                           />
                           <button
                             type="button"
@@ -1095,7 +1095,7 @@ export function PackingListEditor({
       <button
         type="button"
         onClick={() => addItem()}
-        className="rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+        className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
       >
         Add item
       </button>

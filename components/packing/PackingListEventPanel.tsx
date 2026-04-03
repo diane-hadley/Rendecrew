@@ -35,16 +35,16 @@ export function PackingListEventPanel({
   if (!liveblocksRoomId) {
     return (
       <div className={shell}>
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+        <h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
           Collaborative packing list
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
           Turn on a shared list guests can edit in real time. No account needed
           to use the link.
         </p>
         {error && (
           <p
-            className="text-sm text-red-600 dark:text-red-400 mb-2"
+            className="mb-2 text-sm text-red-600 dark:text-red-400"
             role="alert"
           >
             {error}
@@ -71,16 +71,16 @@ export function PackingListEventPanel({
 
   return (
     <div className={shell}>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+      <h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
         Collaborative packing list
       </h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+      <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
         Share this link with your group. Changes sync live and are saved to your
         event.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         {sharePath && (
-          <code className="flex-1 truncate rounded bg-gray-100 dark:bg-gray-900 px-2 py-1.5 text-xs text-gray-800 dark:text-gray-200">
+          <code className="flex-1 truncate rounded bg-gray-100 px-2 py-1.5 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">
             {fullUrl ?? sharePath}
           </code>
         )}
@@ -94,7 +94,7 @@ export function PackingListEventPanel({
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
           }}
-          className="shrink-0 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+          className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
         >
           {copied ? "Copied" : "Copy link"}
         </button>

@@ -14,8 +14,8 @@ export default async function NewEventPage() {
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">Create New Event</h1>
           <UserButton afterSignOutUrl="/" />
         </div>
@@ -29,10 +29,10 @@ export default async function NewEventPage() {
           </Link>
         </div>
 
-        <div className="flex flex-col gap-8 max-w-xl">
+        <div className="flex max-w-xl flex-col gap-8">
           <DescribeEventForm />
           <div>
-            <h2 className="text-lg font-semibold mb-4">Or fill in the form</h2>
+            <h2 className="mb-4 text-lg font-semibold">Or fill in the form</h2>
             <CreateEventForm />
           </div>
         </div>
