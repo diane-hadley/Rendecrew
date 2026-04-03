@@ -65,9 +65,9 @@ export function PackingCollabPage({
 
   if (!authUser && !guestStarted) {
     return (
-      <div className="max-w-md mx-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow">
-        <h2 className="text-lg font-semibold mb-2">Join the packing list</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+      <div className="mx-auto max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
+        <h2 className="mb-2 text-lg font-semibold">Join the packing list</h2>
+        <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
           Choose a display name others will see when you sign up for items.
         </p>
         <form
@@ -84,7 +84,7 @@ export function PackingCollabPage({
             value={guestDisplayName}
             onChange={(e) => setGuestDisplayName(e.target.value)}
             placeholder="Your name"
-            className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
           />
           <button
             type="submit"
@@ -159,7 +159,7 @@ export function PackingCollabPage({
               {eventTitle}
             </p>
             {authUser && (
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
                 Signed in — sign-ups are tied to your Rendecrew account.
               </p>
             )}

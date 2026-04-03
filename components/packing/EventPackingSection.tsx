@@ -22,7 +22,7 @@ export function EventPackingSection({
   }
 
   return (
-    <section className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 space-y-4">
+    <section className="w-full space-y-4 rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
         Packing list
       </h2>

@@ -51,8 +51,8 @@ export default async function EventDetailPage({
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex items-center justify-between">
           <div className="flex flex-wrap items-center gap-4">
             <Link
               href="/dashboard"

@@ -8,9 +8,9 @@ export function DescribeEventForm() {
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-      <h2 className="text-lg font-semibold mb-1">Describe in plain English</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+    <div className="rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
+      <h2 className="mb-1 text-lg font-semibold">Describe in plain English</h2>
+      <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
         We use Claude to pull out title, time, place, and details, then create
         the event for you.
       </p>
@@ -34,7 +34,7 @@ export function DescribeEventForm() {
       >
         {error && (
           <p
-            className="text-sm text-red-700 dark:text-red-400 rounded-md bg-red-50 dark:bg-red-950/50 px-3 py-2 border border-red-200 dark:border-red-900"
+            className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
             role="alert"
           >
             {error}
@@ -51,7 +51,7 @@ export function DescribeEventForm() {
             required
             rows={5}
             disabled={isPending}
-            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y min-h-[7rem] disabled:opacity-60"
+            className="min-h-28 resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
             placeholder='e.g. "Team offsite next Friday 9am–5pm at the downtown WeWork, lunch included"'
           />
         </div>
@@ -59,7 +59,7 @@ export function DescribeEventForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex w-fit items-center justify-center rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:pointer-events-none"
+          className="inline-flex w-fit items-center justify-center rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-800"
         >
           {isPending ? "Creating…" : "Create from description"}
         </button>

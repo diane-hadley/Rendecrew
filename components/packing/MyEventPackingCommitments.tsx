@@ -42,25 +42,25 @@ export function MyEventPackingCommitments({
 
   return (
     <div className={shell}>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
         You&apos;re bringing
       </h3>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
         Mark items as packed when you&apos;re done — only you see these
         checkboxes here.
       </p>
       {commitments.length === 0 ? (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
           You haven&apos;t signed up for any items on this list yet.
         </p>
       ) : (
-        <ul className="space-y-3 mb-3">
+        <ul className="mb-3 space-y-3">
           {commitments.map((c) => (
             <li
               key={c.signUpId}
-              className="text-sm text-gray-800 dark:text-gray-200 flex flex-wrap items-center gap-x-3 gap-y-2"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-800 dark:text-gray-200"
             >
-              <label className="flex cursor-pointer items-center gap-2 select-none">
+              <label className="flex cursor-pointer select-none items-center gap-2">
                 <input
                   type="checkbox"
                   checked={c.signUpPacked}

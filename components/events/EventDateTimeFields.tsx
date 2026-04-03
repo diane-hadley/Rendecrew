@@ -113,7 +113,7 @@ export function EventDateTimeFields({
             Time
           </span>
           <div
-            className="flex h-[2.5rem] w-fit max-w-full flex-nowrap items-stretch overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-900 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-blue-500 dark:[&:has(:focus-visible)]:ring-blue-400"
+            className="flex h-10 w-fit max-w-full flex-nowrap items-stretch overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-900 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-blue-500 dark:[&:has(:focus-visible)]:ring-blue-400"
             role="group"
             aria-labelledby={`${id}-time-heading`}
           >

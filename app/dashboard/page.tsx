@@ -28,17 +28,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex items-center justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <UserButton afterSignOutUrl="/" />
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">
+        <div className="mb-8 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+          <h2 className="mb-4 text-xl font-semibold">
             Welcome, {dbUser.name}!
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
+          <p className="mb-6 text-gray-600 dark:text-gray-400">
             Your events — ones you organize or are part of.
           </p>
 
@@ -50,8 +50,8 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Your events</h2>
+        <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+          <h2 className="mb-4 text-xl font-semibold">Your events</h2>
 
           {memberships.length === 0 ? (
             <p className="text-gray-600 dark:text-gray-400">
@@ -70,17 +70,17 @@ export default async function DashboardPage() {
                 <li key={event.id} className="py-4 first:pt-0 last:pb-0">
                   <Link
                     href={`/dashboard/events/${event.id}`}
-                    className="group flex flex-wrap items-start justify-between gap-2 -mx-2 px-2 py-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                    className="group -mx-2 flex flex-wrap items-start justify-between gap-2 rounded-lg px-2 py-1 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:hover:bg-gray-700/50 dark:focus:ring-offset-gray-800"
                   >
                     <div>
-                      <p className="font-medium text-lg group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                      <p className="text-lg font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300">
                         {event.title}
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                         {formatRange(event.startAt, event.endAt)}
                       </p>
                       {event.location && (
-                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
                           {event.location}
                         </p>
                       )}
@@ -88,10 +88,10 @@ export default async function DashboardPage() {
                     <span
                       className={
                         role === "owner"
-                          ? "shrink-0 rounded-full bg-blue-100 dark:bg-blue-950 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-200"
+                          ? "shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-200"
                           : role === "admin"
-                            ? "shrink-0 rounded-full bg-violet-100 dark:bg-violet-950 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:text-violet-200"
-                            : "shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:text-gray-200"
+                            ? "shrink-0 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200"
+                            : "shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                       }
                     >
                       {role === "owner"
