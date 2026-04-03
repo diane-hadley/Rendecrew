@@ -44,27 +44,3 @@ export async function getOrCreateUser() {
 
   return user;
 }
-
-/**
- * Get user by Clerk ID
- */
-export async function getUserByClerkId(clerkId: string) {
-  return prisma.user.findUnique({
-    where: {
-      clerkId,
-    },
-  });
-}
-
-/**
- * Get current authenticated user from database
- */
-export async function getCurrentUser() {
-  const clerkUser = await currentUser();
-
-  if (!clerkUser) {
-    return null;
-  }
-
-  return getUserByClerkId(clerkUser.id);
-}
