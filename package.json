@@ -18,7 +18,9 @@
     "prisma:studio": "prisma studio",
     "prisma:push": "prisma db push",
     "prisma:push:session": "node scripts/prisma-db-push.cjs",
-    "prisma:format": "prisma format"
+    "prisma:format": "prisma format",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
@@ -34,20 +36,28 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.2",
     "autoprefixer": "^10.4.19",
     "dotenv": "^17.2.4",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-tailwindcss": "^3.18.2",
+    "jsdom": "^29.0.1",
     "postcss": "^8.4.38",
     "prettier": "^3.8.1",
+    "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.4",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.2"
   }
 }

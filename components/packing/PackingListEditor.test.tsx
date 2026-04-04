@@ -1,0 +1,157 @@
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { buildInitialStorage, PackingListEditor } from "./PackingListEditor";
+
+const editorStorage = vi.hoisted(() => ({
+  items: null as unknown[] | null,
+}));
+
+vi.mock("@liveblocks/react", () => ({
+  useStorage: (fn: (root: { items: unknown }) => unknown) =>
+    fn({ items: editorStorage.items }),
+  useSyncStatus: () => "stored" as const,
+  useMutation: vi.fn(() => vi.fn()),
+}));
+
+const syncPackingListToDatabase = vi.fn();
+vi.mock("@/app/actions/packing-list", () => ({
+  syncPackingListToDatabase: (...args: unknown[]) =>
+    syncPackingListToDatabase(...args),
+}));
+
+describe("buildInitialStorage", () => {
+  it("wraps items and sign-ups in Live structures", () => {
+    const storage = buildInitialStorage([
+      {
+        id: "i1",
+        name: "Cooler",
+        quantity: 1,
+        quantityMax: null,
+        section: "Kitchen",
+        signUps: [
+          {
+            id: "s1",
+            quantity: 1,
+            displayName: "Pat",
+            email: null,
+            userId: "u1",
+            packed: false,
+          },
+        ],
+      },
+    ]);
+
+    expect(storage.items.length).toBe(1);
+    const row = storage.items.get(0);
+    expect(row?.get("name")).toBe("Cooler");
+    expect(row?.get("section")).toBe("Kitchen");
+    const signUps = row?.get("signUps");
+    expect(signUps?.length).toBe(1);
+    expect(signUps?.get(0)?.get("displayName")).toBe("Pat");
+  });
+
+  it("defaults missing signUps to empty list", () => {
+    const storage = buildInitialStorage([
+      {
+        id: "i2",
+        name: "Solo",
+        quantity: null,
+        quantityMax: null,
+        signUps: [],
+      },
+    ]);
+    expect(storage.items.get(0)?.get("signUps")?.length).toBe(0);
+  });
+});
+
+describe("PackingListEditor", () => {
+  beforeEach(() => {
+    editorStorage.items = null;
+    syncPackingListToDatabase.mockClear();
+    vi.clearAllMocks();
+  });
+
+  it("shows connecting state when storage items are not ready", () => {
+    editorStorage.items = null;
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+      />,
+    );
+    expect(screen.getByText("Connecting…")).toBeInTheDocument();
+  });
+
+  it("renders table shell and add control when list is empty", () => {
+    editorStorage.items = [];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+      />,
+    );
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Section" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
+  });
+
+  it("renders a row for each storage item", () => {
+    editorStorage.items = [
+      {
+        id: "row-1",
+        name: "Lantern",
+        quantity: 2,
+        quantityMax: null,
+        section: null,
+        signUps: [],
+      },
+    ];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+      />,
+    );
+    expect(screen.getByDisplayValue("Lantern")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Sign up to bring/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("schedules sync after debounce when items exist", async () => {
+    vi.useFakeTimers();
+    editorStorage.items = [
+      {
+        id: "row-sync",
+        name: "Mug",
+        quantity: 1,
+        quantityMax: null,
+        section: null,
+        signUps: [],
+      },
+    ];
+    syncPackingListToDatabase.mockResolvedValue({ ok: true as const });
+
+    render(
+      <PackingListEditor
+        roomId="room-sync"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+      />,
+    );
+
+    await vi.advanceTimersByTimeAsync(900);
+
+    expect(syncPackingListToDatabase).toHaveBeenCalledWith(
+      "room-sync",
+      expect.arrayContaining([
+        expect.objectContaining({ id: "row-sync", name: "Mug" }),
+      ]),
+    );
+    vi.useRealTimers();
+  });
+});
