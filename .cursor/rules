@@ -4,6 +4,7 @@
 - Write concise, minimal code. Prefer fewer lines over verbose implementations.
 - Never leave dead code, commented-out code, or unused variables/imports/functions.
 - Remove any code that is no longer called or reachable before finishing a task.
+- Write tests for all code. Aim for high test coverage. Flag all changes made to existing tests.
 
 ## Reviewing Code
 - Flag any unused imports, variables, functions, or unreachable branches.

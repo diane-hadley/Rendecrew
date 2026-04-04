@@ -9,5 +9,17 @@
     "tailwindcss": {
       "config": "tailwind.config.ts"
     }
+  },
+  "rules": {
+    "no-unreachable": "error",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ]
   }
 }

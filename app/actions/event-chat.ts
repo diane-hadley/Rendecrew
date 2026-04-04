@@ -49,17 +49,17 @@ export async function sendEventChatMessage(
   messages: EventChatMessage[],
 ): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
   const trimmed = trimMessages(messages);
+  const validationError = validateConversation(trimmed);
+  if (validationError) {
+    return { ok: false, error: validationError };
+  }
+
   const lastUser = trimmed[trimmed.length - 1];
   if (lastUser.content.length > MAX_USER_MESSAGE_CHARS) {
     return {
       ok: false,
       error: `Message is too long (max ${MAX_USER_MESSAGE_CHARS} characters)`,
     };
-  }
-
-  const validationError = validateConversation(trimmed);
-  if (validationError) {
-    return { ok: false, error: validationError };
   }
 
   const user = await getOrCreateUser();
