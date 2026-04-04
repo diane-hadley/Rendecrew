@@ -20,7 +20,8 @@
     "prisma:push:session": "node scripts/prisma-db-push.cjs",
     "prisma:format": "prisma format",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
