@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  canManageEvent,
-  getEventForUser,
-  getEventsForUser,
-} from "./events";
+import { canManageEvent, getEventForUser, getEventsForUser } from "./events";
 
 const findMany = vi.fn();
 const findFirst = vi.fn();

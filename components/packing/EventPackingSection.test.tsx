@@ -36,7 +36,9 @@ describe("EventPackingSection", () => {
         packingListPath={null}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Packing list" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Packing list" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("packing-panel")).toHaveTextContent("panel-e99");
     expect(screen.queryByTestId("commitments")).not.toBeInTheDocument();
   });

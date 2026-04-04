@@ -38,9 +38,7 @@ describe("EditEventForm", () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     updateEvent.mockResolvedValue({ ok: true as const });
-    render(
-      <EditEventForm eventId="e1" initial={initial} onSaved={onSaved} />,
-    );
+    render(<EditEventForm eventId="e1" initial={initial} onSaved={onSaved} />);
     await user.clear(screen.getByLabelText(/Title/i));
     await user.type(screen.getByLabelText(/Title/i), "New title");
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
@@ -68,6 +66,8 @@ describe("EditEventForm", () => {
 
   it("does not render cancel without onCancel", () => {
     render(<EditEventForm eventId="e1" initial={initial} />);
-    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
   });
 });

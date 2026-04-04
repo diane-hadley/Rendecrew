@@ -93,9 +93,15 @@ describe("PackingListEditor", () => {
       />,
     );
     expect(screen.getByText("Up to date")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Section" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Item" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add item" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Section" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Item" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add item" }),
+    ).toBeInTheDocument();
   });
 
   it("renders a row for each storage item", () => {

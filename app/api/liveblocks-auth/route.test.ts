@@ -8,7 +8,9 @@ import { POST } from "./route";
 const liveblocksMocks = vi.hoisted(() => {
   const state = { constructError: null as Error | null };
   const allow = vi.fn();
-  const authorize = vi.fn().mockResolvedValue({ status: 200, body: "auth-body" });
+  const authorize = vi
+    .fn()
+    .mockResolvedValue({ status: 200, body: "auth-body" });
   const prepareSession = vi.fn(() => ({
     allow,
     authorize,
@@ -58,7 +60,10 @@ describe("POST /api/liveblocks-auth", () => {
       liveblocksRoomId: "room-abc",
       eventId: "e1",
     } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
-    liveblocksMocks.authorize.mockResolvedValue({ status: 200, body: "auth-body" });
+    liveblocksMocks.authorize.mockResolvedValue({
+      status: 200,
+      body: "auth-body",
+    });
   });
 
   afterEach(() => {
@@ -184,9 +189,12 @@ describe("POST /api/liveblocks-auth", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(liveblocksMocks.prepareSession).toHaveBeenCalledWith("guest:12345678", {
-      userInfo: { name: "Carol" },
-    });
+    expect(liveblocksMocks.prepareSession).toHaveBeenCalledWith(
+      "guest:12345678",
+      {
+        userInfo: { name: "Carol" },
+      },
+    );
   });
 
   it("defaults guest display name when empty", async () => {
@@ -198,8 +206,11 @@ describe("POST /api/liveblocks-auth", () => {
         guestDisplayName: "   ",
       }),
     );
-    expect(liveblocksMocks.prepareSession).toHaveBeenCalledWith("guest:12345678", {
-      userInfo: { name: "Guest" },
-    });
+    expect(liveblocksMocks.prepareSession).toHaveBeenCalledWith(
+      "guest:12345678",
+      {
+        userInfo: { name: "Guest" },
+      },
+    );
   });
 });

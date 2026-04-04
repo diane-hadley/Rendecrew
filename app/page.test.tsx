@@ -9,7 +9,9 @@ vi.mock("@clerk/nextjs", () => ({
     clerkAuth.signedIn ? <>{children}</> : null,
   SignedOut: ({ children }: { children: React.ReactNode }) =>
     !clerkAuth.signedIn ? <>{children}</> : null,
-  SignInButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SignInButton: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   UserButton: () => <div>User menu</div>,
 }));
 
@@ -20,7 +22,9 @@ describe("Home page", () => {
 
   it("renders marketing copy and sign-in when signed out", () => {
     render(<Home />);
-    expect(screen.getByRole("heading", { name: /Rendecrew/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Rendecrew/i }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Sign In to Get Started/i }),
     ).toBeInTheDocument();
@@ -29,9 +33,8 @@ describe("Home page", () => {
   it("shows dashboard link when signed in", () => {
     clerkAuth.signedIn = true;
     render(<Home />);
-    expect(screen.getByRole("link", { name: /Go to Dashboard/i })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+    expect(
+      screen.getByRole("link", { name: /Go to Dashboard/i }),
+    ).toHaveAttribute("href", "/dashboard");
   });
 });

@@ -79,7 +79,9 @@ describe("EventDetailClient", () => {
     await user.click(screen.getByRole("button", { name: "Event settings" }));
     expect(screen.getByTestId("edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("delete-panel")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Summit" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Summit" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes edit mode when cancel runs", async () => {

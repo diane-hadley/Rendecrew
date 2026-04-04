@@ -58,7 +58,9 @@ describe("MyEventPackingCommitments", () => {
         commitments={[]}
       />,
     );
-    const link = screen.getByRole("link", { name: /Open collaborative packing list/i });
+    const link = screen.getByRole("link", {
+      name: /Open collaborative packing list/i,
+    });
     expect(link).toHaveAttribute("href", "/packing/x");
     expect(link).toHaveAttribute("target", "_blank");
   });

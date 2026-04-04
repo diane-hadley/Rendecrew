@@ -61,11 +61,17 @@ describe("PackingCollabPage", () => {
       />,
     );
 
-    expect(screen.queryByText(/Join the packing list/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Packing list" })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Join the packing list/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Packing list" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Beach day")).toBeInTheDocument();
     expect(
-      screen.getByText(/Signed in — sign-ups are tied to your Rendecrew account/i),
+      screen.getByText(
+        /Signed in — sign-ups are tied to your Rendecrew account/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("packing-editor-stub")).toBeInTheDocument();
     expect(screen.getByTestId("room-provider")).toHaveAttribute(
@@ -84,7 +90,9 @@ describe("PackingCollabPage", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: /Join the packing list/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Join the packing list/i }),
+    ).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Your name")).toBeInTheDocument();
     expect(screen.queryByTestId("packing-editor-stub")).not.toBeInTheDocument();
   });
@@ -106,7 +114,9 @@ describe("PackingCollabPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("packing-editor-stub")).toBeInTheDocument();
     });
-    expect(screen.getByRole("heading", { name: "Packing list" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Packing list" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Campout")).toBeInTheDocument();
   });
 });

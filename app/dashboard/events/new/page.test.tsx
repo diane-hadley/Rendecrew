@@ -39,7 +39,9 @@ describe("NewEventPage", () => {
     >);
     const ui = await NewEventPage();
     render(ui);
-    expect(screen.getByRole("heading", { name: /Create New Event/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Create New Event/i }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("describe-form")).toBeInTheDocument();
     expect(screen.getByTestId("create-form")).toBeInTheDocument();
   });

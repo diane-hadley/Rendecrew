@@ -218,17 +218,19 @@ describe("createEventFromNaturalLanguage", () => {
     vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
       ReturnType<typeof getOrCreateUser>
     >);
-    transaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
-      const tx = {
-        event: {
-          create: vi.fn().mockResolvedValue({ id: "new-e" }),
-        },
-        eventMember: {
-          create: vi.fn().mockResolvedValue({}),
-        },
-      };
-      await fn(tx);
-    });
+    transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<void>) => {
+        const tx = {
+          event: {
+            create: vi.fn().mockResolvedValue({ id: "new-e" }),
+          },
+          eventMember: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        };
+        await fn(tx);
+      },
+    );
   });
 
   it("returns parse error when parser fails", async () => {
@@ -281,17 +283,19 @@ describe("createEvent", () => {
     vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
       ReturnType<typeof getOrCreateUser>
     >);
-    transaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
-      const tx = {
-        event: {
-          create: vi.fn().mockResolvedValue({ id: "created-id" }),
-        },
-        eventMember: {
-          create: vi.fn().mockResolvedValue({}),
-        },
-      };
-      await fn(tx);
-    });
+    transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<void>) => {
+        const tx = {
+          event: {
+            create: vi.fn().mockResolvedValue({ id: "created-id" }),
+          },
+          eventMember: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        };
+        await fn(tx);
+      },
+    );
   });
 
   it("returns validation error without redirect when title is missing", async () => {

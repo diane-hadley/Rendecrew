@@ -13,7 +13,9 @@ describe("EventDisplayCard", () => {
         description={null}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Camping trip" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Camping trip" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("organizer")).toBeInTheDocument();
     expect(screen.getByText("Jun 1 – Jun 3, 2026")).toBeInTheDocument();
   });
@@ -57,6 +59,8 @@ describe("EventDisplayCard", () => {
         headerRight={<button type="button">Settings</button>}
       />,
     );
-    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Settings" }),
+    ).toBeInTheDocument();
   });
 });

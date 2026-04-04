@@ -22,7 +22,9 @@ describe("DescribeEventForm", () => {
       screen.getByLabelText(/What's the event/i),
       "Team lunch tomorrow noon",
     );
-    await user.click(screen.getByRole("button", { name: /Create from description/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Create from description/i }),
+    );
     await vi.waitFor(() => {
       expect(createEventFromNaturalLanguage).toHaveBeenCalledWith(
         "Team lunch tomorrow noon",
@@ -38,7 +40,9 @@ describe("DescribeEventForm", () => {
     });
     render(<DescribeEventForm />);
     await user.type(screen.getByLabelText(/What's the event/i), "x");
-    await user.click(screen.getByRole("button", { name: /Create from description/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Create from description/i }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("Bad input");
   });
 });

@@ -35,7 +35,9 @@ describe("DeleteEventPanel", () => {
     deleteEvent.mockResolvedValue({ ok: true as const });
     render(<DeleteEventPanel eventId="e1" eventTitle="T" />);
     await user.click(screen.getByRole("button", { name: "Delete event" }));
-    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
     await vi.waitFor(() => {
       expect(deleteEvent).toHaveBeenCalledWith("e1");
       expect(push).toHaveBeenCalledWith("/dashboard");
@@ -47,7 +49,9 @@ describe("DeleteEventPanel", () => {
     deleteEvent.mockResolvedValue({ ok: false as const, error: "Nope" });
     render(<DeleteEventPanel eventId="e1" eventTitle="T" />);
     await user.click(screen.getByRole("button", { name: "Delete event" }));
-    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete permanently" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("Nope");
   });
 
@@ -56,7 +60,11 @@ describe("DeleteEventPanel", () => {
     render(<DeleteEventPanel eventId="e1" eventTitle="T" />);
     await user.click(screen.getByRole("button", { name: "Delete event" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("region", { name: "Confirm delete event" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete event" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Confirm delete event" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete event" }),
+    ).toBeInTheDocument();
   });
 });

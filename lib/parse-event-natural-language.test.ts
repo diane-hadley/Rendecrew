@@ -18,7 +18,10 @@ describe("parseEventFromNaturalLanguage", () => {
   });
 
   it("rejects empty input", async () => {
-    const r = await parseEventFromNaturalLanguage("   ", "2026-01-01T00:00:00Z");
+    const r = await parseEventFromNaturalLanguage(
+      "   ",
+      "2026-01-01T00:00:00Z",
+    );
     expect(r).toEqual({
       ok: false,
       error: "Describe your event in a sentence or two",

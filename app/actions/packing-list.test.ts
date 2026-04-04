@@ -88,7 +88,9 @@ describe("enablePackingListForEvent", () => {
   });
 
   it("returns error when create throws", async () => {
-    vi.mocked(createPackingListForEvent).mockRejectedValueOnce(new Error("boom"));
+    vi.mocked(createPackingListForEvent).mockRejectedValueOnce(
+      new Error("boom"),
+    );
     const r = await enablePackingListForEvent("e1");
     expect(r).toEqual({ ok: false, error: "boom" });
   });

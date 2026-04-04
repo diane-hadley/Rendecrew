@@ -6,12 +6,7 @@ describe("EventDateTimeFields", () => {
   it("renders legend and date field", () => {
     const onChange = vi.fn();
     render(
-      <EventDateTimeFields
-        id="t"
-        label="Start"
-        value=""
-        onChange={onChange}
-      />,
+      <EventDateTimeFields id="t" label="Start" value="" onChange={onChange} />,
     );
     expect(screen.getByRole("group", { name: "Start" })).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toBeInTheDocument();

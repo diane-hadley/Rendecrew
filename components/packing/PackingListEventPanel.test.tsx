@@ -23,10 +23,10 @@ describe("PackingListEventPanel", () => {
   it("shows enable button when room id is missing", async () => {
     const user = userEvent.setup();
     enablePackingListForEvent.mockResolvedValue({ ok: true as const });
-    render(
-      <PackingListEventPanel eventId="e1" liveblocksRoomId={null} />,
+    render(<PackingListEventPanel eventId="e1" liveblocksRoomId={null} />);
+    await user.click(
+      screen.getByRole("button", { name: /Enable packing list/i }),
     );
-    await user.click(screen.getByRole("button", { name: /Enable packing list/i }));
     await vi.waitFor(() => {
       expect(enablePackingListForEvent).toHaveBeenCalledWith("e1");
       expect(refresh).toHaveBeenCalled();
@@ -39,17 +39,15 @@ describe("PackingListEventPanel", () => {
       ok: false as const,
       error: "No permission",
     });
-    render(
-      <PackingListEventPanel eventId="e1" liveblocksRoomId={null} />,
+    render(<PackingListEventPanel eventId="e1" liveblocksRoomId={null} />);
+    await user.click(
+      screen.getByRole("button", { name: /Enable packing list/i }),
     );
-    await user.click(screen.getByRole("button", { name: /Enable packing list/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("No permission");
   });
 
   it("shows share path and open link when room exists", () => {
-    render(
-      <PackingListEventPanel eventId="e1" liveblocksRoomId="room-abc" />,
-    );
+    render(<PackingListEventPanel eventId="e1" liveblocksRoomId="room-abc" />);
     expect(screen.getByText(/\/packing\/room-abc/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open list/i })).toHaveAttribute(
       "href",
@@ -65,9 +63,7 @@ describe("PackingListEventPanel", () => {
       value: { writeText },
     });
 
-    render(
-      <PackingListEventPanel eventId="e1" liveblocksRoomId="r1" />,
-    );
+    render(<PackingListEventPanel eventId="e1" liveblocksRoomId="r1" />);
 
     await vi.waitFor(() => {
       expect(
@@ -79,6 +75,8 @@ describe("PackingListEventPanel", () => {
     expect(writeText).toHaveBeenCalledWith(
       `${window.location.origin}/packing/r1`,
     );
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Copied" }),
+    ).toBeInTheDocument();
   });
 });

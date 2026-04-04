@@ -22,7 +22,9 @@ describe("CreateEventForm", () => {
     await user.type(screen.getByLabelText(/^Description$/i), "  details  ");
     await user.type(screen.getByLabelText(/^Location$/i), "  Cafe  ");
 
-    const startDate = document.getElementById("event-start-date") as HTMLInputElement;
+    const startDate = document.getElementById(
+      "event-start-date",
+    ) as HTMLInputElement;
     await user.type(startDate, "2026-06-01");
 
     await user.click(screen.getByRole("button", { name: /Create event/i }));
@@ -45,7 +47,10 @@ describe("CreateEventForm", () => {
 
   it("shows validation error from action", async () => {
     const user = userEvent.setup();
-    createEvent.mockResolvedValue({ ok: false as const, error: "Invalid time" });
+    createEvent.mockResolvedValue({
+      ok: false as const,
+      error: "Invalid time",
+    });
     render(<CreateEventForm />);
     await user.type(screen.getByLabelText(/Title/i), "T");
     await user.click(screen.getByRole("button", { name: /Create event/i }));

@@ -15,7 +15,9 @@ describe("EventChat", () => {
 
   it("shows empty-state hint before messages", () => {
     render(<EventChat eventId="evt-1" />);
-    expect(screen.getByText(/Which items aren't yet signed up/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Which items aren't yet signed up/i),
+    ).toBeInTheDocument();
   });
 
   it("appends assistant reply on success", async () => {
@@ -28,7 +30,9 @@ describe("EventChat", () => {
     const input = screen.getByPlaceholderText(/Ask about this event/i);
     await user.type(input, "When does it start?");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText("The event starts Saturday.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("The event starts Saturday."),
+    ).toBeInTheDocument();
     expect(screen.getByText("When does it start?")).toBeInTheDocument();
   });
 
@@ -39,7 +43,9 @@ describe("EventChat", () => {
       error: "Rate limited",
     });
     render(<EventChat eventId="evt-1" />);
-    const input = screen.getByPlaceholderText(/Ask about this event/i) as HTMLTextAreaElement;
+    const input = screen.getByPlaceholderText(
+      /Ask about this event/i,
+    ) as HTMLTextAreaElement;
     await user.type(input, "Hello");
     await user.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Rate limited");

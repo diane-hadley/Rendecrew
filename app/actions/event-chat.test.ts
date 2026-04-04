@@ -54,7 +54,10 @@ describe("sendEventChatMessage", () => {
       { role: "user", content: "hi" },
       { role: "assistant", content: "hey" },
     ]);
-    expect(r).toEqual({ ok: false, error: "Last message must be from the user" });
+    expect(r).toEqual({
+      ok: false,
+      error: "Last message must be from the user",
+    });
   });
 
   it("rejects non-alternating roles", async () => {
@@ -80,13 +83,17 @@ describe("sendEventChatMessage", () => {
   });
 
   it("rejects empty message content", async () => {
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "   " }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "   " },
+    ]);
     expect(r).toEqual({ ok: false, error: "Messages cannot be empty" });
   });
 
   it("rejects overly long last user message", async () => {
     const long = "x".repeat(8001);
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: long }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: long },
+    ]);
     expect(r).toEqual({
       ok: false,
       error: "Message is too long (max 8000 characters)",
@@ -95,7 +102,9 @@ describe("sendEventChatMessage", () => {
 
   it("returns error when event is missing or inaccessible", async () => {
     vi.mocked(getEventForUser).mockResolvedValueOnce(null);
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({
       ok: false,
       error: "Event not found or you do not have access",
@@ -104,7 +113,9 @@ describe("sendEventChatMessage", () => {
 
   it("returns error when event context cannot be loaded", async () => {
     vi.mocked(getEventAISystemPromptSection).mockResolvedValueOnce(null);
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({ ok: false, error: "Could not load event context" });
   });
 
@@ -112,12 +123,16 @@ describe("sendEventChatMessage", () => {
     vi.mocked(getAnthropic).mockImplementationOnce(() => {
       throw new Error("no key");
     });
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({ ok: false, error: "no key" });
   });
 
   it("returns assistant reply on success", async () => {
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({ ok: true, reply: "Hello" });
     expect(messagesCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -128,13 +143,17 @@ describe("sendEventChatMessage", () => {
 
   it("returns error when model response has no text block", async () => {
     messagesCreate.mockResolvedValueOnce({ content: [{ type: "tool_use" }] });
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({ ok: false, error: "No text response from the model" });
   });
 
   it("returns error when API throws", async () => {
     messagesCreate.mockRejectedValueOnce(new Error("rate limit"));
-    const r = await sendEventChatMessage("e1", [{ role: "user", content: "hi" }]);
+    const r = await sendEventChatMessage("e1", [
+      { role: "user", content: "hi" },
+    ]);
     expect(r).toEqual({ ok: false, error: "rate limit" });
   });
 
@@ -144,7 +163,9 @@ describe("sendEventChatMessage", () => {
       content: String(i),
     }));
     await sendEventChatMessage("e1", msgs);
-    const arg = messagesCreate.mock.calls[0][0] as { messages: { content: string }[] };
+    const arg = messagesCreate.mock.calls[0][0] as {
+      messages: { content: string }[];
+    };
     expect(arg.messages).toHaveLength(39);
     expect(arg.messages[38].role).toBe("user");
   });
