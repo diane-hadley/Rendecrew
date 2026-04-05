@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildInitialStorage, PackingListEditor } from "./PackingListEditor";
 
@@ -126,6 +127,52 @@ describe("PackingListEditor", () => {
     expect(
       screen.getByRole("button", { name: /Sign up to bring/i }),
     ).toBeInTheDocument();
+  });
+
+  it("Needs sign-ups view hides covered items", async () => {
+    const user = userEvent.setup();
+    editorStorage.items = [
+      {
+        id: "full",
+        name: "Cooler",
+        quantity: 1,
+        quantityMax: null,
+        section: null,
+        signUps: [
+          {
+            id: "s1",
+            quantity: 1,
+            displayName: "Pat",
+            email: null,
+            userId: "u1",
+            packed: false,
+          },
+        ],
+      },
+      {
+        id: "open",
+        name: "Tent",
+        quantity: 1,
+        quantityMax: null,
+        section: null,
+        signUps: [],
+      },
+    ];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+      />,
+    );
+    expect(screen.getByDisplayValue("Cooler")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tent")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Needs sign-ups", pressed: false }),
+    );
+    expect(screen.queryByDisplayValue("Cooler")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Tent")).toBeInTheDocument();
   });
 
   it("schedules sync after debounce when items exist", async () => {
