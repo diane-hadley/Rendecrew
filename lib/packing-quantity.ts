@@ -36,3 +36,31 @@ export function itemQuantityCap(
 export function isOptionalPackingMin(quantity: number | null): boolean {
   return quantity === 0;
 }
+
+/**
+ * True when the item still has room for more sign-ups or has no volunteers yet
+ * (aligned with “X left” / “more welcome” hints in the packing UI).
+ */
+export function packingItemNeedsSignUps(
+  quantity: number | null,
+  quantityMax: number | null | undefined,
+  signUps: readonly { quantity: number | null }[],
+): boolean {
+  const allocatedSum = signUps.reduce((a, s) => a + (s.quantity ?? 0), 0);
+  const qMin = quantity;
+  const qMax =
+    quantityMax != null && qMin != null && quantityMax >= qMin
+      ? quantityMax
+      : null;
+  const cap = itemQuantityCap(qMin, qMax);
+
+  if (isOptionalPackingMin(qMin)) {
+    if (cap == null) return allocatedSum === 0;
+    return allocatedSum < cap;
+  }
+
+  if (qMin == null) return signUps.length === 0;
+
+  if (cap == null) return true;
+  return allocatedSum < cap;
+}

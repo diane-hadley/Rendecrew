@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isOptionalPackingMin, itemQuantityCap } from "./packing-quantity";
+import {
+  isOptionalPackingMin,
+  itemQuantityCap,
+  packingItemNeedsSignUps,
+} from "./packing-quantity";
 
 describe("itemQuantityCap", () => {
   it("returns null when quantity is null", () => {
@@ -36,5 +40,36 @@ describe("isOptionalPackingMin", () => {
     expect(isOptionalPackingMin(0)).toBe(true);
     expect(isOptionalPackingMin(null)).toBe(false);
     expect(isOptionalPackingMin(1)).toBe(false);
+  });
+});
+
+describe("packingItemNeedsSignUps", () => {
+  it("is false when fixed quantity is fully signed up", () => {
+    expect(packingItemNeedsSignUps(2, null, [{ quantity: 2 }])).toBe(false);
+  });
+
+  it("is true when below fixed quantity", () => {
+    expect(packingItemNeedsSignUps(2, null, [{ quantity: 1 }])).toBe(true);
+  });
+
+  it("is true for optional capped item until cap is reached", () => {
+    expect(packingItemNeedsSignUps(0, 4, [])).toBe(true);
+    expect(packingItemNeedsSignUps(0, 4, [{ quantity: 3 }])).toBe(true);
+    expect(packingItemNeedsSignUps(0, 4, [{ quantity: 4 }])).toBe(false);
+  });
+
+  it("optional uncapped: needs sign-ups only when nobody signed up", () => {
+    expect(packingItemNeedsSignUps(0, null, [])).toBe(true);
+    expect(packingItemNeedsSignUps(0, null, [{ quantity: 1 }])).toBe(false);
+  });
+
+  it("quantity unset: needs sign-ups only with zero sign-ups", () => {
+    expect(packingItemNeedsSignUps(null, null, [])).toBe(true);
+    expect(packingItemNeedsSignUps(null, null, [{ quantity: 1 }])).toBe(false);
+  });
+
+  it("range: true between min and max", () => {
+    expect(packingItemNeedsSignUps(2, 5, [{ quantity: 2 }])).toBe(true);
+    expect(packingItemNeedsSignUps(2, 5, [{ quantity: 5 }])).toBe(false);
   });
 });

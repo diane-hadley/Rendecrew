@@ -5,7 +5,11 @@ import { useMutation, useStorage, useSyncStatus } from "@liveblocks/react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type { PackingItemPayload } from "@/lib/packing-list";
-import { isOptionalPackingMin, itemQuantityCap } from "@/lib/packing-quantity";
+import {
+  isOptionalPackingMin,
+  itemQuantityCap,
+  packingItemNeedsSignUps,
+} from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
   PackingSignUpStorage,
@@ -183,6 +187,7 @@ export function PackingListEditor({
   const [editingNeededIndex, setEditingNeededIndex] = useState<number | null>(
     null,
   );
+  const [listView, setListView] = useState<"all" | "needsSignUps">("all");
   const migratedRef = useRef(false);
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -587,6 +592,17 @@ export function PackingListEditor({
 
   const items = rawItems as StorageRow[];
 
+  const visibleRows = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => {
+      if (listView === "all") return true;
+      return packingItemNeedsSignUps(
+        item.quantity,
+        item.quantityMax,
+        readSignUps(item),
+      );
+    });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -598,6 +614,40 @@ export function PackingListEditor({
             {saveError}
           </span>
         )}
+      </div>
+
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Packing list view"
+      >
+        <span className="text-sm text-gray-600 dark:text-gray-400">View:</span>
+        <div className="inline-flex overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600">
+          <button
+            type="button"
+            aria-pressed={listView === "all"}
+            onClick={() => setListView("all")}
+            className={`px-3 py-1.5 text-sm font-medium ${
+              listView === "all"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
+            }`}
+          >
+            All items
+          </button>
+          <button
+            type="button"
+            aria-pressed={listView === "needsSignUps"}
+            onClick={() => setListView("needsSignUps")}
+            className={`border-l border-gray-300 px-3 py-1.5 text-sm font-medium dark:border-gray-600 ${
+              listView === "needsSignUps"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
+            }`}
+          >
+            Needs sign-ups
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-950">
@@ -649,7 +699,19 @@ export function PackingListEditor({
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
+            {visibleRows.length === 0 &&
+            listView === "needsSignUps" &&
+            items.length > 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="border border-gray-300 p-6 text-center text-sm text-gray-600 dark:border-gray-600 dark:text-gray-400"
+                >
+                  Every item is covered — nothing is waiting for sign-ups.
+                </td>
+              </tr>
+            ) : null}
+            {visibleRows.map(({ item, index }, visiblePos) => {
               const signUps = readSignUps(item);
               const qMin = item.quantity;
               const qMax =
@@ -672,11 +734,12 @@ export function PackingListEditor({
                   : false;
 
               const sec = normalizedSection(item);
-              const prevSec =
-                index > 0 ? normalizedSection(items[index - 1]!) : null;
+              const prevItem =
+                visiblePos > 0 ? visibleRows[visiblePos - 1]!.item : null;
+              const prevSec = prevItem ? normalizedSection(prevItem) : null;
               const showNamedSectionHeader = sec != null && sec !== prevSec;
               const showUncategorizedHeader =
-                sec == null && (index === 0 || prevSec != null);
+                sec == null && (visiblePos === 0 || prevSec != null);
               const sectionHeader = showNamedSectionHeader
                 ? { label: sec, runSection: sec }
                 : showUncategorizedHeader
