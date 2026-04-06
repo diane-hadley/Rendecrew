@@ -7,7 +7,7 @@ import {
   useErrorListener,
 } from "@liveblocks/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { markSuggestionsCatalogSeen } from "@/app/actions/packing-advanced";
 import type { PackingCommitmentForUser, PackingItemPayload } from "@/lib/packing-list";
 import {
@@ -89,6 +89,8 @@ export function PackingCollabPage({
   const guestSessionId = useGuestSessionId(roomId);
   const [mainTab, setMainTab] = useState<PackingMainTab>("shared");
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -98,16 +100,43 @@ export function PackingCollabPage({
     }
   }, []);
 
+  const authUserId = authUser?.dbUserId ?? null;
+
+  const suggestionsMarkKey =
+    authUserId != null
+      ? `rendecrew-suggestions-mark-${eventId}-${authUserId}`
+      : null;
+
   useEffect(() => {
-    if (mainTab !== "suggestions" || !authUser) return;
+    if (mainTab !== "suggestions" || suggestionsMarkKey == null) return;
+
+    const v = sessionStorage.getItem(suggestionsMarkKey);
+    if (v === "1" || v === "pending") return;
+    sessionStorage.setItem(suggestionsMarkKey, "pending");
+
     let cancelled = false;
-    void markSuggestionsCatalogSeen(eventId).then(() => {
-      if (!cancelled) router.refresh();
+    void markSuggestionsCatalogSeen(eventId).then((r) => {
+      if (cancelled) {
+        sessionStorage.removeItem(suggestionsMarkKey);
+        return;
+      }
+      if (r.ok !== true) {
+        sessionStorage.removeItem(suggestionsMarkKey);
+        return;
+      }
+      sessionStorage.setItem(suggestionsMarkKey, "1");
+      routerRef.current.refresh();
     });
+
     return () => {
       cancelled = true;
     };
-  }, [mainTab, authUser, eventId, router]);
+  }, [mainTab, eventId, suggestionsMarkKey]);
+
+  useEffect(() => {
+    if (mainTab === "suggestions" || suggestionsMarkKey == null) return;
+    sessionStorage.removeItem(suggestionsMarkKey);
+  }, [mainTab, suggestionsMarkKey]);
 
   if (!authUser && !guestStarted) {
     return (
@@ -231,6 +260,7 @@ export function PackingCollabPage({
               authUser={authUser}
               guestDisplayName={authUser ? null : resolvedGuestName}
               canManageTemplate={canManageTemplate}
+              persistToDatabase={mainTab === "shared"}
             />
           </div>
 

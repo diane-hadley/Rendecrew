@@ -181,12 +181,18 @@ export function PackingListEditor({
   authUser,
   guestDisplayName,
   canManageTemplate,
+  persistToDatabase = true,
 }: {
   roomId: string;
   authUser: AuthUser | null;
   guestDisplayName: string | null;
   /** Event organizers may edit shared rows; everyone else only manages their own sign-ups. */
   canManageTemplate: boolean;
+  /**
+   * When false, storage updates are not synced to Postgres (e.g. while another tab is visible).
+   * Avoids repeated persist while Liveblocks still streams updates in the background.
+   */
+  persistToDatabase?: boolean;
 }) {
   const ctxRef = useRef({ authUser, guestDisplayName });
   ctxRef.current = { authUser, guestDisplayName };
@@ -274,6 +280,13 @@ export function PackingListEditor({
   }, [rawItems, migrateLegacySignUps]);
 
   useEffect(() => {
+    if (!persistToDatabase) {
+      if (persistTimer.current) {
+        clearTimeout(persistTimer.current);
+        persistTimer.current = null;
+      }
+      return;
+    }
     if (rawItems === undefined || rawItems === null) {
       return () => {
         if (persistTimer.current) clearTimeout(persistTimer.current);
@@ -284,7 +297,7 @@ export function PackingListEditor({
     return () => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
     };
-  }, [rawItems, schedulePersist]);
+  }, [rawItems, schedulePersist, persistToDatabase]);
 
   useEffect(() => {
     if (!canManageTemplate) setEditingNeededIndex(null);
@@ -501,10 +514,12 @@ export function PackingListEditor({
     const rem = cap != null ? Math.max(0, cap - sum) : null;
     if (cap != null && rem != null && rem < 1) return;
 
+    const newQuantity = cap != null ? Math.min(1, rem) : 1;
+
     signUps.push(
       new LiveObject({
         id: crypto.randomUUID(),
-        quantity: cap != null ? rem : null,
+        quantity: newQuantity,
         displayName: au ? au.name : g!,
         email: au ? au.email.trim().toLowerCase() : null,
         userId: au ? au.dbUserId : null,
@@ -692,7 +707,7 @@ export function PackingListEditor({
           Redo
         </button>
         <span className="text-xs text-gray-500 dark:text-gray-500">
-          Applies to edits you made on this device (Liveblocks history).
+          Applies to edits you made on this device.
         </span>
       </div>
 
