@@ -9,7 +9,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { markSuggestionsCatalogSeen } from "@/app/actions/packing-advanced";
-import type { PackingCommitmentForUser, PackingItemPayload } from "@/lib/packing-list";
+import type {
+  PackingCommitmentForUser,
+  PackingItemPayload,
+} from "@/lib/packing-list";
 import {
   PackingMyPackingTab,
   PackingSuggestionsTab,

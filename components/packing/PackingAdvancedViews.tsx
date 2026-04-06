@@ -142,7 +142,10 @@ export function PackingSuggestionsTab({
                     onClick={() => {
                       setError(null);
                       startTransition(async () => {
-                        const r = await moderatePackingSuggestion(d.id, "publish");
+                        const r = await moderatePackingSuggestion(
+                          d.id,
+                          "publish",
+                        );
                         if (!r.ok) setError(r.error);
                         else router.refresh();
                       });
@@ -157,7 +160,10 @@ export function PackingSuggestionsTab({
                     onClick={() => {
                       setError(null);
                       startTransition(async () => {
-                        const r = await moderatePackingSuggestion(d.id, "reject");
+                        const r = await moderatePackingSuggestion(
+                          d.id,
+                          "reject",
+                        );
                         if (!r.ok) setError(r.error);
                         else router.refresh();
                       });
@@ -344,7 +350,9 @@ export function PackingMyPackingTab({
           Items you signed up for on the shared list.
         </p>
         {commitments.length === 0 ? (
-          <p className="mt-2 text-gray-500">No sign-ups linked to your account.</p>
+          <p className="mt-2 text-gray-500">
+            No sign-ups linked to your account.
+          </p>
         ) : (
           <ul className="mt-2 space-y-2">
             {commitments.map((c) => (

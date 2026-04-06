@@ -87,9 +87,7 @@ export default async function PublicPackingPage({
         sourceSuggestionId: true,
       },
     });
-    personalItems = rows.map(
-      ({ sourceSuggestionId: _sid, ...rest }) => rest,
-    );
+    personalItems = rows.map(({ sourceSuggestionId: _sid, ...rest }) => rest);
     for (const r of rows) {
       if (r.sourceSuggestionId) {
         personalSourceIds.add(r.sourceSuggestionId);

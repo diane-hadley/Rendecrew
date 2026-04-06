@@ -92,7 +92,9 @@ function templatesEqual(a: TemplateSlice, b: TemplateSlice): boolean {
   );
 }
 
-function dbSignUpToPayload(s: DbItemForMerge["signUps"][0]): PackingSignUpPayload {
+function dbSignUpToPayload(
+  s: DbItemForMerge["signUps"][0],
+): PackingSignUpPayload {
   return {
     id: s.id,
     quantity: s.quantity,
@@ -111,9 +113,7 @@ function ownsSignUpDb(
     return su.userId === actor.userId;
   }
   if (actor.kind === "guest") {
-    return (
-      !su.userId && su.displayName.trim() === actor.displayName.trim()
-    );
+    return !su.userId && su.displayName.trim() === actor.displayName.trim();
   }
   return false;
 }
@@ -156,9 +156,7 @@ export function mergeParticipantPackingPayload(
   dbItemsOrdered: DbItemForMerge[],
   incoming: PackingItemPayload[],
   actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
-):
-  | { ok: true; items: PackingItemPayload[] }
-  | { ok: false; error: string } {
+): { ok: true; items: PackingItemPayload[] } | { ok: false; error: string } {
   if (incoming.length !== dbItemsOrdered.length) {
     return {
       ok: false,
