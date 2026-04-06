@@ -1,3 +1,4 @@
+import { PackingSuggestionStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -8,6 +9,7 @@ import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
+import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
 function formatRange(start: Date | null, end: Date | null) {
@@ -46,6 +48,16 @@ export default async function EventDetailPage({
   const packingListPath = packingList
     ? `/packing/${packingList.liveblocksRoomId}`
     : null;
+
+  const pendingSuggestionDraftCount =
+    editable && packingList
+      ? await prisma.packingSuggestion.count({
+          where: {
+            eventId: event.id,
+            status: PackingSuggestionStatus.DRAFT_USER,
+          },
+        })
+      : 0;
 
   const dateRangeLabel = formatRange(event.startAt, event.endAt);
 
@@ -87,6 +99,9 @@ export default async function EventDetailPage({
             liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
             commitments: myPackingCommitments,
             packingListPath,
+            suggestionApprovalRequired:
+              event.suggestionApprovalRequired ?? false,
+            pendingSuggestionDraftCount,
           }}
         />
       </div>

@@ -22,6 +22,181 @@ export type PackingItemPayload = {
   signUps: PackingSignUpPayload[];
 };
 
+/** Who is persisting: organizers apply the full payload; others may only change their own sign-ups. */
+export type PackingPersistActor =
+  | { kind: "organizer" }
+  | { kind: "participant"; userId: string }
+  | { kind: "guest"; displayName: string };
+
+type DbItemForMerge = {
+  id: string;
+  section: string | null;
+  name: string;
+  quantity: number | null;
+  quantityMax: number | null;
+  signUps: Array<{
+    id: string;
+    quantity: number | null;
+    displayName: string;
+    email: string | null;
+    userId: string | null;
+    packed: boolean;
+  }>;
+};
+
+type TemplateSlice = {
+  id: string;
+  section: string | null;
+  name: string;
+  quantity: number | null;
+  quantityMax: number | null;
+};
+
+function effectiveQuantityMax(
+  quantity: number | null,
+  quantityMax: number | null | undefined,
+): number | null {
+  if (quantity == null) return null;
+  if (quantityMax != null && quantityMax > quantity) return quantityMax;
+  return null;
+}
+
+function templateFromPayload(it: PackingItemPayload): TemplateSlice {
+  const sectionRaw = it.section?.trim() ?? "";
+  return {
+    id: it.id,
+    section: sectionRaw === "" ? null : sectionRaw,
+    name: it.name.trim(),
+    quantity: it.quantity,
+    quantityMax: effectiveQuantityMax(it.quantity, it.quantityMax ?? null),
+  };
+}
+
+function templateFromDbRow(row: DbItemForMerge): TemplateSlice {
+  return {
+    id: row.id,
+    section: row.section,
+    name: row.name.trim(),
+    quantity: row.quantity,
+    quantityMax: effectiveQuantityMax(row.quantity, row.quantityMax),
+  };
+}
+
+function templatesEqual(a: TemplateSlice, b: TemplateSlice): boolean {
+  return (
+    a.id === b.id &&
+    a.section === b.section &&
+    a.name === b.name &&
+    a.quantity === b.quantity &&
+    a.quantityMax === b.quantityMax
+  );
+}
+
+function dbSignUpToPayload(s: DbItemForMerge["signUps"][0]): PackingSignUpPayload {
+  return {
+    id: s.id,
+    quantity: s.quantity,
+    displayName: s.displayName,
+    email: s.email,
+    userId: s.userId,
+    packed: s.packed,
+  };
+}
+
+function ownsSignUpDb(
+  su: PackingSignUpPayload,
+  actor: PackingPersistActor,
+): boolean {
+  if (actor.kind === "participant") {
+    return su.userId === actor.userId;
+  }
+  if (actor.kind === "guest") {
+    return (
+      !su.userId && su.displayName.trim() === actor.displayName.trim()
+    );
+  }
+  return false;
+}
+
+function mergeSignUpsForActor(
+  dbSignUps: PackingSignUpPayload[],
+  incSignUps: PackingSignUpPayload[],
+  actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
+): PackingSignUpPayload[] {
+  const dbById = new Map(dbSignUps.map((s) => [s.id, s]));
+  const incById = new Map(incSignUps.map((s) => [s.id, s]));
+  const merged: PackingSignUpPayload[] = [];
+  const usedInc = new Set<string>();
+
+  for (const dbRow of dbSignUps) {
+    const inc = incById.get(dbRow.id);
+    if (!inc) {
+      if (ownsSignUpDb(dbRow, actor)) continue;
+      merged.push(dbRow);
+      continue;
+    }
+    usedInc.add(dbRow.id);
+    if (ownsSignUpDb(dbRow, actor)) merged.push(inc);
+    else merged.push(dbRow);
+  }
+
+  for (const inc of incSignUps) {
+    if (usedInc.has(inc.id)) continue;
+    if (dbById.has(inc.id)) continue;
+    if (ownsSignUpDb(inc, actor)) merged.push(inc);
+  }
+
+  return merged;
+}
+
+/**
+ * Non-organizers may only change their own sign-ups; shared template must match the database row-for-row.
+ */
+export function mergeParticipantPackingPayload(
+  dbItemsOrdered: DbItemForMerge[],
+  incoming: PackingItemPayload[],
+  actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
+):
+  | { ok: true; items: PackingItemPayload[] }
+  | { ok: false; error: string } {
+  if (incoming.length !== dbItemsOrdered.length) {
+    return {
+      ok: false,
+      error: "Only organizers can change the shared list structure",
+    };
+  }
+  const out: PackingItemPayload[] = [];
+  for (let i = 0; i < dbItemsOrdered.length; i++) {
+    const dbRow = dbItemsOrdered[i]!;
+    const inc = incoming[i]!;
+    if (dbRow.id !== inc.id) {
+      return {
+        ok: false,
+        error: "Only organizers can change the shared list structure",
+      };
+    }
+    const dbT = templateFromDbRow(dbRow);
+    const incT = templateFromPayload(inc);
+    if (!templatesEqual(dbT, incT)) {
+      return {
+        ok: false,
+        error: "Only organizers can change the shared list structure",
+      };
+    }
+    const dbS = dbRow.signUps.map(dbSignUpToPayload);
+    const merged = mergeSignUpsForActor(dbS, inc.signUps, actor);
+    out.push({
+      id: dbRow.id,
+      section: dbRow.section,
+      name: dbRow.name,
+      quantity: dbRow.quantity,
+      quantityMax: dbRow.quantityMax,
+      signUps: merged,
+    });
+  }
+  return { ok: true, items: out };
+}
+
 const MAX_ITEMS = 500;
 const MAX_SIGN_UPS_PER_ITEM = 40;
 const MAX_SECTION_LEN = 120;
@@ -158,20 +333,38 @@ function sumSignUpQuantities(signUps: { quantity: number | null }[]): number {
 export async function persistPackingListItems(
   liveblocksRoomId: string,
   items: PackingItemPayload[],
+  actor: PackingPersistActor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const list = await prisma.packingList.findUnique({
     where: { liveblocksRoomId },
-    select: { id: true },
+    select: {
+      id: true,
+      items: {
+        orderBy: { sortOrder: "asc" },
+        include: { signUps: signUpsInclude },
+      },
+    },
   });
   if (!list) {
     return { ok: false, error: "Packing list not found" };
   }
 
-  if (items.length > MAX_ITEMS) {
+  let itemsToPersist = items;
+  if (actor.kind !== "organizer") {
+    const merged = mergeParticipantPackingPayload(
+      list.items as DbItemForMerge[],
+      items,
+      actor,
+    );
+    if (!merged.ok) return merged;
+    itemsToPersist = merged.items;
+  }
+
+  if (itemsToPersist.length > MAX_ITEMS) {
     return { ok: false, error: "Too many items" };
   }
 
-  for (const it of items) {
+  for (const it of itemsToPersist) {
     if (!it.id || typeof it.id !== "string") {
       return { ok: false, error: "Invalid item id" };
     }
@@ -263,7 +456,7 @@ export async function persistPackingListItems(
   }
 
   const userIds = new Set(
-    items.flatMap((i) =>
+    itemsToPersist.flatMap((i) =>
       i.signUps
         .map((s) => s.userId)
         .filter((x): x is string => Boolean(x?.trim())),
@@ -281,7 +474,7 @@ export async function persistPackingListItems(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const incomingIds = items.map((i) => i.id);
+      const incomingIds = itemsToPersist.map((i) => i.id);
       const touched = await tx.packingItem.findMany({
         where: { id: { in: incomingIds } },
         select: { id: true, packingListId: true },
@@ -306,8 +499,8 @@ export async function persistPackingListItems(
         });
       }
 
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
+      for (let i = 0; i < itemsToPersist.length; i++) {
+        const it = itemsToPersist[i];
         const sectionTrim = it.section?.trim() ?? "";
         const section = sectionTrim === "" ? null : sectionTrim;
 

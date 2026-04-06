@@ -70,6 +70,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Storage access is full for all clients here; shared-list template edits are
+    // enforced in `persistPackingListItems` (organizers vs participants) so Postgres
+    // cannot diverge if a client misbehaves.
+
     const clerkUser = await currentUser();
     if (clerkUser) {
       let dbUser;

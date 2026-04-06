@@ -10,7 +10,32 @@ const { notFound } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ notFound }));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
 vi.mock("@/lib/user", () => ({ getOrCreateUser: vi.fn() }));
-vi.mock("@/lib/packing-list", () => ({ getPackingListByRoomId: vi.fn() }));
+vi.mock("@/lib/packing-list", () => ({
+  getPackingListByRoomId: vi.fn(),
+  listPackingCommitmentsForUser: vi.fn().mockReturnValue([]),
+}));
+vi.mock("@/lib/events", () => ({
+  getEventForUser: vi.fn(),
+  canManageEvent: vi.fn(),
+}));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    event: {
+      findUnique: vi.fn().mockResolvedValue({
+        suggestionApprovalRequired: false,
+      }),
+    },
+    packingSuggestion: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    userSuggestionState: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    personalPackingItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+  },
+}));
 const capturePackingProps = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/packing/PackingCollabPage", () => ({
@@ -23,6 +48,7 @@ vi.mock("@/components/packing/PackingCollabPage", () => ({
 }));
 
 import { currentUser } from "@clerk/nextjs/server";
+import { canManageEvent, getEventForUser } from "@/lib/events";
 import { getPackingListByRoomId } from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 import PublicPackingPage from "./page";
@@ -56,6 +82,8 @@ describe("PublicPackingPage", () => {
     vi.mocked(getPackingListByRoomId).mockReset();
     vi.mocked(currentUser).mockReset();
     vi.mocked(getOrCreateUser).mockReset();
+    vi.mocked(getEventForUser).mockReset();
+    vi.mocked(canManageEvent).mockReturnValue(false);
     vi.mocked(currentUser).mockResolvedValue(null);
     capturePackingProps.mockClear();
   });
@@ -95,6 +123,10 @@ describe("PublicPackingPage", () => {
       name: "Sam",
       email: "sam@example.com",
     } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: { id: "e1" },
+      role: "member",
+    } as Awaited<ReturnType<typeof getEventForUser>>);
     const ui = await PublicPackingPage({ params: { roomId: "room-xyz" } });
     render(ui);
     expect(capturePackingProps).toHaveBeenCalled();

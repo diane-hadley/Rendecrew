@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   listPackingCommitmentsForUser,
+  mergeParticipantPackingPayload,
   normalizeEmailForSignUp,
+  type PackingItemPayload,
 } from "./packing-list";
 
 describe("normalizeEmailForSignUp", () => {
@@ -70,5 +72,105 @@ describe("listPackingCommitmentsForUser", () => {
         "u1",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("mergeParticipantPackingPayload", () => {
+  const dbItems = [
+    {
+      id: "i1",
+      section: "G" as string | null,
+      name: "Tent",
+      quantity: 1 as number | null,
+      quantityMax: null as number | null,
+      signUps: [
+        {
+          id: "s1",
+          quantity: 1,
+          displayName: "Pat",
+          email: null,
+          userId: "u1",
+          packed: false,
+        },
+        {
+          id: "s2",
+          quantity: 1,
+          displayName: "Quinn",
+          email: null,
+          userId: "u2",
+          packed: true,
+        },
+      ],
+    },
+  ];
+
+  it("rejects template changes from participant", () => {
+    const incoming: PackingItemPayload[] = [
+      {
+        id: "i1",
+        section: "G",
+        name: "Renamed",
+        quantity: 1,
+        signUps: [],
+      },
+    ];
+    const r = mergeParticipantPackingPayload(dbItems, incoming, {
+      kind: "participant",
+      userId: "u1",
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("merges only the actor’s sign-up while preserving others", () => {
+    const incoming: PackingItemPayload[] = [
+      {
+        id: "i1",
+        section: "G",
+        name: "Tent",
+        quantity: 1,
+        signUps: [
+          {
+            id: "s1",
+            quantity: 1,
+            displayName: "Pat",
+            email: null,
+            userId: "u1",
+            packed: true,
+          },
+          {
+            id: "s2",
+            quantity: 1,
+            displayName: "Quinn",
+            email: null,
+            userId: "u2",
+            packed: false,
+          },
+        ],
+      },
+    ];
+    const r = mergeParticipantPackingPayload(dbItems, incoming, {
+      kind: "participant",
+      userId: "u1",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.items[0]!.signUps).toEqual([
+      {
+        id: "s1",
+        quantity: 1,
+        displayName: "Pat",
+        email: null,
+        userId: "u1",
+        packed: true,
+      },
+      {
+        id: "s2",
+        quantity: 1,
+        displayName: "Quinn",
+        email: null,
+        userId: "u2",
+        packed: true,
+      },
+    ]);
   });
 });

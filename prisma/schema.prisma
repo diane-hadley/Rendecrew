@@ -9,6 +9,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PackingSuggestionStatus {
+  DRAFT_USER
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
 model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique @map("clerk_id")
@@ -20,6 +27,10 @@ model User {
   createdEvents        Event[]               @relation("EventCreatedBy")
   eventMembers         EventMember[]
   packingItemSignUps   PackingItemSignUp[]
+  personalPackingItems PersonalPackingItem[]
+  packingSuggestionsCreated PackingSuggestion[] @relation("PackingSuggestionCreatedBy")
+  packingSuggestionsReviewed  PackingSuggestion[] @relation("PackingSuggestionReviewedBy")
+  userSuggestionStates UserSuggestionState[]
 
   // PostgreSQL table name
   @@map("users")
@@ -33,12 +44,17 @@ model Event {
   endAt       DateTime? @map("end_at")
   location    String?
   createdById String   @map("created_by_id")
+  /** When true, participant-submitted catalog ideas stay DRAFT_USER until an organizer publishes them. */
+  suggestionApprovalRequired Boolean @default(false) @map("suggestion_approval_required")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   createdBy    User          @relation("EventCreatedBy", fields: [createdById], references: [id])
   eventMembers EventMember[]
   packingList  PackingList?
+  packingSuggestions PackingSuggestion[]
+  personalPackingItems PersonalPackingItem[]
+  userSuggestionStates UserSuggestionState[]
 
   // PostgreSQL table name
   @@map("events")
@@ -114,4 +130,62 @@ model EventMember {
   @@unique([eventId, userId])
   // PostgreSQL table name
   @@map("event_members")
+}
+
+model PersonalPackingItem {
+  id                 String   @id @default(uuid())
+  eventId            String   @map("event_id")
+  userId             String   @map("user_id")
+  name               String
+  section            String?
+  quantity           Int      @default(1)
+  sortOrder          Int      @default(0) @map("sort_order")
+  packed             Boolean  @default(false)
+  sourceSuggestionId String?  @map("source_suggestion_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceSuggestion PackingSuggestion? @relation(fields: [sourceSuggestionId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, userId])
+  @@map("personal_packing_items")
+}
+
+model PackingSuggestion {
+  id                String                  @id @default(uuid())
+  eventId           String                  @map("event_id")
+  name              String
+  section           String?
+  defaultQuantity   Int?                    @map("default_quantity")
+  status            PackingSuggestionStatus
+  createdByUserId   String                  @map("created_by_user_id")
+  reviewedByUserId  String?                 @map("reviewed_by_user_id")
+  reviewedAt        DateTime?               @map("reviewed_at")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  event       Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy   User  @relation("PackingSuggestionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  reviewedBy  User? @relation("PackingSuggestionReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  personalCopies PersonalPackingItem[]
+
+  @@index([eventId, status])
+  @@map("packing_suggestions")
+}
+
+model UserSuggestionState {
+  id                           String    @id @default(uuid())
+  userId                       String    @map("user_id")
+  eventId                      String    @map("event_id")
+  lastSeenSuggestionCatalogAt  DateTime? @map("last_seen_suggestion_catalog_at")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@map("user_suggestion_states")
 }

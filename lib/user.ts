@@ -2,6 +2,24 @@ import { prisma } from "./prisma";
 import { currentUser } from "@clerk/nextjs/server";
 import { backfillPackingItemSignUpsForUser } from "@/lib/packing-list";
 
+/** Clerk-signed-in DB user, or null (guest / not signed in). */
+export async function getOptionalDbUser(): Promise<{
+  id: string;
+  name: string;
+  email: string;
+} | null> {
+  const clerkUser = await currentUser();
+  if (!clerkUser) return null;
+  const email = clerkUser.emailAddresses[0]?.emailAddress;
+  if (!email) return null;
+  try {
+    const u = await getOrCreateUser();
+    return { id: u.id, name: u.name, email: u.email };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Get or create a user in the database based on Clerk authentication
  * This function should be called in server components or server actions

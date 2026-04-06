@@ -9,6 +9,7 @@ export type DashboardEventRow = {
     endAt: Date | null;
     location: string | null;
     createdById: string;
+    suggestionApprovalRequired: boolean;
     createdAt: Date;
     updatedAt: Date;
   };
