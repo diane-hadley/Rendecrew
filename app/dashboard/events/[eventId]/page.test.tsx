@@ -21,6 +21,11 @@ vi.mock("@/lib/packing-list", () => ({
   getPackingListForEvent: vi.fn(),
   listPackingCommitmentsForUser: vi.fn(),
 }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    packingSuggestion: { count: vi.fn().mockResolvedValue(0) },
+  },
+}));
 vi.mock("@/components/events/EventDetailClient", () => ({
   EventDetailClient: () => <div data-testid="event-detail-client">Detail</div>,
 }));
@@ -84,6 +89,7 @@ describe("EventDetailPage", () => {
         location: "Beach",
         startAt: new Date("2026-07-01T10:00:00Z"),
         endAt: new Date("2026-07-02T10:00:00Z"),
+        suggestionApprovalRequired: false,
       },
       role: "member",
     } as Awaited<ReturnType<typeof getEventForUser>>);

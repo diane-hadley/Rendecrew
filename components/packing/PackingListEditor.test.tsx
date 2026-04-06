@@ -12,6 +12,10 @@ vi.mock("@liveblocks/react", () => ({
     fn({ items: editorStorage.items }),
   useSyncStatus: () => "stored" as const,
   useMutation: vi.fn(() => vi.fn()),
+  useUndo: () => () => {},
+  useRedo: () => () => {},
+  useCanUndo: () => false,
+  useCanRedo: () => false,
 }));
 
 const syncPackingListToDatabase = vi.fn();
@@ -79,6 +83,7 @@ describe("PackingListEditor", () => {
         roomId="r1"
         authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
         guestDisplayName={null}
+        canManageTemplate
       />,
     );
     expect(screen.getByText("Connecting…")).toBeInTheDocument();
@@ -91,6 +96,7 @@ describe("PackingListEditor", () => {
         roomId="r1"
         authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
         guestDisplayName={null}
+        canManageTemplate
       />,
     );
     expect(screen.getByText("Up to date")).toBeInTheDocument();
@@ -121,6 +127,7 @@ describe("PackingListEditor", () => {
         roomId="r1"
         authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
         guestDisplayName={null}
+        canManageTemplate
       />,
     );
     expect(screen.getByDisplayValue("Lantern")).toBeInTheDocument();
@@ -163,6 +170,7 @@ describe("PackingListEditor", () => {
         roomId="r1"
         authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
         guestDisplayName={null}
+        canManageTemplate
       />,
     );
     expect(screen.getByDisplayValue("Cooler")).toBeInTheDocument();
@@ -194,6 +202,7 @@ describe("PackingListEditor", () => {
         roomId="room-sync"
         authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
         guestDisplayName={null}
+        canManageTemplate
       />,
     );
 
@@ -204,6 +213,7 @@ describe("PackingListEditor", () => {
       expect.arrayContaining([
         expect.objectContaining({ id: "row-sync", name: "Mug" }),
       ]),
+      { guestDisplayName: null },
     );
     vi.useRealTimers();
   });

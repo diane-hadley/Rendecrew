@@ -3,6 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PackingCollabPage } from "./PackingCollabPage";
 
+vi.mock("@/app/actions/packing-advanced", () => ({
+  markSuggestionsCatalogSeen: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("@/liveblocks.config", () => ({}));
 
 vi.mock("@liveblocks/react", () => ({
@@ -42,6 +50,16 @@ const sampleItems = [
   },
 ];
 
+const advancedDefaults = {
+  eventId: "ev1",
+  canManageTemplate: false,
+  suggestionApprovalRequired: false,
+  publishedSuggestions: [] as const,
+  draftSuggestions: [] as const,
+  personalItems: [] as const,
+  commitments: [] as const,
+};
+
 describe("PackingCollabPage", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -58,6 +76,7 @@ describe("PackingCollabPage", () => {
           name: "Alex",
           email: "alex@example.com",
         }}
+        {...advancedDefaults}
       />,
     );
 
@@ -87,6 +106,7 @@ describe("PackingCollabPage", () => {
         eventTitle="Campout"
         initialItems={[]}
         authUser={null}
+        {...advancedDefaults}
       />,
     );
 
@@ -105,6 +125,7 @@ describe("PackingCollabPage", () => {
         eventTitle="Campout"
         initialItems={[]}
         authUser={null}
+        {...advancedDefaults}
       />,
     );
 

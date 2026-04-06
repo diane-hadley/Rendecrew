@@ -6,9 +6,23 @@ import {
   RoomProvider,
   useErrorListener,
 } from "@liveblocks/react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { markSuggestionsCatalogSeen } from "@/app/actions/packing-advanced";
+import type {
+  PackingCommitmentForUser,
+  PackingItemPayload,
+} from "@/lib/packing-list";
+import {
+  PackingMyPackingTab,
+  PackingSuggestionsTab,
+  PackingTabBar,
+  type DraftSuggestionVM,
+  type PackingMainTab,
+  type PersonalItemVM,
+  type PublishedSuggestionVM,
+} from "./PackingAdvancedViews";
 import { PackingListEditor, buildInitialStorage } from "./PackingListEditor";
-import type { PackingItemPayload } from "@/lib/packing-list";
 
 type AuthUser = { dbUserId: string; name: string; email: string };
 
@@ -50,18 +64,82 @@ function LiveblocksConnectionMessages() {
 
 export function PackingCollabPage({
   roomId,
+  eventId,
   eventTitle,
   initialItems,
   authUser,
+  canManageTemplate,
+  suggestionApprovalRequired,
+  publishedSuggestions,
+  draftSuggestions,
+  personalItems,
+  commitments,
 }: {
   roomId: string;
+  eventId: string;
   eventTitle: string;
   initialItems: PackingItemPayload[];
   authUser: AuthUser | null;
+  canManageTemplate: boolean;
+  suggestionApprovalRequired: boolean;
+  publishedSuggestions: PublishedSuggestionVM[];
+  draftSuggestions: DraftSuggestionVM[];
+  personalItems: PersonalItemVM[];
+  commitments: PackingCommitmentForUser[];
 }) {
   const [guestDisplayName, setGuestDisplayName] = useState("");
   const [guestStarted, setGuestStarted] = useState(false);
   const guestSessionId = useGuestSessionId(roomId);
+  const [mainTab, setMainTab] = useState<PackingMainTab>("shared");
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "suggestions" || t === "my" || t === "shared") {
+      setMainTab(t);
+    }
+  }, []);
+
+  const authUserId = authUser?.dbUserId ?? null;
+
+  const suggestionsMarkKey =
+    authUserId != null
+      ? `rendecrew-suggestions-mark-${eventId}-${authUserId}`
+      : null;
+
+  useEffect(() => {
+    if (mainTab !== "suggestions" || suggestionsMarkKey == null) return;
+
+    const v = sessionStorage.getItem(suggestionsMarkKey);
+    if (v === "1" || v === "pending") return;
+    sessionStorage.setItem(suggestionsMarkKey, "pending");
+
+    let cancelled = false;
+    void markSuggestionsCatalogSeen(eventId).then((r) => {
+      if (cancelled) {
+        sessionStorage.removeItem(suggestionsMarkKey);
+        return;
+      }
+      if (r.ok !== true) {
+        sessionStorage.removeItem(suggestionsMarkKey);
+        return;
+      }
+      sessionStorage.setItem(suggestionsMarkKey, "1");
+      routerRef.current.refresh();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mainTab, eventId, suggestionsMarkKey]);
+
+  useEffect(() => {
+    if (mainTab === "suggestions" || suggestionsMarkKey == null) return;
+    sessionStorage.removeItem(suggestionsMarkKey);
+  }, [mainTab, suggestionsMarkKey]);
 
   if (!authUser && !guestStarted) {
     return (
@@ -163,12 +241,51 @@ export function PackingCollabPage({
                 Signed in — sign-ups are tied to your Rendecrew account.
               </p>
             )}
+            {!authUser && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                Guest — you can sign up for items; sign in for a personal list
+                and suggestions.
+              </p>
+            )}
+            {canManageTemplate && (
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                You can edit the shared template (items, sections, quantities,
+                remove rows). Others only manage their own sign-ups.
+              </p>
+            )}
           </div>
-          <PackingListEditor
-            roomId={roomId}
-            authUser={authUser}
-            guestDisplayName={authUser ? null : resolvedGuestName}
-          />
+
+          <PackingTabBar active={mainTab} onChange={setMainTab} />
+
+          <div className={mainTab === "shared" ? "block" : "hidden"}>
+            <PackingListEditor
+              roomId={roomId}
+              authUser={authUser}
+              guestDisplayName={authUser ? null : resolvedGuestName}
+              canManageTemplate={canManageTemplate}
+              persistToDatabase={mainTab === "shared"}
+            />
+          </div>
+
+          {mainTab === "suggestions" ? (
+            <PackingSuggestionsTab
+              eventId={eventId}
+              isSignedIn={authUser != null}
+              canManageTemplate={canManageTemplate}
+              suggestionApprovalRequired={suggestionApprovalRequired}
+              published={publishedSuggestions}
+              drafts={draftSuggestions}
+            />
+          ) : null}
+
+          {mainTab === "my" ? (
+            <PackingMyPackingTab
+              eventId={eventId}
+              isSignedIn={authUser != null}
+              commitments={commitments}
+              personalItems={personalItems}
+            />
+          ) : null}
         </div>
       </RoomProvider>
     </LiveblocksProvider>

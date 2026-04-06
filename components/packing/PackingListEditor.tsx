@@ -1,7 +1,15 @@
 "use client";
 
 import { LiveList, LiveObject } from "@liveblocks/client";
-import { useMutation, useStorage, useSyncStatus } from "@liveblocks/react";
+import {
+  useCanRedo,
+  useCanUndo,
+  useMutation,
+  useRedo,
+  useStorage,
+  useSyncStatus,
+  useUndo,
+} from "@liveblocks/react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type { PackingItemPayload } from "@/lib/packing-list";
@@ -172,17 +180,33 @@ export function PackingListEditor({
   roomId,
   authUser,
   guestDisplayName,
+  canManageTemplate,
+  persistToDatabase = true,
 }: {
   roomId: string;
   authUser: AuthUser | null;
   guestDisplayName: string | null;
+  /** Event organizers may edit shared rows; everyone else only manages their own sign-ups. */
+  canManageTemplate: boolean;
+  /**
+   * When false, storage updates are not synced to Postgres (e.g. while another tab is visible).
+   * Avoids repeated persist while Liveblocks still streams updates in the background.
+   */
+  persistToDatabase?: boolean;
 }) {
   const ctxRef = useRef({ authUser, guestDisplayName });
   ctxRef.current = { authUser, guestDisplayName };
 
   const rawItems = useStorage((root) => root.items);
   const syncStatus = useSyncStatus({ smooth: true });
+  const undo = useUndo();
+  const redo = useRedo();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(
+    null,
+  );
   const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({});
   const [editingNeededIndex, setEditingNeededIndex] = useState<number | null>(
     null,
@@ -197,7 +221,10 @@ export function PackingListEditor({
       if (persistTimer.current) clearTimeout(persistTimer.current);
       persistTimer.current = setTimeout(async () => {
         persistTimer.current = null;
-        const result = await syncPackingListToDatabase(roomId, payload);
+        const { authUser: au, guestDisplayName: gn } = ctxRef.current;
+        const result = await syncPackingListToDatabase(roomId, payload, {
+          guestDisplayName: au ? null : gn,
+        });
         if (!result.ok) {
           setSaveError(result.error);
         } else {
@@ -253,6 +280,13 @@ export function PackingListEditor({
   }, [rawItems, migrateLegacySignUps]);
 
   useEffect(() => {
+    if (!persistToDatabase) {
+      if (persistTimer.current) {
+        clearTimeout(persistTimer.current);
+        persistTimer.current = null;
+      }
+      return;
+    }
     if (rawItems === undefined || rawItems === null) {
       return () => {
         if (persistTimer.current) clearTimeout(persistTimer.current);
@@ -263,7 +297,11 @@ export function PackingListEditor({
     return () => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
     };
-  }, [rawItems, schedulePersist]);
+  }, [rawItems, schedulePersist, persistToDatabase]);
+
+  useEffect(() => {
+    if (!canManageTemplate) setEditingNeededIndex(null);
+  }, [canManageTemplate]);
 
   useEffect(() => {
     if (editingNeededIndex == null) return;
@@ -476,10 +514,12 @@ export function PackingListEditor({
     const rem = cap != null ? Math.max(0, cap - sum) : null;
     if (cap != null && rem != null && rem < 1) return;
 
+    const newQuantity = rem != null ? Math.min(1, rem) : 1;
+
     signUps.push(
       new LiveObject({
         id: crypto.randomUUID(),
-        quantity: cap != null ? rem : null,
+        quantity: newQuantity,
         displayName: au ? au.name : g!,
         email: au ? au.email.trim().toLowerCase() : null,
         userId: au ? au.dbUserId : null,
@@ -538,6 +578,21 @@ export function PackingListEditor({
       }
       if (!target) return;
 
+      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
+      const mine = isMineSignUp(
+        {
+          id: String(target.get("id")),
+          quantity: (target.get("quantity") as number | null) ?? null,
+          displayName: String(target.get("displayName") ?? ""),
+          email: (target.get("email") as string | null) ?? null,
+          userId: (target.get("userId") as string | null) ?? null,
+          packed: Boolean(target.get("packed")),
+        },
+        au,
+        gn,
+      );
+      if (!mine) return;
+
       let otherSum = 0;
       for (let i = 0; i < signUps.length; i++) {
         const s = signUps.get(i);
@@ -572,10 +627,24 @@ export function PackingListEditor({
       if (!row) return;
       const signUps = row.get("signUps");
       if (!signUps) return;
+      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
       for (let i = 0; i < signUps.length; i++) {
         const s = signUps.get(i);
         if (!s) continue;
         if (s.get("id") === signUpId) {
+          const mine = isMineSignUp(
+            {
+              id: String(s.get("id")),
+              quantity: (s.get("quantity") as number | null) ?? null,
+              displayName: String(s.get("displayName") ?? ""),
+              email: (s.get("email") as string | null) ?? null,
+              userId: (s.get("userId") as string | null) ?? null,
+              packed: Boolean(s.get("packed")),
+            },
+            au,
+            gn,
+          );
+          if (!mine) return;
           s.set("email", email);
           return;
         }
@@ -614,6 +683,32 @@ export function PackingListEditor({
             {saveError}
           </span>
         )}
+      </div>
+
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Undo and redo your recent edits"
+      >
+        <button
+          type="button"
+          disabled={!canUndo}
+          onClick={undo}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          Undo
+        </button>
+        <button
+          type="button"
+          disabled={!canRedo}
+          onClick={redo}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          Redo
+        </button>
+        <span className="text-xs text-gray-500 dark:text-gray-500">
+          Applies to edits you made on this device.
+        </span>
       </div>
 
       <div
@@ -761,18 +856,20 @@ export function PackingListEditor({
                           <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
                             {sectionHeader.label}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              addItem({
-                                startIndex: index,
-                                runSection: sectionHeader.runSection,
-                              })
-                            }
-                            className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                          >
-                            Add item
-                          </button>
+                          {canManageTemplate ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                addItem({
+                                  startIndex: index,
+                                  runSection: sectionHeader.runSection,
+                                })
+                              }
+                              className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                            >
+                              Add item
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -781,28 +878,38 @@ export function PackingListEditor({
                     <td className={`${cellBorder} p-0`}>
                       <input
                         type="text"
+                        readOnly={!canManageTemplate}
                         value={item.section ?? ""}
                         onChange={(e) =>
                           updateSection({ index, section: e.target.value })
                         }
                         placeholder="—"
-                        className="w-full min-w-24 border-0 bg-transparent p-2 text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:ring-blue-400"
+                        className={`w-full min-w-24 border-0 p-2 text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:ring-blue-400 ${
+                          canManageTemplate
+                            ? "bg-transparent"
+                            : "cursor-default bg-gray-50/80 dark:bg-gray-900/50"
+                        }`}
                         aria-label="Section"
                       />
                     </td>
                     <td className={`${cellBorder} p-0`}>
                       <input
                         type="text"
+                        readOnly={!canManageTemplate}
                         value={item.name}
                         onChange={(e) =>
                           updateName({ index, name: e.target.value })
                         }
-                        className="w-full min-w-32 border-0 bg-transparent p-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400"
+                        className={`w-full min-w-32 border-0 p-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400 ${
+                          canManageTemplate
+                            ? "bg-transparent"
+                            : "cursor-default bg-gray-50/80 dark:bg-gray-900/50"
+                        }`}
                         aria-label="Item name"
                       />
                     </td>
                     <td className={`${cellBorder} p-0 text-center`}>
-                      {editingNeededIndex === index ? (
+                      {canManageTemplate && editingNeededIndex === index ? (
                         <div
                           className="flex flex-col gap-1.5 p-1"
                           onBlur={(e) => {
@@ -896,7 +1003,7 @@ export function PackingListEditor({
                             </>
                           )}
                         </div>
-                      ) : (
+                      ) : canManageTemplate ? (
                         <button
                           type="button"
                           onClick={() => setEditingNeededIndex(index)}
@@ -930,6 +1037,25 @@ export function PackingListEditor({
                             qMin
                           )}
                         </button>
+                      ) : (
+                        <div className="min-h-11 w-full p-2 text-center text-sm text-gray-900 dark:text-gray-100">
+                          {qMin == null ? (
+                            "—"
+                          ) : isOptionalItem ? (
+                            <span className="flex flex-col items-center gap-0.5 leading-tight">
+                              <span>Optional</span>
+                              {qMax != null ? (
+                                <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
+                                  up to {qMax}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : isRange ? (
+                            `${qMin} – ${qMax}`
+                          ) : (
+                            qMin
+                          )}
+                        </div>
                       )}
                     </td>
                     <td
@@ -1089,13 +1215,19 @@ export function PackingListEditor({
                       )}
                     </td>
                     <td className={`${cellBorder} px-2 py-1.5 text-center`}>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                      >
-                        Remove
-                      </button>
+                      {canManageTemplate ? (
+                        <button
+                          type="button"
+                          onClick={() => setPendingRemoveIndex(index)}
+                          className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                        >
+                          Remove
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 dark:text-gray-600">
+                          —
+                        </span>
+                      )}
                     </td>
                   </tr>
                   {mySu && !authUser && (
@@ -1155,13 +1287,60 @@ export function PackingListEditor({
         </table>
       </div>
 
-      <button
-        type="button"
-        onClick={() => addItem()}
-        className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-      >
-        Add item
-      </button>
+      {canManageTemplate ? (
+        <button
+          type="button"
+          onClick={() => addItem()}
+          className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          Add item
+        </button>
+      ) : null}
+
+      {pendingRemoveIndex != null && canManageTemplate ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="packing-remove-title"
+        >
+          <div className="max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
+            <h3
+              id="packing-remove-title"
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+            >
+              Remove this item?
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              This removes{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">
+                {items[pendingRemoveIndex]?.name ?? "this item"}
+              </span>{" "}
+              and all sign-ups for it from the shared list.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingRemoveIndex(null)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const i = pendingRemoveIndex;
+                  setPendingRemoveIndex(null);
+                  if (i != null) removeItem(i);
+                }}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+              >
+                Remove item
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

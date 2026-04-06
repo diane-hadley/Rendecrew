@@ -6,10 +6,11 @@ import {
   getPackingListByRoomId,
   persistPackingListItems,
   type PackingItemPayload,
+  type PackingPersistActor,
 } from "@/lib/packing-list";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
-import { getOrCreateUser } from "@/lib/user";
+import { getOptionalDbUser, getOrCreateUser } from "@/lib/user";
 
 export async function enablePackingListForEvent(
   eventId: string,
@@ -36,18 +37,44 @@ export async function enablePackingListForEvent(
   }
 }
 
+export type SyncPackingListContext = {
+  /** Required for guest sync so the server can merge only that guest’s sign-ups. */
+  guestDisplayName?: string | null;
+};
+
 /**
  * Public sync: anyone who knows the unguessable room id can persist (same trust model as the share link).
+ * Organizers may change the full list; others only their own sign-ups (see `persistPackingListItems`).
  */
 export async function syncPackingListToDatabase(
   liveblocksRoomId: string,
   items: PackingItemPayload[],
+  context: SyncPackingListContext = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const list = await getPackingListByRoomId(liveblocksRoomId);
   if (!list) {
     return { ok: false, error: "Invalid packing list" };
   }
-  const result = await persistPackingListItems(liveblocksRoomId, items);
+  const dbUser = await getOptionalDbUser();
+  let actor: PackingPersistActor;
+  if (dbUser) {
+    const row = await getEventForUser(list.event.id, dbUser.id);
+    const isOrg = row != null && canManageEvent(row.role);
+    actor = isOrg
+      ? { kind: "organizer" }
+      : { kind: "participant", userId: dbUser.id };
+  } else {
+    const gn = context.guestDisplayName?.trim();
+    if (!gn) {
+      return {
+        ok: false,
+        error:
+          "Use your display name as a guest, or sign in, so sign-ups can sync to the event.",
+      };
+    }
+    actor = { kind: "guest", displayName: gn };
+  }
+  const result = await persistPackingListItems(liveblocksRoomId, items, actor);
   if (!result.ok) {
     return result;
   }

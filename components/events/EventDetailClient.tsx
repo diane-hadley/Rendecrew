@@ -30,6 +30,8 @@ export type EventDetailClientProps = {
     liveblocksRoomId: string | null;
     commitments: PackingCommitmentForUser[];
     packingListPath: string | null;
+    suggestionApprovalRequired: boolean;
+    pendingSuggestionDraftCount: number;
   };
 };
 
@@ -96,6 +98,8 @@ export function EventDetailClient({
         liveblocksRoomId={packing.liveblocksRoomId}
         commitments={packing.commitments}
         packingListPath={packing.packingListPath}
+        suggestionApprovalRequired={packing.suggestionApprovalRequired}
+        pendingSuggestionDraftCount={packing.pendingSuggestionDraftCount}
       />
 
       <EventChat eventId={eventId} />

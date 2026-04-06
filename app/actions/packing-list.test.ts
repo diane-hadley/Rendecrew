@@ -10,6 +10,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/user", () => ({
   getOrCreateUser: vi.fn(),
+  getOptionalDbUser: vi.fn(),
 }));
 
 vi.mock("@/lib/events", () => ({
@@ -38,7 +39,7 @@ import {
   getPackingListByRoomId,
   persistPackingListItems,
 } from "@/lib/packing-list";
-import { getOrCreateUser } from "@/lib/user";
+import { getOptionalDbUser, getOrCreateUser } from "@/lib/user";
 import {
   enablePackingListForEvent,
   setMyPackingSignUpPacked,
@@ -101,9 +102,20 @@ describe("syncPackingListToDatabase", () => {
     vi.clearAllMocks();
     vi.mocked(getPackingListByRoomId).mockResolvedValue({
       eventId: "ev1",
+      event: { id: "ev1", title: "Party" },
       liveblocksRoomId: "room-1",
     } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
     vi.mocked(persistPackingListItems).mockResolvedValue({ ok: true });
+    vi.mocked(getOptionalDbUser).mockResolvedValue({
+      id: "u1",
+      name: "Alex",
+      email: "a@b.c",
+    });
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: { id: "ev1" },
+      role: "owner",
+    } as Awaited<ReturnType<typeof getEventForUser>>);
+    vi.mocked(canManageEvent).mockReturnValue(true);
   });
 
   it("fails for unknown room", async () => {
@@ -127,7 +139,9 @@ describe("syncPackingListToDatabase", () => {
     ];
     const r = await syncPackingListToDatabase("room-1", items);
     expect(r).toEqual({ ok: true });
-    expect(persistPackingListItems).toHaveBeenCalledWith("room-1", items);
+    expect(persistPackingListItems).toHaveBeenCalledWith("room-1", items, {
+      kind: "organizer",
+    });
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/ev1");
     expect(revalidatePath).toHaveBeenCalledWith("/packing/room-1");
   });

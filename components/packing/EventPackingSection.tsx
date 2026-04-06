@@ -1,3 +1,4 @@
+import { EventPackingSuggestionSettings } from "./EventPackingSuggestionSettings";
 import { MyEventPackingCommitments } from "./MyEventPackingCommitments";
 import { PackingListEventPanel } from "./PackingListEventPanel";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
@@ -8,12 +9,16 @@ export function EventPackingSection({
   liveblocksRoomId,
   commitments,
   packingListPath,
+  suggestionApprovalRequired,
+  pendingSuggestionDraftCount,
 }: {
   eventId: string;
   canManagePacking: boolean;
   liveblocksRoomId: string | null;
   commitments: PackingCommitmentForUser[];
   packingListPath: string | null;
+  suggestionApprovalRequired?: boolean;
+  pendingSuggestionDraftCount?: number;
 }) {
   const hasList = packingListPath != null;
 
@@ -33,6 +38,17 @@ export function EventPackingSection({
           liveblocksRoomId={liveblocksRoomId}
         />
       )}
+      {canManagePacking &&
+        hasList &&
+        suggestionApprovalRequired !== undefined &&
+        pendingSuggestionDraftCount !== undefined && (
+          <EventPackingSuggestionSettings
+            eventId={eventId}
+            approvalRequired={suggestionApprovalRequired}
+            packingListPath={packingListPath}
+            pendingDraftCount={pendingSuggestionDraftCount}
+          />
+        )}
       {hasList && (
         <MyEventPackingCommitments
           embedded
