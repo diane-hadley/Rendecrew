@@ -166,27 +166,27 @@ Packing room remains unguessable for guests—**guest identity** for optional au
 
 ## 5. UI/UX
 
-| Area | Behavior |
-|------|-----------|
-| Shared editor | **Organizers:** full template edit (add/reorder rows, edit item fields, delete with **modal**). **Participants:** read-only template + **sign-up** UI for own rows; no structural controls. Optional audit log on deletes. |
-| Sign-up | Removing self → optional short confirm if quantity large; optional `SIGNUP_REMOVE` in audit log |
-| History | **Activity feed** from optional server audit log, grouped/batched; filter by “sign-ups only” |
-| Undo / redo | **Liveblocks** `room.history` — **organizers** undo template edits; **participants** undo their own sign-up/packed edits only (§3.1) |
-| Restore version | **Document snapshot/restore** (§3.2) for whole-list rollback — **organizers only**; separate from per-user undo |
-| Suggestions | Signed-in: **New**, **All available**, copy to personal. **Guests:** read-only catalog of **published** suggestions (no personal list, no submit). |
-| Combined | Dashboard/event page route e.g. “My packing” merging both sources |
+| Area            | Behavior                                                                                                                                                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared editor   | **Organizers:** full template edit (add/reorder rows, edit item fields, delete with **modal**). **Participants:** read-only template + **sign-up** UI for own rows; no structural controls. Optional audit log on deletes. |
+| Sign-up         | Removing self → optional short confirm if quantity large; optional `SIGNUP_REMOVE` in audit log                                                                                                                            |
+| History         | **Activity feed** from optional server audit log, grouped/batched; filter by “sign-ups only”                                                                                                                               |
+| Undo / redo     | **Liveblocks** `room.history` — **organizers** undo template edits; **participants** undo their own sign-up/packed edits only (§3.1)                                                                                       |
+| Restore version | **Document snapshot/restore** (§3.2) for whole-list rollback — **organizers only**; separate from per-user undo                                                                                                            |
+| Suggestions     | Signed-in: **New**, **All available**, copy to personal. **Guests:** read-only catalog of **published** suggestions (no personal list, no submit).                                                                         |
+| Combined        | Dashboard/event page route e.g. “My packing” merging both sources                                                                                                                                                          |
 
 ## 6. Permissions
 
-| Action | Who |
-|--------|-----|
-| **Edit shared list template** (items, sections, quantities, reorder, add/remove rows) | **Organizers only** |
-| Sign up / remove own sign-up; edit own sign-up quantity; toggle own **packed** | Anyone with packing access (including guests where sign-ups are allowed today) |
-| **View** published suggested-items catalog | **Anyone** with access to the event context (including **guests**) — **read-only** |
-| **Submit** a new suggestion | **Signed-in** participants (not guests) |
-| **Approve / reject / edit / archive** suggestions; **set** `suggestionApprovalRequired` | Organizers (`canManageEvent` or equivalent) |
-| **Personal packing list** (full CRUD, copy from suggestion, packed state) | **Signed-in** user only (owner’s rows). **Guests:** no persisted personal list |
-| **Document snapshot restore** (whole Storage rollback) | **Organizers only** — not available to participants who only have the packing link |
+| Action                                                                                  | Who                                                                                |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Edit shared list template** (items, sections, quantities, reorder, add/remove rows)   | **Organizers only**                                                                |
+| Sign up / remove own sign-up; edit own sign-up quantity; toggle own **packed**          | Anyone with packing access (including guests where sign-ups are allowed today)     |
+| **View** published suggested-items catalog                                              | **Anyone** with access to the event context (including **guests**) — **read-only** |
+| **Submit** a new suggestion                                                             | **Signed-in** participants (not guests)                                            |
+| **Approve / reject / edit / archive** suggestions; **set** `suggestionApprovalRequired` | Organizers (`canManageEvent` or equivalent)                                        |
+| **Personal packing list** (full CRUD, copy from suggestion, packed state)               | **Signed-in** user only (owner’s rows). **Guests:** no persisted personal list     |
+| **Document snapshot restore** (whole Storage rollback)                                  | **Organizers only** — not available to participants who only have the packing link |
 
 ## 7. Real-time (Liveblocks) notes
 
