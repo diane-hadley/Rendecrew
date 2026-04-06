@@ -514,7 +514,7 @@ export function PackingListEditor({
     const rem = cap != null ? Math.max(0, cap - sum) : null;
     if (cap != null && rem != null && rem < 1) return;
 
-    const newQuantity = cap != null ? Math.min(1, rem) : 1;
+    const newQuantity = rem != null ? Math.min(1, rem) : 1;
 
     signUps.push(
       new LiveObject({
