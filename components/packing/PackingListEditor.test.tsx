@@ -225,13 +225,16 @@ describe("PackingListEditor", () => {
     );
 
     const rows = screen.getAllByRole("row");
-    const dataRows = rows.filter((r) => r.querySelector("input[aria-label='Item name']"));
-    expect(dataRows.map((r) => r.querySelector("input[aria-label='Item name']")))
-      .toEqual([
-        expect.objectContaining({ value: "Plates" }),
-        expect.objectContaining({ value: "Cups" }),
-        expect.objectContaining({ value: "Tent" }),
-      ]);
+    const dataRows = rows.filter((r) =>
+      r.querySelector("input[aria-label='Item name']"),
+    );
+    expect(
+      dataRows.map((r) => r.querySelector("input[aria-label='Item name']")),
+    ).toEqual([
+      expect.objectContaining({ value: "Plates" }),
+      expect.objectContaining({ value: "Cups" }),
+      expect.objectContaining({ value: "Tent" }),
+    ]);
   });
 
   it("schedules sync after debounce when items exist", async () => {
