@@ -183,6 +183,60 @@ describe("PackingListEditor", () => {
     expect(screen.getByDisplayValue("Tent")).toBeInTheDocument();
   });
 
+  it("Needs sign-ups view groups same-section rows together", async () => {
+    const user = userEvent.setup();
+    editorStorage.items = [
+      {
+        id: "k1",
+        name: "Plates",
+        quantity: 1,
+        quantityMax: null,
+        section: "Kitchen",
+        signUps: [],
+      },
+      {
+        id: "g1",
+        name: "Tent",
+        quantity: 1,
+        quantityMax: null,
+        section: "Gear",
+        signUps: [],
+      },
+      {
+        id: "k2",
+        name: "Cups",
+        quantity: 1,
+        quantityMax: null,
+        section: "Kitchen",
+        signUps: [],
+      },
+    ];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+        canManageTemplate
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Needs sign-ups", pressed: false }),
+    );
+
+    const rows = screen.getAllByRole("row");
+    const dataRows = rows.filter((r) =>
+      r.querySelector("input[aria-label='Item name']"),
+    );
+    expect(
+      dataRows.map((r) => r.querySelector("input[aria-label='Item name']")),
+    ).toEqual([
+      expect.objectContaining({ value: "Plates" }),
+      expect.objectContaining({ value: "Cups" }),
+      expect.objectContaining({ value: "Tent" }),
+    ]);
+  });
+
   it("schedules sync after debounce when items exist", async () => {
     vi.useFakeTimers();
     editorStorage.items = [

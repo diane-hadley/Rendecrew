@@ -54,6 +54,40 @@ function normalizedSection(row: StorageRow): string | null {
   return t === "" ? null : t;
 }
 
+/** Stable key for grouping rows by section (uncategorized → ""). */
+function sectionSortKey(row: StorageRow): string {
+  return normalizedSection(row) ?? "";
+}
+
+/**
+ * Order in which each section first appears in storage. Keeps section blocks in
+ * document order while allowing filtered views to list same-section rows together.
+ */
+function sectionFirstAppearanceRanks(
+  allItems: readonly StorageRow[],
+): Map<string, number> {
+  const ranks = new Map<string, number>();
+  let next = 0;
+  for (const item of allItems) {
+    const key = sectionSortKey(item);
+    if (!ranks.has(key)) ranks.set(key, next++);
+  }
+  return ranks;
+}
+
+function sortRowsBySectionRun(
+  rows: Array<{ item: StorageRow; index: number }>,
+  allItems: readonly StorageRow[],
+): Array<{ item: StorageRow; index: number }> {
+  const ranks = sectionFirstAppearanceRanks(allItems);
+  return [...rows].sort((a, b) => {
+    const ra = ranks.get(sectionSortKey(a.item)) ?? 0;
+    const rb = ranks.get(sectionSortKey(b.item)) ?? 0;
+    if (ra !== rb) return ra - rb;
+    return a.index - b.index;
+  });
+}
+
 function readSignUps(row: StorageRow): StorageSignUp[] {
   if (Array.isArray(row.signUps) && row.signUps.length > 0) {
     return row.signUps.map((s) => ({
@@ -661,16 +695,19 @@ export function PackingListEditor({
 
   const items = rawItems as StorageRow[];
 
-  const visibleRows = items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => {
-      if (listView === "all") return true;
-      return packingItemNeedsSignUps(
-        item.quantity,
-        item.quantityMax,
-        readSignUps(item),
-      );
-    });
+  const visibleRows = sortRowsBySectionRun(
+    items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => {
+        if (listView === "all") return true;
+        return packingItemNeedsSignUps(
+          item.quantity,
+          item.quantityMax,
+          readSignUps(item),
+        );
+      }),
+    items,
+  );
 
   return (
     <div className="space-y-4">
