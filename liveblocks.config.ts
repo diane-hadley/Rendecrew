@@ -10,9 +10,16 @@ export type PackingSignUpStorage = {
   packed: boolean;
 };
 
+export type PackingSectionStorage = {
+  id: string;
+  title: string;
+};
+
 export type PackingItemStorage = {
   id: string;
-  /** Optional section header grouping; omit or null for uncategorized rows. */
+  /** Uncategorized when null. Legacy `section` string is migrated to sections + sectionId. */
+  sectionId: string | null;
+  /** @deprecated Migrated to `sectionId`; cleared after one-time migration. */
   section?: string | null;
   name: string;
   quantity: number | null;
@@ -27,6 +34,7 @@ declare global {
       guestDisplayName?: string;
     };
     Storage: {
+      sections: LiveList<LiveObject<PackingSectionStorage>>;
       items: LiveList<LiveObject<PackingItemStorage>>;
     };
     UserMeta: {

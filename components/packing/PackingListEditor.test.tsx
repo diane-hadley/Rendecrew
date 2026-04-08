@@ -5,17 +5,26 @@ import { buildInitialStorage, PackingListEditor } from "./PackingListEditor";
 
 const editorStorage = vi.hoisted(() => ({
   items: null as unknown[] | null,
+  sections: null as unknown[] | null,
 }));
 
 vi.mock("@liveblocks/react", () => ({
-  useStorage: (fn: (root: { items: unknown }) => unknown) =>
-    fn({ items: editorStorage.items }),
+  useStorage: (fn: (root: { items: unknown; sections: unknown }) => unknown) =>
+    fn({
+      items: editorStorage.items,
+      sections: editorStorage.sections,
+    }),
   useSyncStatus: () => "stored" as const,
   useMutation: vi.fn(() => vi.fn()),
   useUndo: () => () => {},
   useRedo: () => () => {},
   useCanUndo: () => false,
   useCanRedo: () => false,
+  useRoom: () => ({
+    batch: (cb: () => void) => {
+      cb();
+    },
+  }),
 }));
 
 const syncPackingListToDatabase = vi.fn();
@@ -26,45 +35,53 @@ vi.mock("@/app/actions/packing-list", () => ({
 
 describe("buildInitialStorage", () => {
   it("wraps items and sign-ups in Live structures", () => {
-    const storage = buildInitialStorage([
-      {
-        id: "i1",
-        name: "Cooler",
-        quantity: 1,
-        quantityMax: null,
-        section: "Kitchen",
-        signUps: [
-          {
-            id: "s1",
-            quantity: 1,
-            displayName: "Pat",
-            email: null,
-            userId: "u1",
-            packed: false,
-          },
-        ],
-      },
-    ]);
+    const kitchenId = "sec-kitchen";
+    const storage = buildInitialStorage({
+      sections: [{ id: kitchenId, title: "Kitchen" }],
+      items: [
+        {
+          id: "i1",
+          sectionId: kitchenId,
+          name: "Cooler",
+          quantity: 1,
+          quantityMax: null,
+          signUps: [
+            {
+              id: "s1",
+              quantity: 1,
+              displayName: "Pat",
+              email: null,
+              userId: "u1",
+              packed: false,
+            },
+          ],
+        },
+      ],
+    });
 
     expect(storage.items.length).toBe(1);
     const row = storage.items.get(0);
     expect(row?.get("name")).toBe("Cooler");
-    expect(row?.get("section")).toBe("Kitchen");
+    expect(row?.get("sectionId")).toBe(kitchenId);
     const signUps = row?.get("signUps");
     expect(signUps?.length).toBe(1);
     expect(signUps?.get(0)?.get("displayName")).toBe("Pat");
   });
 
   it("defaults missing signUps to empty list", () => {
-    const storage = buildInitialStorage([
-      {
-        id: "i2",
-        name: "Solo",
-        quantity: null,
-        quantityMax: null,
-        signUps: [],
-      },
-    ]);
+    const storage = buildInitialStorage({
+      sections: [],
+      items: [
+        {
+          id: "i2",
+          sectionId: null,
+          name: "Solo",
+          quantity: null,
+          quantityMax: null,
+          signUps: [],
+        },
+      ],
+    });
     expect(storage.items.get(0)?.get("signUps")?.length).toBe(0);
   });
 });
@@ -72,12 +89,14 @@ describe("buildInitialStorage", () => {
 describe("PackingListEditor", () => {
   beforeEach(() => {
     editorStorage.items = null;
+    editorStorage.sections = null;
     syncPackingListToDatabase.mockClear();
     vi.clearAllMocks();
   });
 
   it("shows connecting state when storage items are not ready", () => {
     editorStorage.items = null;
+    editorStorage.sections = [];
     render(
       <PackingListEditor
         roomId="r1"
@@ -91,6 +110,7 @@ describe("PackingListEditor", () => {
 
   it("renders table shell and add control when list is empty", () => {
     editorStorage.items = [];
+    editorStorage.sections = [];
     render(
       <PackingListEditor
         roomId="r1"
@@ -101,24 +121,28 @@ describe("PackingListEditor", () => {
     );
     expect(screen.getByText("Up to date")).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "Section" }),
+      screen.getByRole("columnheader", { name: "Reorder rows" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "Item" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Add item" }),
+      screen.getByRole("button", { name: "Add section" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Add item" }).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("renders a row for each storage item", () => {
+    editorStorage.sections = [];
     editorStorage.items = [
       {
         id: "row-1",
         name: "Lantern",
         quantity: 2,
         quantityMax: null,
-        section: null,
+        sectionId: null,
         signUps: [],
       },
     ];
@@ -138,13 +162,14 @@ describe("PackingListEditor", () => {
 
   it("Needs sign-ups view hides covered items", async () => {
     const user = userEvent.setup();
+    editorStorage.sections = [];
     editorStorage.items = [
       {
         id: "full",
         name: "Cooler",
         quantity: 1,
         quantityMax: null,
-        section: null,
+        sectionId: null,
         signUps: [
           {
             id: "s1",
@@ -161,7 +186,7 @@ describe("PackingListEditor", () => {
         name: "Tent",
         quantity: 1,
         quantityMax: null,
-        section: null,
+        sectionId: null,
         signUps: [],
       },
     ];
@@ -185,13 +210,19 @@ describe("PackingListEditor", () => {
 
   it("Needs sign-ups view groups same-section rows together", async () => {
     const user = userEvent.setup();
+    const sk = "sec-kitchen";
+    const sg = "sec-gear";
+    editorStorage.sections = [
+      { id: sk, title: "Kitchen" },
+      { id: sg, title: "Gear" },
+    ];
     editorStorage.items = [
       {
         id: "k1",
         name: "Plates",
         quantity: 1,
         quantityMax: null,
-        section: "Kitchen",
+        sectionId: sk,
         signUps: [],
       },
       {
@@ -199,7 +230,7 @@ describe("PackingListEditor", () => {
         name: "Tent",
         quantity: 1,
         quantityMax: null,
-        section: "Gear",
+        sectionId: sg,
         signUps: [],
       },
       {
@@ -207,7 +238,7 @@ describe("PackingListEditor", () => {
         name: "Cups",
         quantity: 1,
         quantityMax: null,
-        section: "Kitchen",
+        sectionId: sk,
         signUps: [],
       },
     ];
@@ -239,13 +270,14 @@ describe("PackingListEditor", () => {
 
   it("schedules sync after debounce when items exist", async () => {
     vi.useFakeTimers();
+    editorStorage.sections = [];
     editorStorage.items = [
       {
         id: "row-sync",
         name: "Mug",
         quantity: 1,
         quantityMax: null,
-        section: null,
+        sectionId: null,
         signUps: [],
       },
     ];
@@ -264,9 +296,12 @@ describe("PackingListEditor", () => {
 
     expect(syncPackingListToDatabase).toHaveBeenCalledWith(
       "room-sync",
-      expect.arrayContaining([
-        expect.objectContaining({ id: "row-sync", name: "Mug" }),
-      ]),
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: "row-sync", name: "Mug" }),
+        ]),
+        sections: [],
+      }),
       { guestDisplayName: null },
     );
     vi.useRealTimers();

@@ -12,6 +12,7 @@ import { markSuggestionsCatalogSeen } from "@/app/actions/packing-advanced";
 import type {
   PackingCommitmentForUser,
   PackingItemPayload,
+  PackingSectionPayload,
 } from "@/lib/packing-list";
 import {
   PackingMyPackingTab,
@@ -66,6 +67,7 @@ export function PackingCollabPage({
   roomId,
   eventId,
   eventTitle,
+  initialSections,
   initialItems,
   authUser,
   canManageTemplate,
@@ -78,6 +80,7 @@ export function PackingCollabPage({
   roomId: string;
   eventId: string;
   eventTitle: string;
+  initialSections: PackingSectionPayload[];
   initialItems: PackingItemPayload[];
   authUser: AuthUser | null;
   canManageTemplate: boolean;
@@ -225,7 +228,12 @@ export function PackingCollabPage({
       <RoomProvider
         id={roomId}
         initialPresence={{}}
-        initialStorage={() => buildInitialStorage(initialItems)}
+        initialStorage={() =>
+          buildInitialStorage({
+            sections: initialSections,
+            items: initialItems,
+          })
+        }
       >
         <LiveblocksConnectionMessages />
         <div className="space-y-6">

@@ -1,18 +1,51 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { LiveList, LiveObject } from "@liveblocks/client";
 import {
   useCanRedo,
   useCanUndo,
   useMutation,
   useRedo,
+  useRoom,
   useStorage,
   useSyncStatus,
   useUndo,
 } from "@liveblocks/react";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
-import type { PackingItemPayload } from "@/lib/packing-list";
+import type {
+  PackingItemPayload,
+  PackingListSyncPayload,
+  PackingSectionPayload,
+} from "@/lib/packing-list";
 import {
   isOptionalPackingMin,
   itemQuantityCap,
@@ -20,8 +53,12 @@ import {
 } from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
+  PackingSectionStorage,
   PackingSignUpStorage,
 } from "@/liveblocks.config";
+
+/** Mirrors `MAX_SECTION_LEN` in `@/lib/packing-list` (avoid importing server lib in client). */
+const MAX_SECTION_LEN = 120;
 
 type AuthUser = { dbUserId: string; name: string; email: string };
 
@@ -36,6 +73,8 @@ type StorageSignUp = {
 
 type StorageRow = {
   id: string;
+  sectionId?: string | null;
+  /** @deprecated Migrated to sectionId */
   section?: string | null;
   name: string;
   quantity: number | null;
@@ -47,45 +86,315 @@ type StorageRow = {
   claimedQuantity?: number | null;
 };
 
-function normalizedSection(row: StorageRow): string | null {
+const UNCATEGORIZED_SENTINEL = "__uncategorized__";
+/** Must stay aligned with `MAX_SECTIONS` in `@/lib/packing-list`. */
+const MAX_PACKING_SECTIONS = 100;
+
+const packingListDndAccessibility = {
+  announcements: {
+    onDragStart({ active }: { active: { id: string | number } }) {
+      const id = String(active.id);
+      return id.startsWith("s:")
+        ? "Picked up section. Use arrow keys to move, then confirm to drop."
+        : "Picked up item. Use arrow keys to move, then confirm to drop.";
+    },
+    onDragOver({ over }: { over: { id: string | number } | null }) {
+      return over ? `Over ${String(over.id)}.` : undefined;
+    },
+    onDragEnd({
+      active,
+      over,
+    }: {
+      active: { id: string | number };
+      over: { id: string | number } | null;
+    }) {
+      return over
+        ? `Moved ${String(active.id)} next to ${String(over.id)}.`
+        : "Move finished.";
+    },
+    onDragCancel() {
+      return "Reordering cancelled.";
+    },
+  },
+  screenReaderInstructions: {
+    draggable:
+      "Focus a drag handle, press Space or Enter to pick up, arrow keys to move, Space or Enter to drop, Escape to cancel.",
+  },
+};
+
+function normalizedLegacySectionField(row: StorageRow): string | null {
   const s = row.section;
   if (s == null || typeof s !== "string") return null;
   const t = s.trim();
   return t === "" ? null : t;
 }
 
-/** Stable key for grouping rows by section (uncategorized → ""). */
-function sectionSortKey(row: StorageRow): string {
-  return normalizedSection(row) ?? "";
+function normalizeSectionTitleForPayload(title: string): string {
+  return title.trim();
 }
 
-/**
- * Order in which each section first appears in storage. Keeps section blocks in
- * document order while allowing filtered views to list same-section rows together.
- */
-function sectionFirstAppearanceRanks(
-  allItems: readonly StorageRow[],
-): Map<string, number> {
-  const ranks = new Map<string, number>();
-  let next = 0;
-  for (const item of allItems) {
-    const key = sectionSortKey(item);
-    if (!ranks.has(key)) ranks.set(key, next++);
+function readPersistedSectionId(
+  row: StorageRow,
+  validSectionIds: Set<string>,
+): string | null {
+  const raw = row.sectionId;
+  if (raw == null || typeof raw !== "string" || raw.trim() === "") return null;
+  return validSectionIds.has(raw) ? raw : null;
+}
+
+type ItemMeta = { id: string; sectionId: string | null };
+
+function snapshotItemMeta(
+  items: LiveList<LiveObject<PackingItemStorage>>,
+): ItemMeta[] {
+  const out: ItemMeta[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const row = items.get(i);
+    if (!row) continue;
+    const sidRaw = row.get("sectionId") as string | null | undefined;
+    const sid =
+      typeof sidRaw === "string" && sidRaw.trim() !== "" ? sidRaw : null;
+    out.push({ id: String(row.get("id")), sectionId: sid });
   }
-  return ranks;
+  return out;
 }
 
-function sortRowsBySectionRun(
-  rows: Array<{ item: StorageRow; index: number }>,
-  allItems: readonly StorageRow[],
-): Array<{ item: StorageRow; index: number }> {
-  const ranks = sectionFirstAppearanceRanks(allItems);
-  return [...rows].sort((a, b) => {
-    const ra = ranks.get(sectionSortKey(a.item)) ?? 0;
-    const rb = ranks.get(sectionSortKey(b.item)) ?? 0;
-    if (ra !== rb) return ra - rb;
-    return a.index - b.index;
+function snapshotSectionIds(
+  sections: LiveList<LiveObject<PackingSectionStorage>>,
+): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections.get(i);
+    if (!s) continue;
+    out.push(String(s.get("id")));
+  }
+  return out;
+}
+
+function buildCompositeKeys(
+  sectionIdsInOrder: readonly string[],
+  itemsInOrder: readonly ItemMeta[],
+): string[] {
+  const keys: string[] = [];
+  const bySec = new Map<string, ItemMeta[]>();
+  const unc: ItemMeta[] = [];
+  for (const it of itemsInOrder) {
+    if (it.sectionId == null) unc.push(it);
+    else {
+      let arr = bySec.get(it.sectionId);
+      if (!arr) {
+        arr = [];
+        bySec.set(it.sectionId, arr);
+      }
+      arr.push(it);
+    }
+  }
+  for (const sid of sectionIdsInOrder) {
+    keys.push(`s:${sid}`);
+    for (const it of bySec.get(sid) ?? []) keys.push(`i:${it.id}`);
+  }
+  keys.push(`s:${UNCATEGORIZED_SENTINEL}`);
+  for (const it of unc) keys.push(`i:${it.id}`);
+  return keys;
+}
+
+type ParsedKeyOrder = {
+  sectionIds: string[];
+  placements: Array<{ itemId: string; sectionId: string | null }>;
+};
+
+function parseKeyOrder(keys: readonly string[]): ParsedKeyOrder {
+  const sectionIds: string[] = [];
+  const placements: Array<{ itemId: string; sectionId: string | null }> = [];
+  let currentSectionId: string | null = null;
+  for (const k of keys) {
+    if (k.startsWith("s:")) {
+      const id = k.slice(2);
+      if (id === UNCATEGORIZED_SENTINEL) {
+        currentSectionId = null;
+        continue;
+      }
+      sectionIds.push(id);
+      currentSectionId = id;
+    } else if (k.startsWith("i:")) {
+      placements.push({ itemId: k.slice(2), sectionId: currentSectionId });
+    }
+  }
+  return { sectionIds, placements };
+}
+
+function reorderLiveListByIds<T extends LiveObject<{ id: string }>>(
+  list: LiveList<T>,
+  targetIds: readonly string[],
+  getId: (el: T) => string,
+): void {
+  for (let pos = 0; pos < targetIds.length; pos++) {
+    const want = targetIds[pos]!;
+    let from = -1;
+    for (let i = pos; i < list.length; i++) {
+      const el = list.get(i);
+      if (el && getId(el) === want) {
+        from = i;
+        break;
+      }
+    }
+    if (from < 0) {
+      for (let i = 0; i < pos; i++) {
+        const el = list.get(i);
+        if (el && getId(el) === want) {
+          from = i;
+          break;
+        }
+      }
+    }
+    if (from >= 0 && from !== pos) list.move(from, pos);
+  }
+}
+
+function applyReorderFromKeys(
+  sectionsList: LiveList<LiveObject<PackingSectionStorage>>,
+  itemsList: LiveList<LiveObject<PackingItemStorage>>,
+  keys: readonly string[],
+): void {
+  const { sectionIds, placements } = parseKeyOrder(keys);
+  if (placements.length !== itemsList.length) return;
+  if (sectionIds.length !== sectionsList.length) return;
+  const seen = new Set<string>();
+  for (const p of placements) {
+    if (seen.has(p.itemId)) return;
+    seen.add(p.itemId);
+  }
+  const itemById = new Map<string, LiveObject<PackingItemStorage>>();
+  for (let i = 0; i < itemsList.length; i++) {
+    const row = itemsList.get(i);
+    if (!row) continue;
+    itemById.set(String(row.get("id")), row);
+  }
+  for (const p of placements) {
+    const row = itemById.get(p.itemId);
+    if (!row) return;
+  }
+  for (const p of placements) {
+    const row = itemById.get(p.itemId)!;
+    row.set("sectionId", p.sectionId);
+  }
+  reorderLiveListByIds(
+    itemsList,
+    placements.map((p) => p.itemId),
+    (el) => String(el.get("id")),
+  );
+  reorderLiveListByIds(sectionsList, sectionIds, (el) => String(el.get("id")));
+}
+
+function buildSyncPayload(
+  sectionsRead: readonly { id: string; title: string }[],
+  itemsRead: readonly StorageRow[],
+): PackingListSyncPayload {
+  const validIds = new Set(sectionsRead.map((s) => s.id));
+  const sectionIndex = new Map<string, number>();
+  sectionsRead.forEach((s, i) => sectionIndex.set(s.id, i));
+
+  const decorated = itemsRead.map((item, flatIndex) => ({
+    item,
+    flatIndex,
+    rank: (() => {
+      const sid = item.sectionId;
+      if (
+        sid == null ||
+        typeof sid !== "string" ||
+        sid.trim() === "" ||
+        !validIds.has(sid)
+      ) {
+        return Number.MAX_SAFE_INTEGER;
+      }
+      return sectionIndex.get(sid) ?? Number.MAX_SAFE_INTEGER;
+    })(),
+  }));
+
+  decorated.sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    return a.flatIndex - b.flatIndex;
   });
+
+  return {
+    sections: sectionsRead.map((s) => ({
+      id: s.id,
+      title: normalizeSectionTitleForPayload(s.title),
+    })),
+    items: decorated.map(({ item }) => ({
+      id: item.id,
+      sectionId: readPersistedSectionId(item, validIds),
+      name: item.name,
+      quantity: item.quantity,
+      quantityMax: item.quantityMax ?? null,
+      signUps: readSignUps(item).map((s) => ({
+        id: s.id,
+        quantity: s.quantity,
+        displayName: s.displayName,
+        email: s.email,
+        userId: s.userId,
+        packed: s.packed,
+      })),
+    })),
+  };
+}
+
+type NeedsGroup = {
+  sectionId: string | null;
+  label: string;
+  rows: Array<{ item: StorageRow; index: number }>;
+};
+
+function buildNeedsSignUpGroups(
+  items: readonly StorageRow[],
+  sections: readonly { id: string; title: string }[],
+  validIds: Set<string>,
+): NeedsGroup[] {
+  const filtered = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) =>
+      packingItemNeedsSignUps(
+        item.quantity,
+        item.quantityMax,
+        readSignUps(item),
+      ),
+    );
+
+  const byKey = new Map<
+    string | null,
+    Array<{ item: StorageRow; index: number }>
+  >();
+
+  for (const row of filtered) {
+    const sid = readPersistedSectionId(row.item, validIds);
+    let arr = byKey.get(sid);
+    if (!arr) {
+      arr = [];
+      byKey.set(sid, arr);
+    }
+    arr.push(row);
+  }
+
+  const out: NeedsGroup[] = [];
+  for (const sec of sections) {
+    const rows = byKey.get(sec.id);
+    if (rows?.length)
+      out.push({
+        sectionId: sec.id,
+        label: sec.title,
+        rows,
+      });
+    byKey.delete(sec.id);
+  }
+  const unc = byKey.get(null);
+  if (unc?.length) {
+    out.push({
+      sectionId: null,
+      label: "Uncategorized",
+      rows: unc,
+    });
+  }
+  return out;
 }
 
 function readSignUps(row: StorageRow): StorageSignUp[] {
@@ -125,27 +434,6 @@ function readSignUps(row: StorageRow): StorageSignUp[] {
   }
   if (Array.isArray(row.signUps)) return [];
   return [];
-}
-
-function storageToPayload(
-  items: readonly StorageRow[] | undefined | null,
-): PackingItemPayload[] {
-  if (!items?.length) return [];
-  return items.map((row) => ({
-    id: row.id,
-    section: normalizedSection(row),
-    name: row.name,
-    quantity: row.quantity,
-    quantityMax: row.quantityMax ?? null,
-    signUps: readSignUps(row).map((s) => ({
-      id: s.id,
-      quantity: s.quantity,
-      displayName: s.displayName,
-      email: s.email,
-      userId: s.userId,
-      packed: s.packed,
-    })),
-  }));
 }
 
 function allocatedSum(signUps: StorageSignUp[]): number {
@@ -210,6 +498,552 @@ function findMySignUp(
   );
 }
 
+type PackingSortableSectionHeaderProps = {
+  sortId: string;
+  dragDisabled: boolean;
+  /** Named sections only; Uncategorized is fixed last per spec. */
+  disableSectionReorder?: boolean;
+  colCount: number;
+  label: string;
+  trailing: ReactNode;
+};
+
+function PackingSortableSectionHeader({
+  sortId,
+  dragDisabled,
+  disableSectionReorder = false,
+  colCount,
+  label,
+  trailing,
+}: PackingSortableSectionHeaderProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: sortId,
+    disabled: dragDisabled || disableSectionReorder,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.65 : undefined,
+  };
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className="bg-gray-200/90 dark:bg-gray-800"
+    >
+      <td
+        colSpan={colCount}
+        className="border border-gray-300 px-3 py-2 dark:border-gray-600"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {!dragDisabled && !disableSectionReorder ? (
+              <button
+                type="button"
+                className="shrink-0 cursor-grab touch-none rounded border border-transparent p-1 text-gray-500 hover:bg-gray-300/60 dark:text-gray-400 dark:hover:bg-gray-700/80"
+                aria-label={`Drag to reorder ${label}`}
+                {...attributes}
+                {...listeners}
+              >
+                ⣿
+              </button>
+            ) : null}
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
+              {label}
+            </span>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {trailing}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+type PackingSortableItemRowProps = {
+  sortId: string;
+  dragDisabled: boolean;
+  colCount: number;
+  item: StorageRow;
+  index: number;
+  authUser: AuthUser | null;
+  guestDisplayName: string | null;
+  canManageTemplate: boolean;
+  editingNeededIndex: number | null;
+  setEditingNeededIndex: (n: number | null) => void;
+  emailDrafts: Record<string, string>;
+  setEmailDrafts: Dispatch<SetStateAction<Record<string, string>>>;
+  updateName: (a: { index: number; name: string }) => void;
+  updateQuantity: (a: { index: number; quantity: number | null }) => void;
+  updateQuantityMax: (a: { index: number; quantityMax: number | null }) => void;
+  setItemOptionalMode: (a: { index: number; optional: boolean }) => void;
+  addMySignUp: (index: number) => void;
+  removeMySignUp: (index: number) => void;
+  updateSignUpQuantity: (a: {
+    itemIndex: number;
+    signUpId: string;
+    quantity: number | null;
+  }) => void;
+  setSignUpEmail: (a: {
+    itemIndex: number;
+    signUpId: string;
+    email: string | null;
+  }) => void;
+  setPendingRemoveIndex: (n: number | null) => void;
+};
+
+function PackingSortableItemRow(props: PackingSortableItemRowProps) {
+  const {
+    sortId,
+    dragDisabled,
+    colCount,
+    item,
+    index,
+    authUser,
+    guestDisplayName,
+    canManageTemplate,
+    editingNeededIndex,
+    setEditingNeededIndex,
+    emailDrafts,
+    setEmailDrafts,
+    updateName,
+    updateQuantity,
+    updateQuantityMax,
+    setItemOptionalMode,
+    addMySignUp,
+    removeMySignUp,
+    updateSignUpQuantity,
+    setSignUpEmail,
+    setPendingRemoveIndex,
+  } = props;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortId, disabled: dragDisabled });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.65 : undefined,
+  };
+
+  const signUps = readSignUps(item);
+  const qMin = item.quantity;
+  const qMax =
+    item.quantityMax != null && qMin != null && item.quantityMax >= qMin
+      ? item.quantityMax
+      : null;
+  const cap = itemQuantityCap(qMin, qMax);
+  const isOptionalItem = isOptionalPackingMin(qMin);
+  const isRange = qMin != null && qMin > 0 && qMax != null && qMax > qMin;
+  const sum = allocatedSum(signUps);
+  const remCap = remainingUntilCap(cap, signUps);
+  const remMin = remainingUntilMin(qMin, signUps);
+  const mySu = findMySignUp(signUps, authUser, guestDisplayName);
+  const canSignUpMore =
+    authUser || guestDisplayName
+      ? cap == null || (remCap != null && remCap >= 1)
+      : false;
+
+  const cellBorder = "border border-gray-300 dark:border-gray-600 align-middle";
+
+  const showDrag = colCount >= 7;
+
+  return (
+    <Fragment>
+      <tr
+        ref={setNodeRef}
+        style={style}
+        className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900/80"
+      >
+        {showDrag ? (
+          <td className={`${cellBorder} w-10 p-0 text-center`}>
+            {!dragDisabled ? (
+              <button
+                type="button"
+                className="mx-auto flex cursor-grab touch-none items-center justify-center rounded border border-transparent px-1 py-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-900"
+                aria-label="Drag to reorder item"
+                {...attributes}
+                {...listeners}
+              >
+                ⣿
+              </button>
+            ) : (
+              <span className="inline-block px-1 py-2 text-gray-300 dark:text-gray-600">
+                —
+              </span>
+            )}
+          </td>
+        ) : null}
+        <td className={`${cellBorder} p-0`}>
+          <input
+            type="text"
+            readOnly={!canManageTemplate}
+            value={item.name}
+            onChange={(e) => updateName({ index, name: e.target.value })}
+            className={`w-full min-w-32 border-0 p-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400 ${
+              canManageTemplate
+                ? "bg-transparent"
+                : "cursor-default bg-gray-50/80 dark:bg-gray-900/50"
+            }`}
+            aria-label="Item name"
+          />
+        </td>
+        <td className={`${cellBorder} p-0 text-center`}>
+          {canManageTemplate && editingNeededIndex === index ? (
+            <div
+              className="flex flex-col gap-1.5 p-1"
+              onBlur={(e) => {
+                const next = e.relatedTarget as Node | null;
+                if (next && e.currentTarget.contains(next)) return;
+                setEditingNeededIndex(null);
+              }}
+            >
+              <label className="flex cursor-pointer items-center gap-2 px-0.5 text-left text-[0.7rem] text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={isOptionalItem}
+                  onChange={(e) =>
+                    setItemOptionalMode({
+                      index,
+                      optional: e.target.checked,
+                    })
+                  }
+                  className="rounded border-gray-300 dark:border-gray-600"
+                />
+                <span>Optional (no minimum)</span>
+              </label>
+              {isOptionalItem ? (
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Up to (if brought)"
+                  autoFocus
+                  value={
+                    item.quantityMax != null && item.quantityMax > 0
+                      ? item.quantityMax
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateQuantityMax({
+                      index,
+                      quantityMax:
+                        v === "" ? null : Math.max(1, parseInt(v, 10) || 0),
+                    });
+                  }}
+                  className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                  aria-label="Maximum to bring if optional item is covered"
+                />
+              ) : (
+                <>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="Min"
+                    autoFocus
+                    value={item.quantity ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateQuantity({
+                        index,
+                        quantity:
+                          v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
+                      });
+                    }}
+                    className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                    aria-label="Minimum quantity needed"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="Max (optional range)"
+                    disabled={item.quantity == null}
+                    value={
+                      item.quantity == null ? "" : (item.quantityMax ?? "")
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateQuantityMax({
+                        index,
+                        quantityMax:
+                          v === "" ? null : Math.max(0, parseInt(v, 10) || 0),
+                      });
+                    }}
+                    className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
+                    aria-label="Maximum quantity (optional range above min)"
+                  />
+                </>
+              )}
+            </div>
+          ) : canManageTemplate ? (
+            <button
+              type="button"
+              onClick={() => setEditingNeededIndex(index)}
+              className="min-h-11 w-full p-2 text-center text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-900/80"
+              aria-label={
+                qMin == null
+                  ? "Needed: not set, click to edit"
+                  : isOptionalItem
+                    ? qMax != null
+                      ? `Needed: optional, up to ${qMax}, click to edit`
+                      : "Needed: optional, click to edit"
+                    : isRange
+                      ? `Needed: ${qMin} to ${qMax}, click to edit`
+                      : `Needed: ${qMin}, click to edit`
+              }
+            >
+              {qMin == null ? (
+                "—"
+              ) : isOptionalItem ? (
+                <span className="flex flex-col items-center gap-0.5 leading-tight">
+                  <span>Optional</span>
+                  {qMax != null ? (
+                    <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
+                      up to {qMax}
+                    </span>
+                  ) : null}
+                </span>
+              ) : isRange ? (
+                `${qMin} – ${qMax}`
+              ) : (
+                qMin
+              )}
+            </button>
+          ) : (
+            <div className="min-h-11 w-full p-2 text-center text-sm text-gray-900 dark:text-gray-100">
+              {qMin == null ? (
+                "—"
+              ) : isOptionalItem ? (
+                <span className="flex flex-col items-center gap-0.5 leading-tight">
+                  <span>Optional</span>
+                  {qMax != null ? (
+                    <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
+                      up to {qMax}
+                    </span>
+                  ) : null}
+                </span>
+              ) : isRange ? (
+                `${qMin} – ${qMax}`
+              ) : (
+                qMin
+              )}
+            </div>
+          )}
+        </td>
+        <td
+          className={`${cellBorder} p-2 text-center text-xs text-gray-600 dark:text-gray-400`}
+        >
+          {qMin != null ? (
+            <div>
+              <div>
+                {isOptionalItem ? (
+                  qMax != null ? (
+                    <>
+                      {sum} / {qMax}
+                    </>
+                  ) : (
+                    sum
+                  )
+                ) : isRange ? (
+                  <>
+                    {sum} / {qMin} – {qMax}
+                  </>
+                ) : (
+                  sum
+                )}
+              </div>
+              {isOptionalItem ? (
+                <>
+                  {qMax != null && remCap != null && remCap > 0 && (
+                    <div className="mt-0.5 text-sky-700 dark:text-sky-400">
+                      {remCap} more welcome
+                    </div>
+                  )}
+                  {qMax != null && remCap === 0 && signUps.length > 0 && (
+                    <div className="mt-0.5 text-green-700 dark:text-green-400">
+                      Covered
+                    </div>
+                  )}
+                </>
+              ) : isRange ? (
+                <>
+                  {remMin != null && remMin > 0 && (
+                    <div className="mt-0.5 text-amber-700 dark:text-amber-400">
+                      {remMin} to minimum
+                    </div>
+                  )}
+                  {remMin === 0 && remCap != null && remCap > 0 && (
+                    <div className="mt-0.5 text-sky-700 dark:text-sky-400">
+                      Min met · {remCap} until max
+                    </div>
+                  )}
+                  {remCap === 0 && signUps.length > 0 && (
+                    <div className="mt-0.5 text-green-700 dark:text-green-400">
+                      At max
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {remCap != null && remCap > 0 && (
+                    <div className="mt-0.5 text-amber-700 dark:text-amber-400">
+                      {remCap} left
+                    </div>
+                  )}
+                  {remCap === 0 && signUps.length > 0 && (
+                    <div className="mt-0.5 text-green-700 dark:text-green-400">
+                      Covered
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <span>{signUps.length ? `${signUps.length} signed up` : "—"}</span>
+          )}
+        </td>
+        <td className={`${cellBorder} px-2 py-1.5`}>
+          <button
+            type="button"
+            onClick={() => (mySu ? removeMySignUp(index) : addMySignUp(index))}
+            disabled={
+              (!authUser && !guestDisplayName) || (!mySu && !canSignUpMore)
+            }
+            className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+          >
+            {mySu ? "Cancel sign-up" : "Sign up to bring"}
+          </button>
+        </td>
+        <td className={`${cellBorder} p-2 text-gray-600 dark:text-gray-400`}>
+          {signUps.length === 0 ? (
+            <span className="text-xs text-gray-400">—</span>
+          ) : (
+            <ul className="space-y-2 text-xs">
+              {signUps.map((su) => {
+                const mine = isMineSignUp(su, authUser, guestDisplayName);
+                return (
+                  <li key={su.id} className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={
+                        mine
+                          ? "font-medium text-blue-800 dark:text-blue-300"
+                          : ""
+                      }
+                    >
+                      {su.displayName}
+                      {mine ? " (you)" : ""}
+                    </span>
+                    <span className="text-gray-500">·</span>
+                    {mine ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={cap ?? undefined}
+                        value={su.quantity ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value.trim();
+                          if (v === "") {
+                            updateSignUpQuantity({
+                              itemIndex: index,
+                              signUpId: su.id,
+                              quantity: null,
+                            });
+                            return;
+                          }
+                          const n = parseInt(v, 10);
+                          if (!Number.isFinite(n)) return;
+                          updateSignUpQuantity({
+                            itemIndex: index,
+                            signUpId: su.id,
+                            quantity: n,
+                          });
+                        }}
+                        className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
+                        aria-label="How many you bring"
+                      />
+                    ) : (
+                      <span>{su.quantity ?? "—"}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </td>
+        <td className={`${cellBorder} px-2 py-1.5 text-center`}>
+          {canManageTemplate ? (
+            <button
+              type="button"
+              onClick={() => setPendingRemoveIndex(index)}
+              className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+            >
+              Remove
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
+          )}
+        </td>
+      </tr>
+      {mySu && !authUser && (
+        <tr className="bg-gray-50 dark:bg-gray-900/60">
+          <td
+            colSpan={colCount}
+            className="border border-gray-300 px-3 py-2 dark:border-gray-600"
+          >
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+              Add your email (optional) so we can link this to your Rendecrew
+              account if you sign up later.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={emailDrafts[`${item.id}:${mySu.id}`] ?? mySu.email ?? ""}
+                onChange={(e) =>
+                  setEmailDrafts((d) => ({
+                    ...d,
+                    [`${item.id}:${mySu.id}`]: e.target.value,
+                  }))
+                }
+                className="min-w-48 flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
+              />
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                onClick={() => {
+                  const raw =
+                    emailDrafts[`${item.id}:${mySu.id}`] ?? mySu.email ?? "";
+                  const trimmed = raw.trim();
+                  setSignUpEmail({
+                    itemIndex: index,
+                    signUpId: mySu.id,
+                    email: trimmed === "" ? null : trimmed.toLowerCase(),
+                  });
+                }}
+              >
+                Save email
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+}
+
 export function PackingListEditor({
   roomId,
   authUser,
@@ -231,7 +1065,13 @@ export function PackingListEditor({
   const ctxRef = useRef({ authUser, guestDisplayName });
   ctxRef.current = { authUser, guestDisplayName };
 
-  const rawItems = useStorage((root) => root.items);
+  const room = useRoom();
+  const storageSnap = useStorage((root) => ({
+    items: root.items,
+    sections: root.sections,
+  }));
+  const rawItems = storageSnap?.items;
+  const rawSections = storageSnap?.sections;
   const syncStatus = useSyncStatus({ smooth: true });
   const undo = useUndo();
   const redo = useRedo();
@@ -251,7 +1091,7 @@ export function PackingListEditor({
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const schedulePersist = useCallback(
-    (payload: PackingItemPayload[]) => {
+    (payload: PackingListSyncPayload) => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
       persistTimer.current = setTimeout(async () => {
         persistTimer.current = null;
@@ -268,6 +1108,87 @@ export function PackingListEditor({
     },
     [roomId],
   );
+
+  const migrateStorageShape = useMutation(({ storage }) => {
+    const items = storage.get("items");
+    let sections = storage.get("sections") as
+      | LiveList<LiveObject<PackingSectionStorage>>
+      | undefined
+      | null;
+    if (!sections) {
+      sections = new LiveList<LiveObject<PackingSectionStorage>>([]);
+      storage.set("sections", sections);
+    }
+
+    const titleToId = new Map<string, string>();
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections.get(i);
+      if (!s) continue;
+      const tid = String(s.get("id") ?? "");
+      const title = normalizeSectionTitleForPayload(
+        String(s.get("title") ?? ""),
+      );
+      if (title && tid) titleToId.set(title, tid);
+    }
+
+    const orderedNewTitles: string[] = [];
+    const seenNew = new Set<string>();
+    for (let i = 0; i < items.length; i++) {
+      const row = items.get(i);
+      if (!row) continue;
+      const rawSid = row.get("sectionId") as string | null | undefined;
+      const hasSid = typeof rawSid === "string" && rawSid.trim() !== "";
+      if (hasSid) continue;
+      const leg = normalizedLegacySectionField({
+        id: "",
+        section: row.get("section") as string | null | undefined,
+        name: "",
+        quantity: null,
+      });
+      if (!leg) continue;
+      if (seenNew.has(leg)) continue;
+      seenNew.add(leg);
+      orderedNewTitles.push(leg);
+    }
+
+    for (const t of orderedNewTitles) {
+      if (sections.length >= MAX_PACKING_SECTIONS) break;
+      if (!titleToId.has(t)) {
+        const id = crypto.randomUUID();
+        titleToId.set(t, id);
+        sections.push(
+          new LiveObject<PackingSectionStorage>({
+            id,
+            title: t,
+          }),
+        );
+      }
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const row = items.get(i);
+      if (!row) continue;
+      const rawSid = row.get("sectionId") as string | null | undefined;
+      const hasSid = typeof rawSid === "string" && rawSid.trim() !== "";
+      if (hasSid) {
+        row.set("section", null);
+        continue;
+      }
+      const leg = normalizedLegacySectionField({
+        id: "",
+        section: row.get("section") as string | null | undefined,
+        name: "",
+        quantity: null,
+      });
+      if (leg) {
+        const sid = titleToId.get(leg);
+        row.set("sectionId", sid ?? null);
+      } else {
+        row.set("sectionId", null);
+      }
+      row.set("section", null);
+    }
+  }, []);
 
   const migrateLegacySignUps = useMutation(({ storage }) => {
     const items = storage.get("items");
@@ -310,8 +1231,9 @@ export function PackingListEditor({
     if (rawItems === undefined || rawItems === null) return;
     if (migratedRef.current) return;
     migratedRef.current = true;
+    migrateStorageShape();
     migrateLegacySignUps();
-  }, [rawItems, migrateLegacySignUps]);
+  }, [rawItems, migrateStorageShape, migrateLegacySignUps]);
 
   useEffect(() => {
     if (!persistToDatabase) {
@@ -326,12 +1248,16 @@ export function PackingListEditor({
         if (persistTimer.current) clearTimeout(persistTimer.current);
       };
     }
-    const payload = storageToPayload(rawItems as StorageRow[]);
+    const sectionsPayload = (rawSections ?? []).map((s) => ({
+      id: s.id,
+      title: s.title,
+    }));
+    const payload = buildSyncPayload(sectionsPayload, rawItems as StorageRow[]);
     schedulePersist(payload);
     return () => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
     };
-  }, [rawItems, schedulePersist, persistToDatabase]);
+  }, [rawItems, rawSections, schedulePersist, persistToDatabase]);
 
   useEffect(() => {
     if (!canManageTemplate) setEditingNeededIndex(null);
@@ -356,53 +1282,113 @@ export function PackingListEditor({
     }
   }, [rawItems, editingNeededIndex]);
 
-  const addItem = useMutation(
-    ({ storage }, opts?: { startIndex: number; runSection: string | null }) => {
+  function lastIndexForSectionBucket(
+    items: LiveList<LiveObject<PackingItemStorage>>,
+    sectionId: string | null,
+  ): number {
+    let last = -1;
+    for (let i = 0; i < items.length; i++) {
+      const row = items.get(i);
+      if (!row) continue;
+      const sidRaw = row.get("sectionId") as string | null | undefined;
+      const sid =
+        typeof sidRaw === "string" && sidRaw.trim() !== "" ? sidRaw : null;
+      if (sid === sectionId) last = i;
+    }
+    return last;
+  }
+
+  const addItemInSection = useMutation(
+    ({ storage }, sectionId: string | null) => {
       const items = storage.get("items");
       const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
-
-      if (opts && typeof opts.startIndex === "number") {
-        const targetSec =
-          opts.runSection === null
-            ? null
-            : (() => {
-                const t = opts.runSection.trim();
-                return t === "" ? null : t;
-              })();
-        let lastInRun = opts.startIndex;
-        for (let k = opts.startIndex + 1; k < items.length; k++) {
-          const row = items.get(k);
-          if (!row) break;
-          const raw = row.get("section") as string | null | undefined;
-          const t = typeof raw === "string" ? raw.trim() : "";
-          const rowSec = t === "" ? null : t;
-          if (rowSec === targetSec) lastInRun = k;
-          else break;
-        }
-        items.insert(
-          new LiveObject({
-            id: crypto.randomUUID(),
-            section: targetSec,
-            name: "New item",
-            quantity: null,
-            quantityMax: null,
-            signUps,
-          }),
-          lastInRun + 1,
-        );
-        return;
-      }
-
-      items.push(
-        new LiveObject({
+      const insertAt = lastIndexForSectionBucket(items, sectionId) + 1;
+      items.insert(
+        new LiveObject<PackingItemStorage>({
           id: crypto.randomUUID(),
-          section: null,
+          sectionId,
           name: "New item",
           quantity: null,
           quantityMax: null,
           signUps,
         }),
+        insertAt,
       );
+    },
+    [],
+  );
+
+  const addSection = useMutation(({ storage }) => {
+    const sections = storage.get("sections");
+    if (sections.length >= MAX_PACKING_SECTIONS) return;
+    sections.push(
+      new LiveObject<PackingSectionStorage>({
+        id: crypto.randomUUID(),
+        title: "New section",
+      }),
+    );
+  }, []);
+
+  const applyCompositeReorder = useMutation(({ storage }, keys: string[]) => {
+    const sectionsList = storage.get("sections");
+    const itemsList = storage.get("items");
+    applyReorderFromKeys(sectionsList, itemsList, keys);
+  }, []);
+
+  const renameSectionTitle = useMutation(
+    (
+      { storage },
+      { sectionId, title }: { sectionId: string; title: string },
+    ) => {
+      const sections = storage.get("sections");
+      for (let i = 0; i < sections.length; i++) {
+        const s = sections.get(i);
+        if (!s) continue;
+        if (String(s.get("id")) === sectionId) {
+          s.set("title", title);
+          return;
+        }
+      }
+    },
+    [],
+  );
+
+  const removeEmptySection = useMutation(({ storage }, sectionId: string) => {
+    const sections = storage.get("sections");
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections.get(i);
+      if (!s) continue;
+      if (String(s.get("id")) === sectionId) {
+        sections.delete(i);
+        return;
+      }
+    }
+  }, []);
+
+  const deleteSectionMoveItemsToUncategorized = useMutation(
+    ({ storage }, sectionId: string) => {
+      const items = storage.get("items");
+      const sections = storage.get("sections");
+      for (let i = 0; i < items.length; i++) {
+        const row = items.get(i);
+        if (!row) continue;
+        if (String(row.get("sectionId")) === sectionId) {
+          row.set("sectionId", null);
+        }
+      }
+      for (let i = 0; i < sections.length; i++) {
+        const s = sections.get(i);
+        if (!s) continue;
+        if (String(s.get("id")) === sectionId) {
+          sections.delete(i);
+          break;
+        }
+      }
+      const keys = buildCompositeKeys(
+        snapshotSectionIds(sections),
+        snapshotItemMeta(items),
+      );
+      applyReorderFromKeys(sections, items, keys);
     },
     [],
   );
@@ -417,16 +1403,6 @@ export function PackingListEditor({
       const items = storage.get("items");
       const row = items.get(index);
       if (row) row.set("name", name);
-    },
-    [],
-  );
-
-  const updateSection = useMutation(
-    ({ storage }, { index, section }: { index: number; section: string }) => {
-      const items = storage.get("items");
-      const row = items.get(index);
-      if (!row) return;
-      row.set("section", section.trim() === "" ? null : section);
     },
     [],
   );
@@ -687,27 +1663,120 @@ export function PackingListEditor({
     [],
   );
 
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [pendingDeleteSection, setPendingDeleteSection] = useState<{
+    id: string;
+    title: string;
+    itemCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (renameTarget == null && pendingDeleteSection == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (renameTarget != null) {
+        setRenameTarget(null);
+        setRenameDraft("");
+      }
+      if (pendingDeleteSection != null) setPendingDeleteSection(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [renameTarget, pendingDeleteSection]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const items = useMemo(() => (rawItems ?? []) as StorageRow[], [rawItems]);
+  const sectionsOrdered = useMemo(
+    () => rawSections?.map((s) => ({ id: s.id, title: s.title })) ?? [],
+    [rawSections],
+  );
+  const sectionIdSet = useMemo(
+    () => new Set(sectionsOrdered.map((s) => s.id)),
+    [sectionsOrdered],
+  );
+
+  const orderedKeys = useMemo(() => {
+    if (!rawItems) return [] as string[];
+    const secs = rawSections ?? [];
+    const metas: ItemMeta[] = rawItems.map((row) => ({
+      id: row.id,
+      sectionId: readPersistedSectionId(row as StorageRow, sectionIdSet),
+    }));
+    return buildCompositeKeys(
+      secs.map((s) => s.id),
+      metas,
+    );
+  }, [rawItems, rawSections, sectionIdSet]);
+
+  const indexByItemId = useMemo(() => {
+    const m = new Map<string, number>();
+    items.forEach((it, i) => m.set(it.id, i));
+    return m;
+  }, [items]);
+
+  const onDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      if (!canManageTemplate || listView !== "all") return;
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const a = String(active.id);
+      const o = String(over.id);
+      const oldIndex = orderedKeys.indexOf(a);
+      const newIndex = orderedKeys.indexOf(o);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const nextKeys = arrayMove(orderedKeys, oldIndex, newIndex);
+      room.batch(() => {
+        applyCompositeReorder(nextKeys);
+      });
+    },
+    [applyCompositeReorder, canManageTemplate, listView, orderedKeys, room],
+  );
+
+  const needsGroups = useMemo(
+    () => buildNeedsSignUpGroups(items, sectionsOrdered, sectionIdSet),
+    [items, sectionsOrdered, sectionIdSet],
+  );
+
+  const needsKeys = useMemo(() => {
+    const k: string[] = [];
+    for (const g of needsGroups) {
+      if (g.sectionId != null) k.push(`s:${g.sectionId}`);
+      else k.push(`s:${UNCATEGORIZED_SENTINEL}`);
+      for (const r of g.rows) k.push(`i:${r.item.id}`);
+    }
+    return k;
+  }, [needsGroups]);
+
+  const sortKeys = listView === "all" ? orderedKeys : needsKeys;
+  const dragDisabled = !canManageTemplate || listView !== "all";
+
+  const colCount = canManageTemplate ? 7 : 6;
+
   if (rawItems === undefined || rawItems === null) {
     return (
       <p className="text-sm text-gray-600 dark:text-gray-400">Connecting…</p>
     );
   }
 
-  const items = rawItems as StorageRow[];
-
-  const visibleRows = sortRowsBySectionRun(
-    items
-      .map((item, index) => ({ item, index }))
-      .filter(({ item }) => {
-        if (listView === "all") return true;
-        return packingItemNeedsSignUps(
-          item.quantity,
-          item.quantityMax,
-          readSignUps(item),
-        );
-      }),
-    items,
+  const titleBySectionId = new Map(
+    sectionsOrdered.map((s) => [s.id, s.title] as const),
   );
+
+  function countItemsInSection(sectionId: string): number {
+    return items.filter(
+      (it) => readPersistedSectionId(it, sectionIdSet) === sectionId,
+    ).length;
+  }
 
   return (
     <div className="space-y-4">
@@ -783,555 +1852,413 @@ export function PackingListEditor({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-950">
-        <table className="w-full min-w-[920px] border-collapse text-sm tabular-nums">
-          <thead>
-            <tr className="bg-gray-100 dark:bg-gray-900">
-              <th
-                scope="col"
-                className="w-32 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Section
-              </th>
-              <th
-                scope="col"
-                className="border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Item
-              </th>
-              <th
-                scope="col"
-                className="w-32 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Needed
-              </th>
-              <th
-                scope="col"
-                className="w-28 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Filled
-              </th>
-              <th
-                scope="col"
-                className="w-36 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Sign up
-              </th>
-              <th
-                scope="col"
-                className="min-w-40 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Who&apos;s bringing
-              </th>
-              <th
-                scope="col"
-                className="w-24 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.length === 0 &&
-            listView === "needsSignUps" &&
-            items.length > 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="border border-gray-300 p-6 text-center text-sm text-gray-600 dark:border-gray-600 dark:text-gray-400"
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          accessibility={packingListDndAccessibility}
+          onDragEnd={onDragEnd}
+        >
+          <table className="w-full min-w-[940px] border-collapse text-sm tabular-nums">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-900">
+                {canManageTemplate ? (
+                  <th
+                    scope="col"
+                    className="w-10 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                  >
+                    <span className="sr-only">Reorder rows</span>
+                  </th>
+                ) : null}
+                <th
+                  scope="col"
+                  className="border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
                 >
-                  Every item is covered — nothing is waiting for sign-ups.
-                </td>
+                  Item
+                </th>
+                <th
+                  scope="col"
+                  className="w-32 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Needed
+                </th>
+                <th
+                  scope="col"
+                  className="w-28 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Filled
+                </th>
+                <th
+                  scope="col"
+                  className="w-36 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Sign up
+                </th>
+                <th
+                  scope="col"
+                  className="min-w-40 border border-gray-300 p-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Who&apos;s bringing
+                </th>
+                <th
+                  scope="col"
+                  className="w-24 border border-gray-300 p-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-700 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Actions
+                </th>
               </tr>
-            ) : null}
-            {visibleRows.map(({ item, index }, visiblePos) => {
-              const signUps = readSignUps(item);
-              const qMin = item.quantity;
-              const qMax =
-                item.quantityMax != null &&
-                qMin != null &&
-                item.quantityMax >= qMin
-                  ? item.quantityMax
-                  : null;
-              const cap = itemQuantityCap(qMin, qMax);
-              const isOptionalItem = isOptionalPackingMin(qMin);
-              const isRange =
-                qMin != null && qMin > 0 && qMax != null && qMax > qMin;
-              const sum = allocatedSum(signUps);
-              const remCap = remainingUntilCap(cap, signUps);
-              const remMin = remainingUntilMin(qMin, signUps);
-              const mySu = findMySignUp(signUps, authUser, guestDisplayName);
-              const canSignUpMore =
-                authUser || guestDisplayName
-                  ? cap == null || (remCap != null && remCap >= 1)
-                  : false;
-
-              const sec = normalizedSection(item);
-              const prevItem =
-                visiblePos > 0 ? visibleRows[visiblePos - 1]!.item : null;
-              const prevSec = prevItem ? normalizedSection(prevItem) : null;
-              const showNamedSectionHeader = sec != null && sec !== prevSec;
-              const showUncategorizedHeader =
-                sec == null && (visiblePos === 0 || prevSec != null);
-              const sectionHeader = showNamedSectionHeader
-                ? { label: sec, runSection: sec }
-                : showUncategorizedHeader
-                  ? { label: "Uncategorized", runSection: null }
-                  : null;
-
-              const cellBorder =
-                "border border-gray-300 dark:border-gray-600 align-middle";
-
-              return (
-                <Fragment key={item.id}>
-                  {sectionHeader && (
-                    <tr className="bg-gray-200/90 dark:bg-gray-800">
-                      <td
-                        colSpan={7}
-                        className="border border-gray-300 px-3 py-2 dark:border-gray-600"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
-                            {sectionHeader.label}
-                          </span>
-                          {canManageTemplate ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                addItem({
-                                  startIndex: index,
-                                  runSection: sectionHeader.runSection,
-                                })
-                              }
-                              className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                            >
-                              Add item
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  <tr className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900/80">
-                    <td className={`${cellBorder} p-0`}>
-                      <input
-                        type="text"
-                        readOnly={!canManageTemplate}
-                        value={item.section ?? ""}
-                        onChange={(e) =>
-                          updateSection({ index, section: e.target.value })
-                        }
-                        placeholder="—"
-                        className={`w-full min-w-24 border-0 p-2 text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-300 dark:placeholder:text-gray-500 dark:focus:ring-blue-400 ${
-                          canManageTemplate
-                            ? "bg-transparent"
-                            : "cursor-default bg-gray-50/80 dark:bg-gray-900/50"
-                        }`}
-                        aria-label="Section"
-                      />
-                    </td>
-                    <td className={`${cellBorder} p-0`}>
-                      <input
-                        type="text"
-                        readOnly={!canManageTemplate}
-                        value={item.name}
-                        onChange={(e) =>
-                          updateName({ index, name: e.target.value })
-                        }
-                        className={`w-full min-w-32 border-0 p-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400 ${
-                          canManageTemplate
-                            ? "bg-transparent"
-                            : "cursor-default bg-gray-50/80 dark:bg-gray-900/50"
-                        }`}
-                        aria-label="Item name"
-                      />
-                    </td>
-                    <td className={`${cellBorder} p-0 text-center`}>
-                      {canManageTemplate && editingNeededIndex === index ? (
-                        <div
-                          className="flex flex-col gap-1.5 p-1"
-                          onBlur={(e) => {
-                            const next = e.relatedTarget as Node | null;
-                            if (next && e.currentTarget.contains(next)) return;
-                            setEditingNeededIndex(null);
-                          }}
-                        >
-                          <label className="flex cursor-pointer items-center gap-2 px-0.5 text-left text-[0.7rem] text-gray-600 dark:text-gray-400">
-                            <input
-                              type="checkbox"
-                              checked={isOptionalItem}
-                              onChange={(e) =>
-                                setItemOptionalMode({
-                                  index,
-                                  optional: e.target.checked,
-                                })
-                              }
-                              className="rounded border-gray-300 dark:border-gray-600"
-                            />
-                            <span>Optional (no minimum)</span>
-                          </label>
-                          {isOptionalItem ? (
-                            <input
-                              type="number"
-                              min={1}
-                              placeholder="Up to (if brought)"
-                              autoFocus
-                              value={
-                                item.quantityMax != null && item.quantityMax > 0
-                                  ? item.quantityMax
-                                  : ""
-                              }
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                updateQuantityMax({
-                                  index,
-                                  quantityMax:
-                                    v === ""
-                                      ? null
-                                      : Math.max(1, parseInt(v, 10) || 0),
-                                });
-                              }}
-                              className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
-                              aria-label="Maximum to bring if optional item is covered"
-                            />
-                          ) : (
-                            <>
-                              <input
-                                type="number"
-                                min={0}
-                                placeholder="Min"
-                                autoFocus
-                                value={item.quantity ?? ""}
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  updateQuantity({
-                                    index,
-                                    quantity:
-                                      v === ""
-                                        ? null
-                                        : Math.max(0, parseInt(v, 10) || 0),
-                                  });
-                                }}
-                                className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
-                                aria-label="Minimum quantity needed"
-                              />
-                              <input
-                                type="number"
-                                min={0}
-                                placeholder="Max (optional range)"
-                                disabled={item.quantity == null}
-                                value={
-                                  item.quantity == null
-                                    ? ""
-                                    : (item.quantityMax ?? "")
-                                }
-                                onChange={(e) => {
-                                  const v = e.target.value;
-                                  updateQuantityMax({
-                                    index,
-                                    quantityMax:
-                                      v === ""
-                                        ? null
-                                        : Math.max(0, parseInt(v, 10) || 0),
-                                  });
-                                }}
-                                className="w-full min-w-0 rounded border border-gray-300 bg-white p-1 text-center text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:ring-blue-400"
-                                aria-label="Maximum quantity (optional range above min)"
-                              />
-                            </>
-                          )}
-                        </div>
-                      ) : canManageTemplate ? (
-                        <button
-                          type="button"
-                          onClick={() => setEditingNeededIndex(index)}
-                          className="min-h-11 w-full p-2 text-center text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-900/80"
-                          aria-label={
-                            qMin == null
-                              ? "Needed: not set, click to edit"
-                              : isOptionalItem
-                                ? qMax != null
-                                  ? `Needed: optional, up to ${qMax}, click to edit`
-                                  : "Needed: optional, click to edit"
-                                : isRange
-                                  ? `Needed: ${qMin} to ${qMax}, click to edit`
-                                  : `Needed: ${qMin}, click to edit`
-                          }
-                        >
-                          {qMin == null ? (
-                            "—"
-                          ) : isOptionalItem ? (
-                            <span className="flex flex-col items-center gap-0.5 leading-tight">
-                              <span>Optional</span>
-                              {qMax != null ? (
-                                <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
-                                  up to {qMax}
-                                </span>
-                              ) : null}
-                            </span>
-                          ) : isRange ? (
-                            `${qMin} – ${qMax}`
-                          ) : (
-                            qMin
-                          )}
-                        </button>
-                      ) : (
-                        <div className="min-h-11 w-full p-2 text-center text-sm text-gray-900 dark:text-gray-100">
-                          {qMin == null ? (
-                            "—"
-                          ) : isOptionalItem ? (
-                            <span className="flex flex-col items-center gap-0.5 leading-tight">
-                              <span>Optional</span>
-                              {qMax != null ? (
-                                <span className="text-[0.65rem] font-normal text-gray-500 dark:text-gray-400">
-                                  up to {qMax}
-                                </span>
-                              ) : null}
-                            </span>
-                          ) : isRange ? (
-                            `${qMin} – ${qMax}`
-                          ) : (
-                            qMin
-                          )}
-                        </div>
-                      )}
-                    </td>
+            </thead>
+            <SortableContext
+              items={sortKeys}
+              strategy={verticalListSortingStrategy}
+            >
+              <tbody>
+                {listView === "needsSignUps" &&
+                needsGroups.length === 0 &&
+                items.length > 0 ? (
+                  <tr>
                     <td
-                      className={`${cellBorder} p-2 text-center text-xs text-gray-600 dark:text-gray-400`}
+                      colSpan={colCount}
+                      className="border border-gray-300 p-6 text-center text-sm text-gray-600 dark:border-gray-600 dark:text-gray-400"
                     >
-                      {qMin != null ? (
-                        <div>
-                          <div>
-                            {isOptionalItem ? (
-                              qMax != null ? (
-                                <>
-                                  {sum} / {qMax}
-                                </>
-                              ) : (
-                                sum
-                              )
-                            ) : isRange ? (
-                              <>
-                                {sum} / {qMin} – {qMax}
-                              </>
-                            ) : (
-                              sum
-                            )}
-                          </div>
-                          {isOptionalItem ? (
-                            <>
-                              {qMax != null && remCap != null && remCap > 0 && (
-                                <div className="mt-0.5 text-sky-700 dark:text-sky-400">
-                                  {remCap} more welcome
-                                </div>
-                              )}
-                              {qMax != null &&
-                                remCap === 0 &&
-                                signUps.length > 0 && (
-                                  <div className="mt-0.5 text-green-700 dark:text-green-400">
-                                    Covered
-                                  </div>
-                                )}
-                            </>
-                          ) : isRange ? (
-                            <>
-                              {remMin != null && remMin > 0 && (
-                                <div className="mt-0.5 text-amber-700 dark:text-amber-400">
-                                  {remMin} to minimum
-                                </div>
-                              )}
-                              {remMin === 0 && remCap != null && remCap > 0 && (
-                                <div className="mt-0.5 text-sky-700 dark:text-sky-400">
-                                  Min met · {remCap} until max
-                                </div>
-                              )}
-                              {remCap === 0 && signUps.length > 0 && (
-                                <div className="mt-0.5 text-green-700 dark:text-green-400">
-                                  At max
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {remCap != null && remCap > 0 && (
-                                <div className="mt-0.5 text-amber-700 dark:text-amber-400">
-                                  {remCap} left
-                                </div>
-                              )}
-                              {remCap === 0 && signUps.length > 0 && (
-                                <div className="mt-0.5 text-green-700 dark:text-green-400">
-                                  Covered
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <span>
-                          {signUps.length ? `${signUps.length} signed up` : "—"}
-                        </span>
-                      )}
-                    </td>
-                    <td className={`${cellBorder} px-2 py-1.5`}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          mySu ? removeMySignUp(index) : addMySignUp(index)
-                        }
-                        disabled={
-                          (!authUser && !guestDisplayName) ||
-                          (!mySu && !canSignUpMore)
-                        }
-                        className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-                      >
-                        {mySu ? "Cancel sign-up" : "Sign up to bring"}
-                      </button>
-                    </td>
-                    <td
-                      className={`${cellBorder} p-2 text-gray-600 dark:text-gray-400`}
-                    >
-                      {signUps.length === 0 ? (
-                        <span className="text-xs text-gray-400">—</span>
-                      ) : (
-                        <ul className="space-y-2 text-xs">
-                          {signUps.map((su) => {
-                            const mine = isMineSignUp(
-                              su,
-                              authUser,
-                              guestDisplayName,
-                            );
-                            return (
-                              <li
-                                key={su.id}
-                                className="flex flex-wrap items-center gap-2"
-                              >
-                                <span
-                                  className={
-                                    mine
-                                      ? "font-medium text-blue-800 dark:text-blue-300"
-                                      : ""
-                                  }
-                                >
-                                  {su.displayName}
-                                  {mine ? " (you)" : ""}
-                                </span>
-                                <span className="text-gray-500">·</span>
-                                {mine ? (
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={cap ?? undefined}
-                                    value={su.quantity ?? ""}
-                                    onChange={(e) => {
-                                      const v = e.target.value.trim();
-                                      if (v === "") {
-                                        updateSignUpQuantity({
-                                          itemIndex: index,
-                                          signUpId: su.id,
-                                          quantity: null,
-                                        });
-                                        return;
-                                      }
-                                      const n = parseInt(v, 10);
-                                      if (!Number.isFinite(n)) return;
-                                      updateSignUpQuantity({
-                                        itemIndex: index,
-                                        signUpId: su.id,
-                                        quantity: n,
-                                      });
-                                    }}
-                                    className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
-                                    aria-label="How many you bring"
-                                  />
-                                ) : (
-                                  <span>{su.quantity ?? "—"}</span>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </td>
-                    <td className={`${cellBorder} px-2 py-1.5 text-center`}>
-                      {canManageTemplate ? (
-                        <button
-                          type="button"
-                          onClick={() => setPendingRemoveIndex(index)}
-                          className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                        >
-                          Remove
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-600">
-                          —
-                        </span>
-                      )}
+                      Every item is covered — nothing is waiting for sign-ups.
                     </td>
                   </tr>
-                  {mySu && !authUser && (
-                    <tr className="bg-gray-50 dark:bg-gray-900/60">
-                      <td
-                        colSpan={7}
-                        className="border border-gray-300 px-3 py-2 dark:border-gray-600"
-                      >
-                        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                          Add your email (optional) so we can link this to your
-                          Rendecrew account if you sign up later.
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input
-                            type="email"
-                            placeholder="you@example.com"
-                            value={
-                              emailDrafts[`${item.id}:${mySu.id}`] ??
-                              mySu.email ??
-                              ""
+                ) : null}
+                {listView === "all"
+                  ? orderedKeys.map((key) => {
+                      if (key.startsWith("s:")) {
+                        const sid = key.slice(2);
+                        if (sid === UNCATEGORIZED_SENTINEL) {
+                          return (
+                            <PackingSortableSectionHeader
+                              key={key}
+                              sortId={key}
+                              dragDisabled={dragDisabled}
+                              disableSectionReorder
+                              colCount={colCount}
+                              label="Uncategorized"
+                              trailing={
+                                canManageTemplate ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => addItemInSection(null)}
+                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                  >
+                                    Add item
+                                  </button>
+                                ) : null
+                              }
+                            />
+                          );
+                        }
+                        const secTitle = titleBySectionId.get(sid) ?? "Section";
+                        return (
+                          <PackingSortableSectionHeader
+                            key={key}
+                            sortId={key}
+                            dragDisabled={dragDisabled}
+                            colCount={colCount}
+                            label={secTitle}
+                            trailing={
+                              canManageTemplate ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => addItemInSection(sid)}
+                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                  >
+                                    Add item
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenameTarget({
+                                        id: sid,
+                                        title: secTitle,
+                                      });
+                                      setRenameDraft(secTitle);
+                                    }}
+                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPendingDeleteSection({
+                                        id: sid,
+                                        title: secTitle,
+                                        itemCount: countItemsInSection(sid),
+                                      })
+                                    }
+                                    className="shrink-0 rounded-md border border-red-400/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-white dark:border-red-500/50 dark:bg-gray-900/80 dark:text-red-300 dark:hover:bg-gray-900"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              ) : null
                             }
-                            onChange={(e) =>
-                              setEmailDrafts((d) => ({
-                                ...d,
-                                [`${item.id}:${mySu.id}`]: e.target.value,
-                              }))
-                            }
-                            className="min-w-48 flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-950"
                           />
-                          <button
-                            type="button"
-                            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-                            onClick={() => {
-                              const raw =
-                                emailDrafts[`${item.id}:${mySu.id}`] ??
-                                mySu.email ??
-                                "";
-                              const trimmed = raw.trim();
-                              setSignUpEmail({
-                                itemIndex: index,
-                                signUpId: mySu.id,
-                                email:
-                                  trimmed === "" ? null : trimmed.toLowerCase(),
-                              });
-                            }}
-                          >
-                            Save email
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                        );
+                      }
+                      const itemId = key.slice(2);
+                      const index = indexByItemId.get(itemId);
+                      if (index == null) return null;
+                      const item = items[index]!;
+                      return (
+                        <PackingSortableItemRow
+                          key={key}
+                          sortId={key}
+                          dragDisabled={dragDisabled}
+                          colCount={colCount}
+                          item={item}
+                          index={index}
+                          authUser={authUser}
+                          guestDisplayName={guestDisplayName}
+                          canManageTemplate={canManageTemplate}
+                          editingNeededIndex={editingNeededIndex}
+                          setEditingNeededIndex={setEditingNeededIndex}
+                          emailDrafts={emailDrafts}
+                          setEmailDrafts={setEmailDrafts}
+                          updateName={updateName}
+                          updateQuantity={updateQuantity}
+                          updateQuantityMax={updateQuantityMax}
+                          setItemOptionalMode={setItemOptionalMode}
+                          addMySignUp={addMySignUp}
+                          removeMySignUp={removeMySignUp}
+                          updateSignUpQuantity={updateSignUpQuantity}
+                          setSignUpEmail={setSignUpEmail}
+                          setPendingRemoveIndex={setPendingRemoveIndex}
+                        />
+                      );
+                    })
+                  : needsGroups.flatMap((g) => {
+                      const hid =
+                        g.sectionId != null
+                          ? `s:${g.sectionId}`
+                          : `s:${UNCATEGORIZED_SENTINEL}`;
+                      const headerTitle =
+                        g.sectionId != null ? g.label : "Uncategorized";
+                      const header = (
+                        <PackingSortableSectionHeader
+                          key={hid}
+                          sortId={hid}
+                          dragDisabled={dragDisabled}
+                          disableSectionReorder={g.sectionId == null}
+                          colCount={colCount}
+                          label={headerTitle}
+                          trailing={
+                            canManageTemplate ? (
+                              g.sectionId != null ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      addItemInSection(g.sectionId!)
+                                    }
+                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                  >
+                                    Add item
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenameTarget({
+                                        id: g.sectionId!,
+                                        title: g.label,
+                                      });
+                                      setRenameDraft(g.label);
+                                    }}
+                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPendingDeleteSection({
+                                        id: g.sectionId!,
+                                        title: g.label,
+                                        itemCount: countItemsInSection(
+                                          g.sectionId!,
+                                        ),
+                                      })
+                                    }
+                                    className="shrink-0 rounded-md border border-red-400/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-white dark:border-red-500/50 dark:bg-gray-900/80 dark:text-red-300 dark:hover:bg-gray-900"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => addItemInSection(null)}
+                                  className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                                >
+                                  Add item
+                                </button>
+                              )
+                            ) : null
+                          }
+                        />
+                      );
+                      const rows = g.rows.map(({ item, index }) => (
+                        <PackingSortableItemRow
+                          key={`i:${item.id}`}
+                          sortId={`i:${item.id}`}
+                          dragDisabled={dragDisabled}
+                          colCount={colCount}
+                          item={item}
+                          index={index}
+                          authUser={authUser}
+                          guestDisplayName={guestDisplayName}
+                          canManageTemplate={canManageTemplate}
+                          editingNeededIndex={editingNeededIndex}
+                          setEditingNeededIndex={setEditingNeededIndex}
+                          emailDrafts={emailDrafts}
+                          setEmailDrafts={setEmailDrafts}
+                          updateName={updateName}
+                          updateQuantity={updateQuantity}
+                          updateQuantityMax={updateQuantityMax}
+                          setItemOptionalMode={setItemOptionalMode}
+                          addMySignUp={addMySignUp}
+                          removeMySignUp={removeMySignUp}
+                          updateSignUpQuantity={updateSignUpQuantity}
+                          setSignUpEmail={setSignUpEmail}
+                          setPendingRemoveIndex={setPendingRemoveIndex}
+                        />
+                      ));
+                      return [header, ...rows];
+                    })}
+              </tbody>
+            </SortableContext>
+          </table>
+        </DndContext>
       </div>
 
       {canManageTemplate ? (
-        <button
-          type="button"
-          onClick={() => addItem()}
-          className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => addSection()}
+            className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Add section
+          </button>
+          <button
+            type="button"
+            onClick={() => addItemInSection(null)}
+            className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Add item
+          </button>
+        </div>
+      ) : null}
+
+      {renameTarget != null && canManageTemplate ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="packing-rename-section-title"
         >
-          Add item
-        </button>
+          <div className="max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
+            <h3
+              id="packing-rename-section-title"
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+            >
+              Rename section
+            </h3>
+            <label
+              htmlFor="packing-rename-section-input"
+              className="mt-3 block text-sm text-gray-600 dark:text-gray-400"
+            >
+              Section title
+            </label>
+            <input
+              id="packing-rename-section-input"
+              key={renameTarget.id}
+              type="text"
+              maxLength={MAX_SECTION_LEN}
+              value={renameDraft}
+              autoFocus
+              onChange={(e) => setRenameDraft(e.target.value)}
+              className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+            />
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameTarget(null);
+                  setRenameDraft("");
+                }}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={renameDraft.trim().length === 0}
+                onClick={() => {
+                  const t = renameDraft.trim();
+                  if (!t || t.length > MAX_SECTION_LEN) return;
+                  const id = renameTarget.id;
+                  setRenameTarget(null);
+                  setRenameDraft("");
+                  renameSectionTitle({ sectionId: id, title: t });
+                }}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingDeleteSection != null && canManageTemplate ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="packing-delete-section-title"
+        >
+          <div className="max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
+            <h3
+              id="packing-delete-section-title"
+              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+            >
+              Remove section &quot;{pendingDeleteSection.title}&quot;?
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {pendingDeleteSection.itemCount === 0
+                ? "This removes the empty section from the list."
+                : `${pendingDeleteSection.itemCount} item${pendingDeleteSection.itemCount === 1 ? "" : "s"} will move to Uncategorized. Sign-ups stay on the same items.`}
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteSection(null)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = pendingDeleteSection;
+                  setPendingDeleteSection(null);
+                  if (!p) return;
+                  if (p.itemCount === 0) removeEmptySection(p.id);
+                  else deleteSectionMoveItemsToUncategorized(p.id);
+                }}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
+              >
+                Remove section
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {pendingRemoveIndex != null && canManageTemplate ? (
@@ -1405,16 +2332,32 @@ function snapshotSignUps(signUps: unknown): StorageSignUp[] {
   return out;
 }
 
-export function buildInitialStorage(items: PackingItemPayload[]): {
+export function buildInitialStorage({
+  sections,
+  items,
+}: {
+  sections: PackingSectionPayload[];
+  items: PackingItemPayload[];
+}): {
+  sections: LiveList<LiveObject<PackingSectionStorage>>;
   items: LiveList<LiveObject<PackingItemStorage>>;
 } {
   return {
+    sections: new LiveList(
+      sections.map(
+        (s) =>
+          new LiveObject({
+            id: s.id,
+            title: s.title,
+          }),
+      ),
+    ),
     items: new LiveList(
       items.map(
         (i) =>
           new LiveObject({
             id: i.id,
-            section: i.section ?? null,
+            sectionId: i.sectionId,
             name: i.name,
             quantity: i.quantity,
             quantityMax: i.quantityMax ?? null,
@@ -1434,5 +2377,8 @@ export function buildInitialStorage(items: PackingItemPayload[]): {
           }),
       ),
     ),
-  } as { items: LiveList<LiveObject<PackingItemStorage>> };
+  } as {
+    sections: LiveList<LiveObject<PackingSectionStorage>>;
+    items: LiveList<LiveObject<PackingItemStorage>>;
+  };
 }

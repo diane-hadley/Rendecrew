@@ -119,6 +119,10 @@ describe("backfillPackingItemSignUpsForUser", () => {
 
 describe("persistPackingListItems", () => {
   const tx = {
+    packingSection: {
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
+    },
     packingItem: {
       findMany: vi.fn(),
       deleteMany: vi.fn(),
@@ -133,11 +137,14 @@ describe("persistPackingListItems", () => {
 
   const baseList = {
     id: "plist-1",
+    sections: [] as unknown[],
     items: [] as unknown[],
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    tx.packingSection.deleteMany.mockReset();
+    tx.packingSection.upsert.mockReset();
     tx.packingItem.findMany.mockReset();
     tx.packingItem.deleteMany.mockReset();
     tx.packingItem.upsert.mockReset();
@@ -163,6 +170,7 @@ describe("persistPackingListItems", () => {
     );
     const items = Array.from({ length: 501 }, (_, i) => ({
       id: `i${i}`,
+      sectionId: null as string | null,
       name: "x",
       quantity: null as number | null,
       signUps: [] as PackingItemPayload["signUps"],
@@ -182,6 +190,7 @@ describe("persistPackingListItems", () => {
       [
         {
           id: "i1",
+          sectionId: null,
           name: "",
           quantity: null,
           signUps: [],
@@ -201,10 +210,10 @@ describe("persistPackingListItems", () => {
     const items: PackingItemPayload[] = [
       {
         id: "i1",
+        sectionId: null,
         name: "Tent",
         quantity: 1,
         quantityMax: null,
-        section: null,
         signUps: [],
       },
     ];
@@ -227,6 +236,7 @@ describe("persistPackingListItems", () => {
       [
         {
           id: "i1",
+          sectionId: null,
           name: "Tent",
           quantity: 1,
           signUps: [

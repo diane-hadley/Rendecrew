@@ -5,7 +5,7 @@ import {
   createPackingListForEvent,
   getPackingListByRoomId,
   persistPackingListItems,
-  type PackingItemPayload,
+  type PackingListSyncPayload,
   type PackingPersistActor,
 } from "@/lib/packing-list";
 import { canManageEvent, getEventForUser } from "@/lib/events";
@@ -48,7 +48,7 @@ export type SyncPackingListContext = {
  */
 export async function syncPackingListToDatabase(
   liveblocksRoomId: string,
-  items: PackingItemPayload[],
+  payload: PackingListSyncPayload,
   context: SyncPackingListContext = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const list = await getPackingListByRoomId(liveblocksRoomId);
@@ -74,7 +74,11 @@ export async function syncPackingListToDatabase(
     }
     actor = { kind: "guest", displayName: gn };
   }
-  const result = await persistPackingListItems(liveblocksRoomId, items, actor);
+  const result = await persistPackingListItems(
+    liveblocksRoomId,
+    payload,
+    actor,
+  );
   if (!result.ok) {
     return result;
   }

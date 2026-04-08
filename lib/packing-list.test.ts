@@ -76,10 +76,11 @@ describe("listPackingCommitmentsForUser", () => {
 });
 
 describe("mergeParticipantPackingPayload", () => {
+  const dbSections: { id: string; title: string }[] = [];
   const dbItems = [
     {
       id: "i1",
-      section: "G" as string | null,
+      sectionId: null as string | null,
       name: "Tent",
       quantity: 1 as number | null,
       quantityMax: null as number | null,
@@ -105,16 +106,19 @@ describe("mergeParticipantPackingPayload", () => {
   ];
 
   it("rejects template changes from participant", () => {
-    const incoming: PackingItemPayload[] = [
-      {
-        id: "i1",
-        section: "G",
-        name: "Renamed",
-        quantity: 1,
-        signUps: [],
-      },
-    ];
-    const r = mergeParticipantPackingPayload(dbItems, incoming, {
+    const incoming = {
+      sections: [] as { id: string; title: string }[],
+      items: [
+        {
+          id: "i1",
+          sectionId: null,
+          name: "Renamed",
+          quantity: 1,
+          signUps: [],
+        },
+      ] satisfies PackingItemPayload[],
+    };
+    const r = mergeParticipantPackingPayload(dbSections, dbItems, incoming, {
       kind: "participant",
       userId: "u1",
     });
@@ -122,33 +126,36 @@ describe("mergeParticipantPackingPayload", () => {
   });
 
   it("merges only the actor’s sign-up while preserving others", () => {
-    const incoming: PackingItemPayload[] = [
-      {
-        id: "i1",
-        section: "G",
-        name: "Tent",
-        quantity: 1,
-        signUps: [
-          {
-            id: "s1",
-            quantity: 1,
-            displayName: "Pat",
-            email: null,
-            userId: "u1",
-            packed: true,
-          },
-          {
-            id: "s2",
-            quantity: 1,
-            displayName: "Quinn",
-            email: null,
-            userId: "u2",
-            packed: false,
-          },
-        ],
-      },
-    ];
-    const r = mergeParticipantPackingPayload(dbItems, incoming, {
+    const incoming = {
+      sections: [] as { id: string; title: string }[],
+      items: [
+        {
+          id: "i1",
+          sectionId: null,
+          name: "Tent",
+          quantity: 1,
+          signUps: [
+            {
+              id: "s1",
+              quantity: 1,
+              displayName: "Pat",
+              email: null,
+              userId: "u1",
+              packed: true,
+            },
+            {
+              id: "s2",
+              quantity: 1,
+              displayName: "Quinn",
+              email: null,
+              userId: "u2",
+              packed: false,
+            },
+          ],
+        },
+      ] satisfies PackingItemPayload[],
+    };
+    const r = mergeParticipantPackingPayload(dbSections, dbItems, incoming, {
       kind: "participant",
       userId: "u1",
     });

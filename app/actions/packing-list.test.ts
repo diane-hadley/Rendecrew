@@ -120,7 +120,7 @@ describe("syncPackingListToDatabase", () => {
 
   it("fails for unknown room", async () => {
     vi.mocked(getPackingListByRoomId).mockResolvedValueOnce(null);
-    const r = await syncPackingListToDatabase("x", []);
+    const r = await syncPackingListToDatabase("x", { sections: [], items: [] });
     expect(r).toEqual({ ok: false, error: "Invalid packing list" });
   });
 
@@ -129,19 +129,27 @@ describe("syncPackingListToDatabase", () => {
       ok: false,
       error: "bad items",
     });
-    const r = await syncPackingListToDatabase("room-1", []);
+    const r = await syncPackingListToDatabase("room-1", {
+      sections: [],
+      items: [],
+    });
     expect(r).toEqual({ ok: false, error: "bad items" });
   });
 
   it("revalidates on success", async () => {
     const items: PackingItemPayload[] = [
-      { id: "i1", name: "Towel", quantity: 1, signUps: [] },
+      { id: "i1", sectionId: null, name: "Towel", quantity: 1, signUps: [] },
     ];
-    const r = await syncPackingListToDatabase("room-1", items);
-    expect(r).toEqual({ ok: true });
-    expect(persistPackingListItems).toHaveBeenCalledWith("room-1", items, {
-      kind: "organizer",
+    const r = await syncPackingListToDatabase("room-1", {
+      sections: [],
+      items,
     });
+    expect(r).toEqual({ ok: true });
+    expect(persistPackingListItems).toHaveBeenCalledWith(
+      "room-1",
+      { sections: [], items },
+      { kind: "organizer" },
+    );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/ev1");
     expect(revalidatePath).toHaveBeenCalledWith("/packing/room-1");
   });
