@@ -67,17 +67,35 @@ model PackingList {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  event Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  items PackingItem[]
+  event    Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  items    PackingItem[]
+  sections PackingSection[]
 
   @@map("packing_lists")
+}
+
+model PackingSection {
+  id            String   @id @default(uuid())
+  packingListId String   @map("packing_list_id")
+  title         String
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  packingList PackingList   @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  items       PackingItem[]
+
+  @@index([packingListId])
+  @@map("packing_sections")
 }
 
 model PackingItem {
   id            String   @id @default(uuid())
   packingListId String   @map("packing_list_id")
-  /** Optional group label; consecutive items with the same section share one header row in the UI. */
+  /** Legacy string section; superseded by `sectionId`. Cleared on save from the collaborative editor. */
   section       String?
+  /** Named section bucket; null = Uncategorized. */
+  sectionId     String?  @map("section_id")
   name          String
   /** Minimum (or exact when quantityMax is null). */
   quantity      Int?
@@ -87,10 +105,12 @@ model PackingItem {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  packingList PackingList         @relation(fields: [packingListId], references: [id], onDelete: Cascade)
-  signUps     PackingItemSignUp[]
+  packingList    PackingList      @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  packingSection PackingSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  signUps        PackingItemSignUp[]
 
   @@index([packingListId])
+  @@index([sectionId])
   @@map("packing_items")
 }
 

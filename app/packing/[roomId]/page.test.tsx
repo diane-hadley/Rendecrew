@@ -56,10 +56,11 @@ import PublicPackingPage from "./page";
 const mockList = {
   liveblocksRoomId: "room-xyz",
   event: { id: "e1", title: "Weekend trip" },
+  sections: [{ id: "sec-gear", title: "Gear" }],
   items: [
     {
       id: "i1",
-      section: "Gear",
+      sectionId: "sec-gear",
       name: "Tent",
       quantity: 1,
       quantityMax: null,

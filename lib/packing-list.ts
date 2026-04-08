@@ -11,15 +11,26 @@ export type PackingSignUpPayload = {
   packed: boolean;
 };
 
+export type PackingSectionPayload = {
+  id: string;
+  title: string;
+};
+
 export type PackingItemPayload = {
   id: string;
-  /** Trimmed section label, or null/omitted for items above the first named section. */
-  section?: string | null;
+  /** Named section id, or null for Uncategorized. */
+  sectionId: string | null;
   name: string;
   quantity: number | null;
   /** Upper inclusive bound; null/omit with quantity set = need exactly `quantity`. */
   quantityMax?: number | null;
   signUps: PackingSignUpPayload[];
+};
+
+/** Full collaborative list shape synced to Postgres. */
+export type PackingListSyncPayload = {
+  sections: PackingSectionPayload[];
+  items: PackingItemPayload[];
 };
 
 /** Who is persisting: organizers apply the full payload; others may only change their own sign-ups. */
@@ -30,7 +41,7 @@ export type PackingPersistActor =
 
 type DbItemForMerge = {
   id: string;
-  section: string | null;
+  sectionId: string | null;
   name: string;
   quantity: number | null;
   quantityMax: number | null;
@@ -44,9 +55,14 @@ type DbItemForMerge = {
   }>;
 };
 
+type DbSectionForMerge = {
+  id: string;
+  title: string;
+};
+
 type TemplateSlice = {
   id: string;
-  section: string | null;
+  sectionId: string | null;
   name: string;
   quantity: number | null;
   quantityMax: number | null;
@@ -62,10 +78,9 @@ function effectiveQuantityMax(
 }
 
 function templateFromPayload(it: PackingItemPayload): TemplateSlice {
-  const sectionRaw = it.section?.trim() ?? "";
   return {
     id: it.id,
-    section: sectionRaw === "" ? null : sectionRaw,
+    sectionId: it.sectionId,
     name: it.name.trim(),
     quantity: it.quantity,
     quantityMax: effectiveQuantityMax(it.quantity, it.quantityMax ?? null),
@@ -75,7 +90,7 @@ function templateFromPayload(it: PackingItemPayload): TemplateSlice {
 function templateFromDbRow(row: DbItemForMerge): TemplateSlice {
   return {
     id: row.id,
-    section: row.section,
+    sectionId: row.sectionId,
     name: row.name.trim(),
     quantity: row.quantity,
     quantityMax: effectiveQuantityMax(row.quantity, row.quantityMax),
@@ -85,11 +100,31 @@ function templateFromDbRow(row: DbItemForMerge): TemplateSlice {
 function templatesEqual(a: TemplateSlice, b: TemplateSlice): boolean {
   return (
     a.id === b.id &&
-    a.section === b.section &&
+    a.sectionId === b.sectionId &&
     a.name === b.name &&
     a.quantity === b.quantity &&
     a.quantityMax === b.quantityMax
   );
+}
+
+function normalizeSectionTitle(raw: string): string {
+  return raw.trim();
+}
+
+function sectionsStructureEqual(
+  db: DbSectionForMerge[],
+  incoming: PackingSectionPayload[],
+): boolean {
+  if (db.length !== incoming.length) return false;
+  for (let i = 0; i < db.length; i++) {
+    const a = db[i]!;
+    const b = incoming[i]!;
+    if (a.id !== b.id) return false;
+    if (normalizeSectionTitle(a.title) !== normalizeSectionTitle(b.title)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function dbSignUpToPayload(
@@ -153,11 +188,22 @@ function mergeSignUpsForActor(
  * Non-organizers may only change their own sign-ups; shared template must match the database row-for-row.
  */
 export function mergeParticipantPackingPayload(
+  dbSectionsOrdered: DbSectionForMerge[],
   dbItemsOrdered: DbItemForMerge[],
-  incoming: PackingItemPayload[],
+  incoming: PackingListSyncPayload,
   actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
-): { ok: true; items: PackingItemPayload[] } | { ok: false; error: string } {
-  if (incoming.length !== dbItemsOrdered.length) {
+):
+  | { ok: true; sections: PackingSectionPayload[]; items: PackingItemPayload[] }
+  | { ok: false; error: string } {
+  const incSections = incoming.sections ?? [];
+  const incItems = incoming.items ?? [];
+  if (!sectionsStructureEqual(dbSectionsOrdered, incSections)) {
+    return {
+      ok: false,
+      error: "Only organizers can change the shared list structure",
+    };
+  }
+  if (incItems.length !== dbItemsOrdered.length) {
     return {
       ok: false,
       error: "Only organizers can change the shared list structure",
@@ -166,7 +212,7 @@ export function mergeParticipantPackingPayload(
   const out: PackingItemPayload[] = [];
   for (let i = 0; i < dbItemsOrdered.length; i++) {
     const dbRow = dbItemsOrdered[i]!;
-    const inc = incoming[i]!;
+    const inc = incItems[i]!;
     if (dbRow.id !== inc.id) {
       return {
         ok: false,
@@ -185,19 +231,27 @@ export function mergeParticipantPackingPayload(
     const merged = mergeSignUpsForActor(dbS, inc.signUps, actor);
     out.push({
       id: dbRow.id,
-      section: dbRow.section,
+      sectionId: dbRow.sectionId,
       name: dbRow.name,
       quantity: dbRow.quantity,
       quantityMax: dbRow.quantityMax,
       signUps: merged,
     });
   }
-  return { ok: true, items: out };
+  return {
+    ok: true,
+    sections: incSections.map((s) => ({
+      id: s.id,
+      title: normalizeSectionTitle(s.title),
+    })),
+    items: out,
+  };
 }
 
 const MAX_ITEMS = 500;
 const MAX_SIGN_UPS_PER_ITEM = 40;
-const MAX_SECTION_LEN = 120;
+export const MAX_SECTION_LEN = 120;
+const MAX_SECTIONS = 100;
 
 function generateLiveblocksRoomId(): string {
   return randomBytes(24).toString("base64url");
@@ -211,11 +265,16 @@ const signUpsInclude = {
   orderBy: { sortOrder: "asc" as const },
 };
 
+const sectionsInclude = {
+  orderBy: { sortOrder: "asc" as const },
+};
+
 export async function getPackingListByRoomId(roomId: string) {
   return prisma.packingList.findUnique({
     where: { liveblocksRoomId: roomId },
     include: {
       event: { select: { id: true, title: true } },
+      sections: sectionsInclude,
       items: {
         orderBy: { sortOrder: "asc" },
         include: { signUps: signUpsInclude },
@@ -228,6 +287,7 @@ export async function getPackingListForEvent(eventId: string) {
   return prisma.packingList.findUnique({
     where: { eventId },
     include: {
+      sections: sectionsInclude,
       items: {
         orderBy: { sortOrder: "asc" },
         include: { signUps: signUpsInclude },
@@ -328,15 +388,32 @@ function sumSignUpQuantities(signUps: { quantity: number | null }[]): number {
   );
 }
 
+function normalizePersistPayload(
+  payload: PackingListSyncPayload | PackingItemPayload[],
+): PackingListSyncPayload {
+  if (Array.isArray(payload)) {
+    return { sections: [], items: payload };
+  }
+  return {
+    sections: Array.isArray(payload.sections) ? payload.sections : [],
+    items: Array.isArray(payload.items) ? payload.items : [],
+  };
+}
+
 export async function persistPackingListItems(
   liveblocksRoomId: string,
-  items: PackingItemPayload[],
+  payload: PackingListSyncPayload | PackingItemPayload[],
   actor: PackingPersistActor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { sections: sectionsIn, items: itemsIn } = normalizePersistPayload(payload);
   const list = await prisma.packingList.findUnique({
     where: { liveblocksRoomId },
     select: {
       id: true,
+      sections: {
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true },
+      },
       items: {
         orderBy: { sortOrder: "asc" },
         include: { signUps: signUpsInclude },
@@ -347,16 +424,43 @@ export async function persistPackingListItems(
     return { ok: false, error: "Packing list not found" };
   }
 
-  let itemsToPersist = items;
+  let sectionsToPersist = sectionsIn;
+  let itemsToPersist = itemsIn;
   if (actor.kind !== "organizer") {
     const merged = mergeParticipantPackingPayload(
+      list.sections as DbSectionForMerge[],
       list.items as DbItemForMerge[],
-      items,
+      { sections: sectionsIn, items: itemsIn },
       actor,
     );
     if (!merged.ok) return merged;
+    sectionsToPersist = merged.sections;
     itemsToPersist = merged.items;
   }
+
+  if (!Array.isArray(sectionsToPersist)) {
+    return { ok: false, error: "Invalid sections" };
+  }
+  if (sectionsToPersist.length > MAX_SECTIONS) {
+    return { ok: false, error: "Too many sections" };
+  }
+
+  const seenSectionIds = new Set<string>();
+  for (const sec of sectionsToPersist) {
+    if (!sec.id || typeof sec.id !== "string") {
+      return { ok: false, error: "Invalid section id" };
+    }
+    if (seenSectionIds.has(sec.id)) {
+      return { ok: false, error: "Duplicate section id" };
+    }
+    seenSectionIds.add(sec.id);
+    const t = normalizeSectionTitle(sec.title ?? "");
+    if (!t || t.length > MAX_SECTION_LEN) {
+      return { ok: false, error: "Invalid section title" };
+    }
+  }
+
+  const sectionIdSet = new Set(sectionsToPersist.map((s) => s.id));
 
   if (itemsToPersist.length > MAX_ITEMS) {
     return { ok: false, error: "Too many items" };
@@ -370,9 +474,10 @@ export async function persistPackingListItems(
     if (!name || name.length > 200) {
       return { ok: false, error: "Invalid item name" };
     }
-    const sectionRaw = it.section?.trim() ?? "";
-    if (sectionRaw.length > MAX_SECTION_LEN) {
-      return { ok: false, error: "Section name too long" };
+    if (it.sectionId != null) {
+      if (typeof it.sectionId !== "string" || !sectionIdSet.has(it.sectionId)) {
+        return { ok: false, error: "Invalid item section" };
+      }
     }
     if (
       it.quantity != null &&
@@ -497,10 +602,40 @@ export async function persistPackingListItems(
         });
       }
 
+      const incomingSectionIds = sectionsToPersist.map((s) => s.id);
+      if (incomingSectionIds.length > 0) {
+        await tx.packingSection.deleteMany({
+          where: {
+            packingListId: list.id,
+            id: { notIn: incomingSectionIds },
+          },
+        });
+      } else {
+        await tx.packingSection.deleteMany({
+          where: { packingListId: list.id },
+        });
+      }
+
+      for (let i = 0; i < sectionsToPersist.length; i++) {
+        const sec = sectionsToPersist[i]!;
+        const title = normalizeSectionTitle(sec.title);
+        await tx.packingSection.upsert({
+          where: { id: sec.id },
+          create: {
+            id: sec.id,
+            packingListId: list.id,
+            title,
+            sortOrder: i,
+          },
+          update: {
+            title,
+            sortOrder: i,
+          },
+        });
+      }
+
       for (let i = 0; i < itemsToPersist.length; i++) {
         const it = itemsToPersist[i];
-        const sectionTrim = it.section?.trim() ?? "";
-        const section = sectionTrim === "" ? null : sectionTrim;
 
         const quantityMax =
           it.quantity != null &&
@@ -514,14 +649,16 @@ export async function persistPackingListItems(
           create: {
             id: it.id,
             packingListId: list.id,
-            section,
+            section: null,
+            sectionId: it.sectionId,
             name: it.name.trim(),
             quantity: it.quantity,
             quantityMax,
             sortOrder: i,
           },
           update: {
-            section,
+            section: null,
+            sectionId: it.sectionId,
             name: it.name.trim(),
             quantity: it.quantity,
             quantityMax,

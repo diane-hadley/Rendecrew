@@ -8,6 +8,7 @@ import {
   getPackingListByRoomId,
   listPackingCommitmentsForUser,
   type PackingItemPayload,
+  type PackingSectionPayload,
 } from "@/lib/packing-list";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
@@ -147,9 +148,14 @@ export default async function PublicPackingPage({
       )
     : [];
 
+  const initialSections: PackingSectionPayload[] = list.sections.map((s) => ({
+    id: s.id,
+    title: s.title,
+  }));
+
   const initialItems: PackingItemPayload[] = list.items.map((it) => ({
     id: it.id,
-    section: it.section,
+    sectionId: it.sectionId,
     name: it.name,
     quantity: it.quantity,
     quantityMax: it.quantityMax,
@@ -190,6 +196,7 @@ export default async function PublicPackingPage({
           roomId={list.liveblocksRoomId}
           eventId={eventId}
           eventTitle={list.event.title}
+          initialSections={initialSections}
           initialItems={initialItems}
           authUser={authUser}
           canManageTemplate={canManageTemplate}

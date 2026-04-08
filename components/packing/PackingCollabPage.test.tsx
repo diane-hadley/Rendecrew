@@ -45,7 +45,7 @@ const sampleItems = [
     name: "Plates",
     quantity: 10 as number | null,
     quantityMax: null as number | null,
-    section: null as string | null,
+    sectionId: null as string | null,
     signUps: [],
   },
 ];
@@ -70,6 +70,7 @@ describe("PackingCollabPage", () => {
       <PackingCollabPage
         roomId="room-1"
         eventTitle="Beach day"
+        initialSections={[]}
         initialItems={sampleItems}
         authUser={{
           dbUserId: "u1",
@@ -104,6 +105,7 @@ describe("PackingCollabPage", () => {
       <PackingCollabPage
         roomId="room-guest"
         eventTitle="Campout"
+        initialSections={[]}
         initialItems={[]}
         authUser={null}
         {...advancedDefaults}
@@ -123,6 +125,7 @@ describe("PackingCollabPage", () => {
       <PackingCollabPage
         roomId="room-guest-2"
         eventTitle="Campout"
+        initialSections={[]}
         initialItems={[]}
         authUser={null}
         {...advancedDefaults}
