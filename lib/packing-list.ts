@@ -405,7 +405,8 @@ export async function persistPackingListItems(
   payload: PackingListSyncPayload | PackingItemPayload[],
   actor: PackingPersistActor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { sections: sectionsIn, items: itemsIn } = normalizePersistPayload(payload);
+  const { sections: sectionsIn, items: itemsIn } =
+    normalizePersistPayload(payload);
   const list = await prisma.packingList.findUnique({
     where: { liveblocksRoomId },
     select: {

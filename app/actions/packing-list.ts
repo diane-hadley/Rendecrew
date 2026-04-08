@@ -74,7 +74,11 @@ export async function syncPackingListToDatabase(
     }
     actor = { kind: "guest", displayName: gn };
   }
-  const result = await persistPackingListItems(liveblocksRoomId, payload, actor);
+  const result = await persistPackingListItems(
+    liveblocksRoomId,
+    payload,
+    actor,
+  );
   if (!result.ok) {
     return result;
   }

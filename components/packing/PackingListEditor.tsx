@@ -257,11 +257,7 @@ function applyReorderFromKeys(
     placements.map((p) => p.itemId),
     (el) => String(el.get("id")),
   );
-  reorderLiveListByIds(
-    sectionsList,
-    sectionIds,
-    (el) => String(el.get("id")),
-  );
+  reorderLiveListByIds(sectionsList, sectionIds, (el) => String(el.get("id")));
 }
 
 function buildSyncPayload(
@@ -338,7 +334,10 @@ function buildNeedsSignUpGroups(
       ),
     );
 
-  const byKey = new Map<string | null, Array<{ item: StorageRow; index: number }>>();
+  const byKey = new Map<
+    string | null,
+    Array<{ item: StorageRow; index: number }>
+  >();
 
   for (const row of filtered) {
     const sid = readEffectiveSectionId(row.item, validIds);
@@ -488,8 +487,14 @@ function PackingSortableSectionHeader({
   label,
   trailing,
 }: PackingSortableSectionHeaderProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: sortId, disabled: dragDisabled });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortId, disabled: dragDisabled });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -588,8 +593,14 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
     setPendingRemoveIndex,
   } = props;
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: sortId, disabled: dragDisabled });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortId, disabled: dragDisabled });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -614,8 +625,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
       ? cap == null || (remCap != null && remCap >= 1)
       : false;
 
-  const cellBorder =
-    "border border-gray-300 dark:border-gray-600 align-middle";
+  const cellBorder = "border border-gray-300 dark:border-gray-600 align-middle";
 
   const showDrag = colCount >= 7;
 
@@ -870,20 +880,15 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
               )}
             </div>
           ) : (
-            <span>
-              {signUps.length ? `${signUps.length} signed up` : "—"}
-            </span>
+            <span>{signUps.length ? `${signUps.length} signed up` : "—"}</span>
           )}
         </td>
         <td className={`${cellBorder} px-2 py-1.5`}>
           <button
             type="button"
-            onClick={() =>
-              mySu ? removeMySignUp(index) : addMySignUp(index)
-            }
+            onClick={() => (mySu ? removeMySignUp(index) : addMySignUp(index))}
             disabled={
-              (!authUser && !guestDisplayName) ||
-              (!mySu && !canSignUpMore)
+              (!authUser && !guestDisplayName) || (!mySu && !canSignUpMore)
             }
             className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
           >
@@ -898,10 +903,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
               {signUps.map((su) => {
                 const mine = isMineSignUp(su, authUser, guestDisplayName);
                 return (
-                  <li
-                    key={su.id}
-                    className="flex flex-wrap items-center gap-2"
-                  >
+                  <li key={su.id} className="flex flex-wrap items-center gap-2">
                     <span
                       className={
                         mine
@@ -959,9 +961,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
               Remove
             </button>
           ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-600">
-              —
-            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
           )}
         </td>
       </tr>
@@ -979,11 +979,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
               <input
                 type="email"
                 placeholder="you@example.com"
-                value={
-                  emailDrafts[`${item.id}:${mySu.id}`] ??
-                  mySu.email ??
-                  ""
-                }
+                value={emailDrafts[`${item.id}:${mySu.id}`] ?? mySu.email ?? ""}
                 onChange={(e) =>
                   setEmailDrafts((d) => ({
                     ...d,
@@ -997,15 +993,12 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                 className="text-sm text-blue-600 hover:underline dark:text-blue-400"
                 onClick={() => {
                   const raw =
-                    emailDrafts[`${item.id}:${mySu.id}`] ??
-                    mySu.email ??
-                    "";
+                    emailDrafts[`${item.id}:${mySu.id}`] ?? mySu.email ?? "";
                   const trimmed = raw.trim();
                   setSignUpEmail({
                     itemIndex: index,
                     signUpId: mySu.id,
-                    email:
-                      trimmed === "" ? null : trimmed.toLowerCase(),
+                    email: trimmed === "" ? null : trimmed.toLowerCase(),
                   });
                 }}
               >
@@ -1310,7 +1303,10 @@ export function PackingListEditor({
   }, []);
 
   const renameSectionTitle = useMutation(
-    ({ storage }, { sectionId, title }: { sectionId: string; title: string }) => {
+    (
+      { storage },
+      { sectionId, title }: { sectionId: string; title: string },
+    ) => {
       const sections = storage.get("sections");
       for (let i = 0; i < sections.length; i++) {
         const s = sections.get(i);
@@ -1652,10 +1648,7 @@ export function PackingListEditor({
     }),
   );
 
-  const items = useMemo(
-    () => (rawItems ?? []) as StorageRow[],
-    [rawItems],
-  );
+  const items = useMemo(() => (rawItems ?? []) as StorageRow[], [rawItems]);
   const sectionsOrdered = useMemo(
     () => rawSections?.map((s) => ({ id: s.id, title: s.title })) ?? [],
     [rawSections],
@@ -1699,13 +1692,7 @@ export function PackingListEditor({
         applyCompositeReorder(nextKeys);
       });
     },
-    [
-      applyCompositeReorder,
-      canManageTemplate,
-      listView,
-      orderedKeys,
-      room,
-    ],
+    [applyCompositeReorder, canManageTemplate, listView, orderedKeys, room],
   );
 
   const needsGroups = useMemo(
@@ -1739,8 +1726,9 @@ export function PackingListEditor({
   );
 
   function countItemsInSection(sectionId: string): number {
-    return items.filter((it) => readPersistedSectionId(it, sectionIdSet) === sectionId)
-      .length;
+    return items.filter(
+      (it) => readPersistedSectionId(it, sectionIdSet) === sectionId,
+    ).length;
   }
 
   return (
@@ -1914,8 +1902,7 @@ export function PackingListEditor({
                             />
                           );
                         }
-                        const secTitle =
-                          titleBySectionId.get(sid) ?? "Section";
+                        const secTitle = titleBySectionId.get(sid) ?? "Section";
                         return (
                           <PackingSortableSectionHeader
                             key={key}
@@ -1952,8 +1939,7 @@ export function PackingListEditor({
                                       setPendingDeleteSection({
                                         id: sid,
                                         title: secTitle,
-                                        itemCount:
-                                          countItemsInSection(sid),
+                                        itemCount: countItemsInSection(sid),
                                       })
                                     }
                                     className="shrink-0 rounded-md border border-red-400/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-white dark:border-red-500/50 dark:bg-gray-900/80 dark:text-red-300 dark:hover:bg-gray-900"

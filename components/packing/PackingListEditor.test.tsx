@@ -9,9 +9,7 @@ const editorStorage = vi.hoisted(() => ({
 }));
 
 vi.mock("@liveblocks/react", () => ({
-  useStorage: (
-    fn: (root: { items: unknown; sections: unknown }) => unknown,
-  ) =>
+  useStorage: (fn: (root: { items: unknown; sections: unknown }) => unknown) =>
     fn({
       items: editorStorage.items,
       sections: editorStorage.sections,
@@ -128,10 +126,12 @@ describe("PackingListEditor", () => {
     expect(
       screen.getByRole("columnheader", { name: "Item" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add section" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Add item" }).length).toBeGreaterThanOrEqual(
-      1,
-    );
+    expect(
+      screen.getByRole("button", { name: "Add section" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Add item" }).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("renders a row for each storage item", () => {
