@@ -87,7 +87,40 @@ type StorageRow = {
 };
 
 const UNCATEGORIZED_SENTINEL = "__uncategorized__";
+/** Must stay aligned with `MAX_SECTIONS` in `@/lib/packing-list`. */
 const MAX_PACKING_SECTIONS = 100;
+
+const packingListDndAccessibility = {
+  announcements: {
+    onDragStart({ active }: { active: { id: string | number } }) {
+      const id = String(active.id);
+      return id.startsWith("s:")
+        ? "Picked up section. Use arrow keys to move, then confirm to drop."
+        : "Picked up item. Use arrow keys to move, then confirm to drop.";
+    },
+    onDragOver({ over }: { over: { id: string | number } | null }) {
+      return over ? `Over ${String(over.id)}.` : undefined;
+    },
+    onDragEnd({
+      active,
+      over,
+    }: {
+      active: { id: string | number };
+      over: { id: string | number } | null;
+    }) {
+      return over
+        ? `Moved ${String(active.id)} next to ${String(over.id)}.`
+        : "Move finished.";
+    },
+    onDragCancel() {
+      return "Reordering cancelled.";
+    },
+  },
+  screenReaderInstructions: {
+    draggable:
+      "Focus a drag handle, press Space or Enter to pick up, arrow keys to move, Space or Enter to drop, Escape to cancel.",
+  },
+};
 
 function normalizedLegacySectionField(row: StorageRow): string | null {
   const s = row.section;
@@ -107,13 +140,6 @@ function readPersistedSectionId(
   const raw = row.sectionId;
   if (raw == null || typeof raw !== "string" || raw.trim() === "") return null;
   return validSectionIds.has(raw) ? raw : null;
-}
-
-function readEffectiveSectionId(
-  row: StorageRow,
-  validSectionIds: Set<string>,
-): string | null {
-  return readPersistedSectionId(row, validSectionIds);
 }
 
 type ItemMeta = { id: string; sectionId: string | null };
@@ -340,7 +366,7 @@ function buildNeedsSignUpGroups(
   >();
 
   for (const row of filtered) {
-    const sid = readEffectiveSectionId(row.item, validIds);
+    const sid = readPersistedSectionId(row.item, validIds);
     let arr = byKey.get(sid);
     if (!arr) {
       arr = [];
@@ -475,6 +501,8 @@ function findMySignUp(
 type PackingSortableSectionHeaderProps = {
   sortId: string;
   dragDisabled: boolean;
+  /** Named sections only; Uncategorized is fixed last per spec. */
+  disableSectionReorder?: boolean;
   colCount: number;
   label: string;
   trailing: ReactNode;
@@ -483,6 +511,7 @@ type PackingSortableSectionHeaderProps = {
 function PackingSortableSectionHeader({
   sortId,
   dragDisabled,
+  disableSectionReorder = false,
   colCount,
   label,
   trailing,
@@ -494,7 +523,10 @@ function PackingSortableSectionHeader({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: sortId, disabled: dragDisabled });
+  } = useSortable({
+    id: sortId,
+    disabled: dragDisabled || disableSectionReorder,
+  });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -512,7 +544,7 @@ function PackingSortableSectionHeader({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            {!dragDisabled ? (
+            {!dragDisabled && !disableSectionReorder ? (
               <button
                 type="button"
                 className="shrink-0 cursor-grab touch-none rounded border border-transparent p-1 text-gray-500 hover:bg-gray-300/60 dark:text-gray-400 dark:hover:bg-gray-700/80"
@@ -1120,6 +1152,7 @@ export function PackingListEditor({
     }
 
     for (const t of orderedNewTitles) {
+      if (sections.length >= MAX_PACKING_SECTIONS) break;
       if (!titleToId.has(t)) {
         const id = crypto.randomUUID();
         titleToId.set(t, id);
@@ -1641,6 +1674,20 @@ export function PackingListEditor({
     itemCount: number;
   } | null>(null);
 
+  useEffect(() => {
+    if (renameTarget == null && pendingDeleteSection == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (renameTarget != null) {
+        setRenameTarget(null);
+        setRenameDraft("");
+      }
+      if (pendingDeleteSection != null) setPendingDeleteSection(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [renameTarget, pendingDeleteSection]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -1808,6 +1855,7 @@ export function PackingListEditor({
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          accessibility={packingListDndAccessibility}
           onDragEnd={onDragEnd}
         >
           <table className="w-full min-w-[940px] border-collapse text-sm tabular-nums">
@@ -1886,6 +1934,7 @@ export function PackingListEditor({
                               key={key}
                               sortId={key}
                               dragDisabled={dragDisabled}
+                              disableSectionReorder
                               colCount={colCount}
                               label="Uncategorized"
                               trailing={
@@ -1995,6 +2044,7 @@ export function PackingListEditor({
                           key={hid}
                           sortId={hid}
                           dragDisabled={dragDisabled}
+                          disableSectionReorder={g.sectionId == null}
                           colCount={colCount}
                           label={headerTitle}
                           trailing={
@@ -2127,9 +2177,11 @@ export function PackingListEditor({
             </label>
             <input
               id="packing-rename-section-input"
+              key={renameTarget.id}
               type="text"
               maxLength={MAX_SECTION_LEN}
               value={renameDraft}
+              autoFocus
               onChange={(e) => setRenameDraft(e.target.value)}
               className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
             />
@@ -2146,6 +2198,7 @@ export function PackingListEditor({
               </button>
               <button
                 type="button"
+                disabled={renameDraft.trim().length === 0}
                 onClick={() => {
                   const t = renameDraft.trim();
                   if (!t || t.length > MAX_SECTION_LEN) return;
@@ -2154,7 +2207,7 @@ export function PackingListEditor({
                   setRenameDraft("");
                   renameSectionTitle({ sectionId: id, title: t });
                 }}
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 Save
               </button>

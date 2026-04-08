@@ -251,6 +251,7 @@ export function mergeParticipantPackingPayload(
 const MAX_ITEMS = 500;
 const MAX_SIGN_UPS_PER_ITEM = 40;
 export const MAX_SECTION_LEN = 120;
+/** Cap for `PackingSection` rows per list; mirror in `MAX_PACKING_SECTIONS` (PackingListEditor). */
 const MAX_SECTIONS = 100;
 
 function generateLiveblocksRoomId(): string {
