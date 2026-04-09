@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document specifies product and engineering changes for the **collaborative event packing list** so organizers can manage **sections** independently of items, **reorder** sections and items via **drag and drop**, and see a **cleaner table** without repeating the section name on every row.
+This document specifies product and engineering changes for the **collaborative event packing list** so organizers can manage **sections** independently of items, **reorder items** via **drag and drop** in the main editor, **reorder sections** via a **dedicated section-only list** (sections are **not** draggable in the table), and see a **cleaner table** without repeating the section name on every row.
 
 **Primary implementation surface today:** `components/packing/PackingListEditor.tsx`, Liveblocks `Storage` (`liveblocks.config.ts`), and Postgres sync via `lib/packing-list.ts` / `persistPackingListItems`.
 
@@ -27,7 +27,7 @@ This document specifies product and engineering changes for the **collaborative 
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FR-1 | A user can **add a new section** without adding any items.                                                                                                                                                                                                                                                      |
 | FR-2 | A user can add an item to a section via that section’s **Add item** control **or** by **dragging** an item into that section.                                                                                                                                                                                   |
-| FR-3 | **Section order** is **stable**, **user-visible**, and **changeable** (drag and drop).                                                                                                                                                                                                                          |
+| FR-3 | **Section order** is **stable**, **user-visible**, and **changeable** via an explicit **Reorder sections** action that shows a **list of section titles only** (not the full item table). Reordering updates the ordered **`sections`** list; **all items under a section move with that section** because the UI renders by section order and `sectionId` membership (items’ `sectionId` values do not change). |
 | FR-4 | **Item order within a section** is **stable**, **user-visible**, and **changeable** (drag and drop).                                                                                                                                                                                                            |
 | FR-5 | A default **Uncategorized** section exists: items created with the **bottom** “add item” action land there; items may be **dragged** to Uncategorized.                                                                                                                                                          |
 | FR-6 | The **section name must not appear in each data row**; the section header (or equivalent group chrome) is the single place for the section label for that block.                                                                                                                                                |
@@ -57,7 +57,7 @@ Extend storage beyond a single `items` list, for example:
 Use **[dnd kit](https://dndkit.com/)** (`@dnd-kit/core`, `@dnd-kit/sortable`, and as needed `@dnd-kit/utilities`):
 
 - Built for React, hooks-based API, and **keyboard / screen-reader friendly** patterns when configured with sensible `accessibility` props.
-- **Sortable** presets map cleanly to reordering the **`sections` list** and reordering **items within a section**; **custom collision / droppable containers** support **cross-section** moves (drag item onto another section’s body or header drop zone).
+- **Sortable** presets map cleanly to **reordering items within a section** in the main editor and, if desired, to **reordering rows inside the Reorder-sections dialog** (a short list of section titles only). **Custom collision / droppable containers** support **cross-section item moves** in the main view (drag item onto another section’s body or header drop zone). **Do not** attach sortable drag behavior to section headers in the main packing list table.
 - Actively maintained and composes well with **Liveblocks** updates (mutate storage in `onDragEnd`, use `room.batch` for a single undo step).
 
 No DnD packages are in the repo today; add these as new dependencies when implementing.
@@ -78,17 +78,25 @@ Today, `PackingItem` has `section: String?` and `sortOrder: Int` (`prisma/schema
 ### 5.1 Section chrome
 
 - Each **named section** renders a **header row** (or card subheading) showing the **section title** and organizer actions: **Add item**, **Rename section** (opens a **modal**—see below), and **delete section** (organizers only).
-- **Rename section (modal):** Organizers trigger rename from the header (e.g. button or menu item “Rename section”). A **modal dialog** opens with a single text field prefilled with the current title, **Save** and **Cancel**, validation against `MAX_SECTION_LEN`, and focus trap / `aria-*` labels for accessibility. **Save** commits the new title on the section record in Liveblocks (and mirrored DB); **Cancel** discards changes. No inline editing of the header text (avoids clashes with section drag handles).
+- **Rename section (modal):** Organizers trigger rename from the header (e.g. button or menu item “Rename section”). A **modal dialog** opens with a single text field prefilled with the current title, **Save** and **Cancel**, validation against `MAX_SECTION_LEN`, and focus trap / `aria-*` labels for accessibility. **Save** commits the new title on the section record in Liveblocks (and mirrored DB); **Cancel** discards changes. No inline editing of the header text.
 - **Delete section — confirmed in all cases:**
   - **Section has no items:** Show a confirmation dialog (e.g. “Remove section ‘Snacks’?”). On confirm, remove that section from `sections` / `PackingSection` only. No item rows change.
   - **Section has one or more items:** Show a confirmation dialog that states how many items will be affected. On confirm: set those items’ **`sectionId` to `null`** (Uncategorized), **remove** the section record, then **reconcile item order** so those items appear in the **Uncategorized** block while preserving **their relative order** to each other; append them after any items that were already uncategorized (unless implementation prefers a single stable global `sortOrder` pass—either way, no silent data loss and sign-ups stay on the same item ids).
 - **Uncategorized** uses the same header pattern with fixed label **Uncategorized** and **Add item** (optional if redundant with bottom control; FR-5 implies at least one clear way to add uncategorized items—the existing bottom control satisfies FR-5).
 
-### 5.2 Ordering and drag and drop
+### 5.2 Ordering: sections vs items
 
-- **Section drag handles:** Reordering `sections` updates **only** the section list order. Items **do not** change `sectionId`; they **move visually** with their section because rendering groups by `sectionId`.
-- **Uncategorized placement:** **Uncategorized is always last** in the visual list (after every named section), in both **All items** and **Needs sign-ups** when that block is shown. New items from the bottom control still use `sectionId: null`; they appear in the Uncategorized block at the end.
-- **Item drag and drop:** Items can move **within** a section (reorder `items` among same `sectionId`) and **across** sections (update `sectionId` and insert at drop index within target section’s contiguous run).
+#### 5.2.1 Reorder sections (dedicated UI; not draggable in the table)
+
+- **Sections are not draggable** in the main packing list editor. Section headers do **not** show drag handles for reordering the table.
+- Organizers use an explicit control such as **Reorder sections** (e.g. toolbar button, packing list overflow menu, or equivalent). It opens a **modal or sheet** that lists **only named sections** by **title**, in **current order**, one row per section—no item rows, no nested table.
+- **Uncategorized** does not appear as a reorderable row: it is **always last** in the main view. The dialog copy may state that Uncategorized stays at the bottom.
+- Changing order in this UI **reorders the `sections` LiveList** (and mirrored `PackingSection.sortOrder`) **only**. Items keep their **`sectionId`**; the **whole block** of items for a section **moves together** in the main list because rendering follows **section list order**, then **item order within each section**.
+- **Interaction inside the dialog:** Prefer **drag-and-drop** between rows and/or **move up / move down** (and keyboard) so the flow stays accessible. A single **Save** / **Done** (or apply-on-drag-end, team choice) should batch updates into one undo step via `room.batch` where applicable.
+
+#### 5.2.2 Item drag and drop (main editor)
+
+- **Item drag and drop:** Items can move **within** a section (reorder among same `sectionId`) and **across** sections (update `sectionId` and insert at drop index within target section’s contiguous run).
 - **Drop targets:** Each section header area and the **tbody** region for that section should accept drops (exact hit targets to be designed to avoid accidental moves). **Uncategorized** is a first-class drop target and appears **below** named sections.
 - **Batching:** Wrap multi-step storage updates in `room.batch` and align with existing undo/history guidance in `docs/advanced-packing-list-spec.md` so one drag is one undo step.
 
@@ -128,9 +136,9 @@ Today, `sortRowsBySectionRun` groups by section for the **All items** / **Needs 
 ## 7. Non-functional requirements
 
 - **Performance:** Drag handlers should avoid persisting on every pointer move; debounce DB sync as today (~existing `schedulePersist` behavior).
-- **Collaboration:** Two users editing section titles or dragging concurrently should rely on Liveblocks CRDT semantics; define conflict UX as “last write wins” unless product adds locking.
+- **Collaboration:** Two users editing section titles, **reordering sections in the dialog**, or **dragging items** concurrently should rely on Liveblocks CRDT semantics; define conflict UX as “last write wins” unless product adds locking.
 - **Limits:** Reuse `MAX_SECTION_LEN` and sensible **max section count** (new cap) to match `MAX_ITEMS` guardrails in `lib/packing-list.ts`.
-- **Testing:** Unit tests for migration from legacy storage; integration/e2e for drag reorder (or component tests with mocked DnD library).
+- **Testing:** Unit tests for migration from legacy storage; integration/e2e for **item** drag reorder and for **section reorder** in the dedicated dialog (or component tests with mocked DnD library).
 
 ---
 
@@ -148,7 +156,7 @@ Today, `sortRowsBySectionRun` groups by section for the **All items** / **Needs 
 | Empty sections | First-class **`sections`** list in Liveblocks + mirrored **`PackingSection`** rows in Postgres                                                  |
 | Item → section | **`sectionId`** on items; **`null`** = Uncategorized                                                                                            |
 | Uncategorized  | Always **last** in the UI                                                                                                                       |
-| Section order  | Order of **`sections` LiveList**; drag to reorder (**dnd kit**)                                                                                 |
+| Section order  | Order of **`sections` LiveList**; **Reorder sections** dialog lists **titles only**; reordering moves **all items** in that section with it (**dnd kit** or arrows in the dialog; **not** draggable section rows in the table) |
 | Item order     | Reorder within **`items`** respecting `sectionId` grouping (**dnd kit**)                                                                        |
 | Needs sign-ups | **No section header** if that section has **no items** in the filtered list (FR-7)                                                              |
 | Delete section | **Always confirm**; empty → drop section row only; with items → **move items to Uncategorized** (`sectionId: null`), then remove section (§5.1) |
