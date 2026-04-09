@@ -500,32 +500,24 @@ function findMySignUp(
 
 type PackingSortableSectionHeaderProps = {
   sortId: string;
-  dragDisabled: boolean;
-  /** Named sections only; Uncategorized is fixed last per spec. */
-  disableSectionReorder?: boolean;
   colCount: number;
   label: string;
   trailing: ReactNode;
 };
 
+/**
+ * Section headers stay in `SortableContext` as droppable targets for item DnD, but are never
+ * draggable in the main table (FR-3 — use “Reorder sections” instead).
+ */
 function PackingSortableSectionHeader({
   sortId,
-  dragDisabled,
-  disableSectionReorder = false,
   colCount,
   label,
   trailing,
 }: PackingSortableSectionHeaderProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortId,
-    disabled: dragDisabled || disableSectionReorder,
+    disabled: true,
   });
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -544,17 +536,6 @@ function PackingSortableSectionHeader({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            {!dragDisabled && !disableSectionReorder ? (
-              <button
-                type="button"
-                className="shrink-0 cursor-grab touch-none rounded border border-transparent p-1 text-gray-500 hover:bg-gray-300/60 dark:text-gray-400 dark:hover:bg-gray-700/80"
-                aria-label={`Drag to reorder ${label}`}
-                {...attributes}
-                {...listeners}
-              >
-                ⣿
-              </button>
-            ) : null}
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
               {label}
             </span>
@@ -565,6 +546,192 @@ function PackingSortableSectionHeader({
         </div>
       </td>
     </tr>
+  );
+}
+
+type ReorderSectionSortableRowProps = {
+  id: string;
+  title: string;
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+};
+
+function ReorderSectionSortableRow({
+  id,
+  title,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+}: ReorderSectionSortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.65 : undefined,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-2 py-2 dark:border-gray-600 dark:bg-gray-950"
+    >
+      <button
+        type="button"
+        className="shrink-0 cursor-grab touch-none rounded border border-transparent p-1.5 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+        aria-label={`Drag to reorder ${title}`}
+        {...attributes}
+        {...listeners}
+      >
+        ⣿
+      </button>
+      <span className="min-w-0 flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+        {title}
+      </span>
+      <div className="flex shrink-0 gap-1">
+        <button
+          type="button"
+          disabled={index <= 0}
+          onClick={onMoveUp}
+          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+          aria-label={`Move ${title} up`}
+        >
+          Up
+        </button>
+        <button
+          type="button"
+          disabled={index >= total - 1}
+          onClick={onMoveDown}
+          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+          aria-label={`Move ${title} down`}
+        >
+          Down
+        </button>
+      </div>
+    </li>
+  );
+}
+
+type PackingReorderSectionsModalProps = {
+  orderedIds: string[];
+  setOrderedIds: Dispatch<SetStateAction<string[]>>;
+  titleById: Map<string, string>;
+  onCancel: () => void;
+  onDone: () => void;
+};
+
+function PackingReorderSectionsModal({
+  orderedIds,
+  setOrderedIds,
+  titleById,
+  onCancel,
+  onDone,
+}: PackingReorderSectionsModalProps) {
+  const modalSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const onModalDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const a = String(active.id);
+      const o = String(over.id);
+      setOrderedIds((prev) => {
+        const oldIndex = prev.indexOf(a);
+        const newIndex = prev.indexOf(o);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+    },
+    [setOrderedIds],
+  );
+
+  const moveBy = useCallback(
+    (id: string, delta: number) => {
+      setOrderedIds((prev) => {
+        const i = prev.indexOf(id);
+        const j = i + delta;
+        if (i < 0 || j < 0 || j >= prev.length) return prev;
+        return arrayMove(prev, i, j);
+      });
+    },
+    [setOrderedIds],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="packing-reorder-sections-title"
+    >
+      <div className="max-h-[min(90vh,32rem)] w-full max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
+        <h3
+          id="packing-reorder-sections-title"
+          className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+        >
+          Reorder sections
+        </h3>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          Uncategorized always stays at the bottom of the packing list. Only
+          named sections appear here. Changing order moves every item in a
+          section with that section.
+        </p>
+        <DndContext
+          sensors={modalSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onModalDragEnd}
+        >
+          <SortableContext
+            items={orderedIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="mt-4 list-none space-y-2 p-0">
+              {orderedIds.map((sid, index) => (
+                <ReorderSectionSortableRow
+                  key={sid}
+                  id={sid}
+                  title={titleById.get(sid) ?? "Section"}
+                  index={index}
+                  total={orderedIds.length}
+                  onMoveUp={() => moveBy(sid, -1)}
+                  onMoveDown={() => moveBy(sid, 1)}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1335,6 +1502,26 @@ export function PackingListEditor({
     applyReorderFromKeys(sectionsList, itemsList, keys);
   }, []);
 
+  const applySectionListOrder = useMutation(
+    ({ storage }, orderedSectionIds: string[]) => {
+      const sectionsList = storage.get("sections");
+      if (orderedSectionIds.length !== sectionsList.length) return;
+      const current = new Set<string>();
+      for (let i = 0; i < sectionsList.length; i++) {
+        const s = sectionsList.get(i);
+        if (!s) return;
+        current.add(String(s.get("id")));
+      }
+      for (const id of orderedSectionIds) {
+        if (!current.has(id)) return;
+      }
+      reorderLiveListByIds(sectionsList, orderedSectionIds, (el) =>
+        String(el.get("id")),
+      );
+    },
+    [],
+  );
+
   const renameSectionTitle = useMutation(
     (
       { storage },
@@ -1673,11 +1860,24 @@ export function PackingListEditor({
     title: string;
     itemCount: number;
   } | null>(null);
+  const [reorderSectionsOpen, setReorderSectionsOpen] = useState(false);
+  const [reorderSectionsDraft, setReorderSectionsDraft] = useState<string[]>(
+    [],
+  );
 
   useEffect(() => {
-    if (renameTarget == null && pendingDeleteSection == null) return;
+    if (
+      renameTarget == null &&
+      pendingDeleteSection == null &&
+      !reorderSectionsOpen
+    )
+      return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (reorderSectionsOpen) {
+        setReorderSectionsOpen(false);
+        return;
+      }
       if (renameTarget != null) {
         setRenameTarget(null);
         setRenameDraft("");
@@ -1686,7 +1886,7 @@ export function PackingListEditor({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [renameTarget, pendingDeleteSection]);
+  }, [renameTarget, pendingDeleteSection, reorderSectionsOpen]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1704,6 +1904,11 @@ export function PackingListEditor({
     () => new Set(sectionsOrdered.map((s) => s.id)),
     [sectionsOrdered],
   );
+
+  const openReorderSectionsDialog = useCallback(() => {
+    setReorderSectionsDraft(sectionsOrdered.map((s) => s.id));
+    setReorderSectionsOpen(true);
+  }, [sectionsOrdered]);
 
   const orderedKeys = useMemo(() => {
     if (!rawItems) return [] as string[];
@@ -1730,6 +1935,7 @@ export function PackingListEditor({
       const { active, over } = event;
       if (!over || active.id === over.id) return;
       const a = String(active.id);
+      if (!a.startsWith("i:")) return;
       const o = String(over.id);
       const oldIndex = orderedKeys.indexOf(a);
       const newIndex = orderedKeys.indexOf(o);
@@ -1933,8 +2139,6 @@ export function PackingListEditor({
                             <PackingSortableSectionHeader
                               key={key}
                               sortId={key}
-                              dragDisabled={dragDisabled}
-                              disableSectionReorder
                               colCount={colCount}
                               label="Uncategorized"
                               trailing={
@@ -1956,7 +2160,6 @@ export function PackingListEditor({
                           <PackingSortableSectionHeader
                             key={key}
                             sortId={key}
-                            dragDisabled={dragDisabled}
                             colCount={colCount}
                             label={secTitle}
                             trailing={
@@ -2043,8 +2246,6 @@ export function PackingListEditor({
                         <PackingSortableSectionHeader
                           key={hid}
                           sortId={hid}
-                          dragDisabled={dragDisabled}
-                          disableSectionReorder={g.sectionId == null}
                           colCount={colCount}
                           label={headerTitle}
                           trailing={
@@ -2147,12 +2348,33 @@ export function PackingListEditor({
           </button>
           <button
             type="button"
+            disabled={sectionsOrdered.length < 2}
+            onClick={openReorderSectionsDialog}
+            className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Reorder sections
+          </button>
+          <button
+            type="button"
             onClick={() => addItemInSection(null)}
             className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Add item
           </button>
         </div>
+      ) : null}
+
+      {reorderSectionsOpen && canManageTemplate ? (
+        <PackingReorderSectionsModal
+          orderedIds={reorderSectionsDraft}
+          setOrderedIds={setReorderSectionsDraft}
+          titleById={titleBySectionId}
+          onCancel={() => setReorderSectionsOpen(false)}
+          onDone={() => {
+            applySectionListOrder(reorderSectionsDraft);
+            setReorderSectionsOpen(false);
+          }}
+        />
       ) : null}
 
       {renameTarget != null && canManageTemplate ? (
