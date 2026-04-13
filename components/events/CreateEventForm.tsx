@@ -21,7 +21,7 @@ export function CreateEventForm() {
           const form = e.currentTarget;
           const fd = new FormData(form);
           const title = String(fd.get("title") ?? "");
-          const description = String(fd.get("description") ?? "");
+          const generalInformation = String(fd.get("generalInformation") ?? "");
           const location = String(fd.get("location") ?? "");
 
           setError(null);
@@ -29,7 +29,7 @@ export function CreateEventForm() {
           startTransition(async () => {
             const result = await createEvent({
               title,
-              description: description.trim() || null,
+              generalInformation: generalInformation.trim() || null,
               location: location.trim() || null,
               startAt,
               endAt,
@@ -66,15 +66,22 @@ export function CreateEventForm() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="event-description" className="text-sm font-medium">
-            Description
+          <label
+            htmlFor="event-general-information"
+            className="text-sm font-medium"
+          >
+            General information
           </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Optional Markdown (itinerary, themes, links). You can expand this
+            later on the event page.
+          </p>
           <textarea
-            id="event-description"
-            name="description"
-            rows={3}
-            className="min-h-20 resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
-            placeholder="Optional details for your group"
+            id="event-general-information"
+            name="generalInformation"
+            rows={5}
+            className="min-h-24 resize-y rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
+            placeholder="Optional"
           />
         </div>
 

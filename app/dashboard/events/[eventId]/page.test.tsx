@@ -88,7 +88,7 @@ describe("EventDetailPage", () => {
       event: {
         id: "e1",
         title: "Trip",
-        description: "Fun",
+        generalInformation: "Fun",
         location: "Beach",
         startAt: new Date("2026-07-01T10:00:00Z"),
         endAt: new Date("2026-07-02T10:00:00Z"),

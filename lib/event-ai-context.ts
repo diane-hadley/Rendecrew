@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatEventWhenForAiPrompt } from "@/lib/format-event-when-for-ai-prompt";
 
 /**
  * Serializable event snapshot for the AI coordinator system prompt.
@@ -8,7 +9,7 @@ export type EventAIContext = {
   event: {
     id: string;
     title: string;
-    description: string | null;
+    generalInformation: string | null;
     location: string | null;
     startAt: string | null;
     endAt: string | null;
@@ -57,7 +58,7 @@ export async function getEventContextForAI(
     event: {
       id: eventRow.id,
       title: eventRow.title,
-      description: eventRow.description,
+      generalInformation: eventRow.generalInformation,
       location: eventRow.location,
       startAt: eventRow.startAt?.toISOString() ?? null,
       endAt: eventRow.endAt?.toISOString() ?? null,
@@ -100,15 +101,18 @@ export function formatEventContextForAISystemPrompt(
   const lines: string[] = [
     "Current event context:",
     `- Title: ${ctx.event.title}`,
-    ctx.event.description
-      ? `- Description: ${ctx.event.description}`
-      : "- Description: (none)",
+    ...(ctx.event.generalInformation
+      ? [
+          "- General information:",
+          ...ctx.event.generalInformation
+            .split("\n")
+            .map((line) => `  ${line}`),
+        ]
+      : ["- General information: (none)"]),
     ctx.event.location
       ? `- Location: ${ctx.event.location}`
       : "- Location: (none)",
-    ctx.event.startAt && ctx.event.endAt
-      ? `- When: ${ctx.event.startAt} to ${ctx.event.endAt}`
-      : "- When: (not set)",
+    `- When: ${formatEventWhenForAiPrompt(ctx.event.startAt, ctx.event.endAt)}`,
   ];
 
   if (!ctx.packingList || ctx.packingList.items.length === 0) {

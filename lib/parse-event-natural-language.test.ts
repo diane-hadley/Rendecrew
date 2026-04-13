@@ -36,7 +36,7 @@ describe("parseEventFromNaturalLanguage", () => {
           type: "text",
           text: JSON.stringify({
             title: "Team lunch",
-            description: null,
+            generalInformation: null,
             location: "Cafe",
             startAt: "2026-06-01T12:00:00.000Z",
             endAt: "2026-06-01T13:00:00.000Z",
@@ -63,7 +63,7 @@ describe("parseEventFromNaturalLanguage", () => {
       content: [
         {
           type: "text",
-          text: '```json\n{"title":"X","description":null,"location":null,"startAt":null,"endAt":null}\n```',
+          text: '```json\n{"title":"X","generalInformation":null,"location":null,"startAt":null,"endAt":null}\n```',
         },
       ],
     });
@@ -79,7 +79,7 @@ describe("parseEventFromNaturalLanguage", () => {
           type: "text",
           text: JSON.stringify({
             title: "Bad",
-            description: null,
+            generalInformation: null,
             location: null,
             startAt: "2026-01-01T00:00:00Z",
             endAt: null,
@@ -101,7 +101,7 @@ describe("parseEventFromNaturalLanguage", () => {
           type: "text",
           text: JSON.stringify({
             title: "   ",
-            description: null,
+            generalInformation: null,
             location: null,
             startAt: null,
             endAt: null,
@@ -117,5 +117,25 @@ describe("parseEventFromNaturalLanguage", () => {
     messagesCreate.mockRejectedValue(new Error("rate limit"));
     const r = await parseEventFromNaturalLanguage("x", "2026-01-01T00:00:00Z");
     expect(r).toEqual({ ok: false, error: "rate limit" });
+  });
+
+  it("maps legacy description key to generalInformation", async () => {
+    messagesCreate.mockResolvedValue({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            title: "T",
+            description: "Legacy note",
+            location: null,
+            startAt: null,
+            endAt: null,
+          }),
+        },
+      ],
+    });
+    const r = await parseEventFromNaturalLanguage("x", "2026-01-01T00:00:00Z");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.fields.generalInformation).toBe("Legacy note");
   });
 });

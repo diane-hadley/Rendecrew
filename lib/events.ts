@@ -9,7 +9,7 @@ export type DashboardEventRow = {
   event: {
     id: string;
     title: string;
-    description: string | null;
+    generalInformation: string | null;
     startAt: Date | null;
     endAt: Date | null;
     location: string | null;

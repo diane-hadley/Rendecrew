@@ -51,13 +51,13 @@ const baseProps = {
   isCreator: true,
   display: {
     title: "Summit",
-    description: null,
+    generalInformation: null,
     location: null,
     dateRangeLabel: "Apr 2026",
   },
   editInitial: {
     title: "Summit",
-    description: null,
+    generalInformation: null,
     location: null,
     startAt: null,
     endAt: null,
@@ -88,7 +88,7 @@ describe("EventDetailClient", () => {
   it("does not show edit when not editable", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(
-      screen.queryByRole("button", { name: "Edit event details" }),
+      screen.queryByRole("button", { name: "Edit event information" }),
     ).not.toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("EventDetailClient", () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
     await user.click(
-      screen.getByRole("button", { name: "Edit event details" }),
+      screen.getByRole("button", { name: "Edit event information" }),
     );
     expect(screen.getByTestId("edit-form")).toBeInTheDocument();
     expect(
@@ -108,7 +108,7 @@ describe("EventDetailClient", () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
     await user.click(
-      screen.getByRole("button", { name: "Edit event details" }),
+      screen.getByRole("button", { name: "Edit event information" }),
     );
     await user.click(screen.getByRole("button", { name: "Cancel edit" }));
     expect(screen.getByRole("heading", { name: "Summit" })).toBeInTheDocument();

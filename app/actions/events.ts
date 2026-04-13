@@ -10,7 +10,7 @@ import { getOrCreateUser } from "@/lib/user";
 
 export type CreateEventInput = {
   title: string;
-  description?: string | null;
+  generalInformation?: string | null;
   startAt?: Date | string | null;
   endAt?: Date | string | null;
   location?: string | null;
@@ -77,7 +77,7 @@ async function createEventRecord(
       const created = await tx.event.create({
         data: {
           title,
-          description: input.description?.trim() || null,
+          generalInformation: input.generalInformation?.trim() || null,
           startAt: startAt ?? null,
           endAt: endAt ?? null,
           location: input.location?.trim() || null,
@@ -132,7 +132,7 @@ export async function createEventFromNaturalLanguage(
   const { fields } = parsed;
   const result = await createEventRecord(user.id, {
     title: fields.title,
-    description: fields.description,
+    generalInformation: fields.generalInformation,
     location: fields.location,
     startAt: fields.startAt,
     endAt: fields.endAt,
@@ -183,7 +183,7 @@ export async function updateEvent(
       where: { id: input.eventId },
       data: {
         title,
-        description: input.description?.trim() || null,
+        generalInformation: input.generalInformation?.trim() || null,
         startAt: startAt ?? null,
         endAt: endAt ?? null,
         location: input.location?.trim() || null,

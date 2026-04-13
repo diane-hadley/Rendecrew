@@ -23,7 +23,7 @@ function ctx(partial: Partial<EventAIContext> = {}): EventAIContext {
     event: {
       id: "e1",
       title: "Party",
-      description: null,
+      generalInformation: null,
       location: null,
       startAt: null,
       endAt: null,
@@ -38,27 +38,52 @@ describe("formatEventContextForAISystemPrompt", () => {
     const text = formatEventContextForAISystemPrompt(ctx());
     expect(text).toContain("Current event context:");
     expect(text).toContain("- Title: Party");
-    expect(text).toContain("- Description: (none)");
+    expect(text).toContain("- General information: (none)");
     expect(text).toContain("- Location: (none)");
-    expect(text).toContain("- When: (not set)");
+    expect(text).toContain("- When: not set on the event");
     expect(text).toContain("Packing list: (none or empty)");
   });
 
-  it("includes description, location, and ISO range when set", () => {
+  it("includes general information, location, and ISO range when set", () => {
     const text = formatEventContextForAISystemPrompt(
       ctx({
         event: {
-          description: "BYOB",
+          generalInformation: "BYOB",
           location: "Roof",
           startAt: "2026-01-01T12:00:00.000Z",
           endAt: "2026-01-01T14:00:00.000Z",
         },
       }),
     );
-    expect(text).toContain("- Description: BYOB");
+    expect(text).toContain("- General information:");
+    expect(text).toContain("BYOB");
     expect(text).toContain("- Location: Roof");
     expect(text).toContain("- When:");
     expect(text).toContain("2026-01-01T12:00:00.000Z");
+  });
+
+  it("shows partial schedule when only start or end is set", () => {
+    const startOnly = formatEventContextForAISystemPrompt(
+      ctx({
+        event: {
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: null,
+        },
+      }),
+    );
+    expect(startOnly).toContain("start: 2026-06-01T10:00:00.000Z");
+    expect(startOnly).toContain("(end not set)");
+
+    const endOnly = formatEventContextForAISystemPrompt(
+      ctx({
+        event: {
+          startAt: null,
+          endAt: "2026-06-02T18:00:00.000Z",
+        },
+      }),
+    );
+    expect(endOnly).toContain("end: 2026-06-02T18:00:00.000Z");
+    expect(endOnly).toContain("(start not set)");
   });
 
   it("formats packing items with optional and range quantities", () => {
@@ -146,7 +171,7 @@ describe("getEventContextForAI", () => {
     prismaMock.findUnique.mockResolvedValue({
       id: "e1",
       title: "Camp",
-      description: "Fun",
+      generalInformation: "Fun",
       location: "Lake",
       startAt: start,
       endAt: end,
@@ -195,7 +220,7 @@ describe("getEventAISystemPromptSection", () => {
     prismaMock.findUnique.mockResolvedValue({
       id: "e1",
       title: "Only title",
-      description: null,
+      generalInformation: null,
       location: null,
       startAt: null,
       endAt: null,

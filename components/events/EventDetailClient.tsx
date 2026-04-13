@@ -28,13 +28,13 @@ export type EventDetailClientProps = {
   editable: boolean;
   display: {
     title: string;
-    description: string | null;
+    generalInformation: string | null;
     location: string | null;
     dateRangeLabel: string;
   };
   editInitial: {
     title: string;
-    description: string | null;
+    generalInformation: string | null;
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
@@ -112,38 +112,27 @@ export function EventDetailClient({
                 />
               ) : (
                 <>
+                  {editable ? (
+                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Update the event name, schedule, location, and the
+                        information everyone sees on this tab.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="inline-flex shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-blue-400"
+                      >
+                        Edit event information
+                      </button>
+                    </div>
+                  ) : null}
                   <EventDisplayCard
                     title={display.title}
                     role={roleLabel}
                     dateRangeLabel={display.dateRangeLabel}
                     location={display.location}
-                    description={display.description}
-                    headerRight={
-                      editable ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsEditing(true)}
-                          className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:ring-blue-400"
-                          aria-label="Edit event details"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth={1.5}
-                            stroke="currentColor"
-                            className="size-5"
-                            aria-hidden
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75"
-                            />
-                          </svg>
-                        </button>
-                      ) : undefined
-                    }
+                    generalInformation={display.generalInformation}
                   />
                 </>
               )}

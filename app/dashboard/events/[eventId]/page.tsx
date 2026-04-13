@@ -103,13 +103,13 @@ export default async function EventDetailPage({
           editable={editable}
           display={{
             title: event.title,
-            description: event.description,
+            generalInformation: event.generalInformation,
             location: event.location,
             dateRangeLabel,
           }}
           editInitial={{
             title: event.title,
-            description: event.description,
+            generalInformation: event.generalInformation,
             location: event.location,
             startAt: event.startAt,
             endAt: event.endAt,
