@@ -2,7 +2,7 @@ import { getAnthropic, ANTHROPIC_MODEL } from "@/lib/anthropic";
 
 export type ParsedEventFields = {
   title: string;
-  description: string | null;
+  generalInformation: string | null;
   location: string | null;
   startAt: string | null;
   endAt: string | null;
@@ -33,6 +33,7 @@ function asNullableString(v: unknown): string | null {
 
 /**
  * Uses Claude to turn a free-form event description into structured fields.
+ * Narrative context is stored as Markdown-friendly general information when present.
  * Dates must be ISO 8601 strings or null (both start and end or both null).
  */
 export async function parseEventFromNaturalLanguage(
@@ -47,12 +48,12 @@ export async function parseEventFromNaturalLanguage(
   const client = getAnthropic();
 
   const system = `You extract event details from the user's message for a calendar app.
-Respond with a single JSON object only (no markdown, no commentary), using this shape:
-{"title":"string (short, required)","description":"string or null","location":"string or null","startAt":"ISO 8601 datetime string or null","endAt":"ISO 8601 datetime string or null"}
+Respond with a single JSON object only (no markdown fences, no commentary), using this shape:
+{"title":"string (short, required)","generalInformation":"string or null","location":"string or null","startAt":"ISO 8601 datetime string or null","endAt":"ISO 8601 datetime string or null"}
 
 Rules:
 - title: concise name for the event (required).
-- description: extra context not in the title; null if nothing useful.
+- generalInformation: optional Markdown for the event overview (itinerary, themes, notes). Use headings and bullet lists when the user gave structured details; otherwise a short paragraph is fine. null if there is no useful narrative beyond title, place, and times.
 - location: venue, address, or place name if mentioned; otherwise null.
 - startAt and endAt: both ISO 8601 strings in UTC or with explicit offset, or both null if the user did not give a usable time. Never send only one of them; if you infer a range, set both.
 - Use reference time "${referenceNowIso}" as "now" when interpreting relative phrases like "next Friday", "tomorrow at 3pm", or "in two weeks".
@@ -115,7 +116,9 @@ Rules:
     ok: true,
     fields: {
       title,
-      description: asNullableString(o.description),
+      generalInformation: asNullableString(
+        o.generalInformation ?? o.description,
+      ),
       location: asNullableString(o.location),
       startAt,
       endAt,

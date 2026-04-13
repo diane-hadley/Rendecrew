@@ -21,7 +21,7 @@ describe("EditEventForm", () => {
 
   const initial = {
     title: "Old",
-    description: "Desc",
+    generalInformation: "Desc",
     location: "Here",
     startAt: "2026-03-01T15:00:00.000Z",
     endAt: "2026-03-01T17:00:00.000Z",

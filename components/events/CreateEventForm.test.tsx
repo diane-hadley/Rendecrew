@@ -19,7 +19,10 @@ describe("CreateEventForm", () => {
     render(<CreateEventForm />);
 
     await user.type(screen.getByLabelText(/Title/i), "Meetup");
-    await user.type(screen.getByLabelText(/^Description$/i), "  details  ");
+    await user.type(
+      screen.getByRole("textbox", { name: /^General information$/i }),
+      "  details  ",
+    );
     await user.type(screen.getByLabelText(/^Location$/i), "  Cafe  ");
 
     const startDate = document.getElementById(
@@ -33,7 +36,7 @@ describe("CreateEventForm", () => {
       expect(createEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Meetup",
-          description: "details",
+          generalInformation: "details",
           location: "Cafe",
         }),
       );

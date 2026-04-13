@@ -2,19 +2,20 @@
 
 import { updateEvent } from "@/app/actions/events";
 import { EventDateTimeFields } from "./EventDateTimeFields";
+import { EventGeneralInformationAiPanel } from "./EventGeneralInformationAiPanel";
 import {
   isoToDatetimeLocal,
   normalizeStartEndPair,
   shouldSyncEndToStart,
 } from "@/lib/datetime-local";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 
 export type EditEventFormProps = {
   eventId: string;
   initial: {
     title: string;
-    description: string | null;
+    generalInformation: string | null;
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
@@ -32,6 +33,10 @@ export function EditEventForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [generalInformation, setGeneralInformation] = useState(
+    () => initial.generalInformation ?? "",
+  );
+  const generalInformationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const initialPair = useMemo(() => {
     const start = isoToDatetimeLocal(
@@ -55,16 +60,14 @@ export function EditEventForm({
           const form = e.currentTarget;
           const fd = new FormData(form);
           const title = String(fd.get("title") ?? "");
-          const description = String(fd.get("description") ?? "");
           const location = String(fd.get("location") ?? "");
-
           setError(null);
 
           startTransition(async () => {
             const result = await updateEvent({
               eventId,
               title,
-              description: description.trim() || null,
+              generalInformation: generalInformation.trim() || null,
               location: location.trim() || null,
               startAt,
               endAt,
@@ -104,22 +107,6 @@ export function EditEventForm({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label
-            htmlFor="edit-event-description"
-            className="text-sm font-medium"
-          >
-            Description
-          </label>
-          <textarea
-            id="edit-event-description"
-            name="description"
-            rows={3}
-            defaultValue={initial.description ?? ""}
-            className="min-h-20 resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
           <label htmlFor="edit-event-location" className="text-sm font-medium">
             Location
           </label>
@@ -152,6 +139,41 @@ export function EditEventForm({
             onChange={setEndAt}
           />
         </div>
+
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="edit-event-general-information"
+            className="text-sm font-medium"
+          >
+            General information
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Markdown is supported (headings, lists, links, tables). Use this for
+            itinerary, themed nights, important links, and anything participants
+            should read first.
+          </p>
+          <textarea
+            id="edit-event-general-information"
+            ref={generalInformationTextareaRef}
+            name="generalInformation"
+            rows={14}
+            value={generalInformation}
+            onChange={(e) => setGeneralInformation(e.target.value)}
+            className="min-h-48 resize-y rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
+            placeholder={`## Itinerary\n- **Friday** — Arrive after 4pm…`}
+          />
+        </div>
+
+        <EventGeneralInformationAiPanel
+          eventId={eventId}
+          getCurrentMarkdown={() => generalInformation}
+          onApplyMarkdown={(markdown) => {
+            setGeneralInformation(markdown);
+            requestAnimationFrame(() => {
+              generalInformationTextareaRef.current?.focus();
+            });
+          }}
+        />
 
         <div className="flex flex-wrap items-center gap-3">
           <button

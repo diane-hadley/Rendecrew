@@ -55,7 +55,8 @@ model User {
 model Event {
   id          String   @id @default(uuid())
   title       String
-  description String?
+  /** Markdown: itinerary, themed nights, links, and other general event info for the Overview tab. */
+  generalInformation String? @map("general_information")
   startAt     DateTime? @map("start_at")
   endAt       DateTime? @map("end_at")
   location    String?

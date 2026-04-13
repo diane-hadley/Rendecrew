@@ -10,7 +10,7 @@ describe("EventDisplayCard", () => {
         role="organizer"
         dateRangeLabel="Jun 1 – Jun 3, 2026"
         location={null}
-        description={null}
+        generalInformation={null}
       />,
     );
     expect(
@@ -20,47 +20,38 @@ describe("EventDisplayCard", () => {
     expect(screen.getByText("Jun 1 – Jun 3, 2026")).toBeInTheDocument();
   });
 
-  it("omits location and description when null", () => {
+  it("omits the general information block when none is provided", () => {
     render(
       <EventDisplayCard
         title="T"
         role="guest"
         dateRangeLabel="Soon"
         location={null}
-        description={null}
+        generalInformation={null}
       />,
     );
-    expect(screen.queryByText(/location/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Event information" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows location and description when provided", () => {
-    const { container } = render(
+  it("shows location and renders markdown general information", () => {
+    render(
       <EventDisplayCard
         title="T"
         role="guest"
         dateRangeLabel="Soon"
         location="Park"
-        description={"Line one\nLine two"}
-      />,
-    );
-    expect(screen.getByText("Park")).toBeInTheDocument();
-    const desc = container.querySelector(".whitespace-pre-wrap");
-    expect(desc?.textContent).toMatch(/Line one\s+Line two/);
-  });
-
-  it("renders headerRight when passed", () => {
-    render(
-      <EventDisplayCard
-        title="T"
-        role="guest"
-        dateRangeLabel="Soon"
-        location={null}
-        description={null}
-        headerRight={<button type="button">Settings</button>}
+        generalInformation={"## Schedule\n\n- **Friday** — Arrive"}
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Settings" }),
+      screen.getByRole("region", { name: "Event information" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Park")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Schedule", level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Friday")).toBeInTheDocument();
   });
 });

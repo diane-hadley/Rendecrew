@@ -24,7 +24,7 @@ vi.mock("./prisma", () => ({
 const baseEvent = {
   id: "e1",
   title: "Meetup",
-  description: null as string | null,
+  generalInformation: null as string | null,
   startAt: null as Date | null,
   endAt: null as Date | null,
   location: null as string | null,

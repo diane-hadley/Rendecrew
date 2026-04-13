@@ -9,10 +9,17 @@ export function EventChat({ eventId }: { eventId: string }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const top = el.scrollHeight;
+    if (typeof el.scrollTo === "function") {
+      el.scrollTo({ top, behavior: "smooth" });
+    } else {
+      el.scrollTop = top;
+    }
   }, [messages]);
 
   return (
@@ -24,7 +31,10 @@ export function EventChat({ eventId }: { eventId: string }) {
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div
+        ref={messagesScrollRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3"
+      >
         {messages.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Example: &quot;Which items aren&apos;t yet signed up for?&quot; or
@@ -48,7 +58,6 @@ export function EventChat({ eventId }: { eventId: string }) {
             Thinking…
           </p>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {error && (

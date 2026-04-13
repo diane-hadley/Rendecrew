@@ -70,7 +70,7 @@ describe("updateEvent", () => {
     const r = await updateEvent({
       eventId: "e1",
       title: "   ",
-      description: null,
+      generalInformation: null,
       startAt: null,
       endAt: null,
       location: null,
@@ -149,7 +149,7 @@ describe("updateEvent", () => {
     const r = await updateEvent({
       eventId: "e1",
       title: " Title ",
-      description: " d ",
+      generalInformation: " d ",
       startAt: null,
       endAt: null,
       location: " L ",
@@ -159,7 +159,7 @@ describe("updateEvent", () => {
       where: { id: "e1" },
       data: {
         title: "Title",
-        description: "d",
+        generalInformation: "d",
         startAt: null,
         endAt: null,
         location: "L",
@@ -248,7 +248,7 @@ describe("createEventFromNaturalLanguage", () => {
       ok: true,
       fields: {
         title: "Party",
-        description: null,
+        generalInformation: null,
         location: null,
         startAt: null,
         endAt: null,
@@ -264,7 +264,7 @@ describe("createEventFromNaturalLanguage", () => {
       ok: true,
       fields: {
         title: "Party",
-        description: null,
+        generalInformation: null,
         location: null,
         startAt: null,
         endAt: null,
