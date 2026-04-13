@@ -63,13 +63,13 @@ describe("DashboardPage", () => {
           endAt: new Date("2026-06-02T12:00:00Z"),
           location: "Yosemite",
         },
-        role: "owner",
+        role: "creator",
       },
     ] as Awaited<ReturnType<typeof getEventsForUser>>);
     const ui = await DashboardPage();
     render(ui);
     expect(screen.getByText("Camping")).toBeInTheDocument();
     expect(screen.getByText("Yosemite")).toBeInTheDocument();
-    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.getByText("Organizer")).toBeInTheDocument();
   });
 });

@@ -1,9 +1,10 @@
 "use server";
 
+import { EventMemberRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { canManageEvent, getEventForUser } from "@/lib/events";
+import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -89,7 +90,7 @@ async function createEventRecord(
         data: {
           userId,
           eventId: created.id,
-          role: "owner",
+          role: EventMemberRole.creator,
         },
       });
     });
@@ -201,10 +202,10 @@ export async function updateEvent(
 export async function deleteEvent(eventId: string): Promise<DeleteEventResult> {
   const user = await getOrCreateUser();
   const row = await getEventForUser(eventId, user.id);
-  if (!row || !canManageEvent(row.role)) {
+  if (!row || !canDeleteEvent(user.id, row.event)) {
     return {
       ok: false,
-      error: "You do not have permission to delete this event",
+      error: "Only the event creator can delete this event",
     };
   }
 

@@ -19,7 +19,7 @@ export function DeleteEventPanel({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="mt-8 w-full border-t border-gray-200 pt-6 dark:border-gray-700">
+    <div className="w-full">
       {!showConfirm ? (
         <button
           type="button"

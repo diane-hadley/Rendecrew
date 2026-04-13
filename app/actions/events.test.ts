@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/events", () => ({
   getEventForUser: vi.fn(),
   canManageEvent: vi.fn(),
+  canDeleteEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/parse-event-natural-language", () => ({
@@ -42,7 +43,7 @@ vi.mock("@/lib/user", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { canManageEvent, getEventForUser } from "@/lib/events";
+import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
 import { getOrCreateUser } from "@/lib/user";
 import {
@@ -60,7 +61,7 @@ describe("updateEvent", () => {
     >);
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "e1" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
   });
@@ -187,18 +188,18 @@ describe("deleteEvent", () => {
       ReturnType<typeof getOrCreateUser>
     >);
     vi.mocked(getEventForUser).mockResolvedValue({
-      event: { id: "e1" },
-      role: "owner",
+      event: { id: "e1", createdById: "u1" },
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
-    vi.mocked(canManageEvent).mockReturnValue(true);
+    vi.mocked(canDeleteEvent).mockReturnValue(true);
   });
 
   it("fails without permission", async () => {
-    vi.mocked(canManageEvent).mockReturnValue(false);
+    vi.mocked(canDeleteEvent).mockReturnValue(false);
     const r = await deleteEvent("e1");
     expect(r).toEqual({
       ok: false,
-      error: "You do not have permission to delete this event",
+      error: "Only the event creator can delete this event",
     });
   });
 

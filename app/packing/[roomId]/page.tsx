@@ -1,11 +1,12 @@
-import { PackingSuggestionStatus } from "@prisma/client";
+import { PackingListVisibility, PackingSuggestionStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PackingCollabPage } from "@/components/packing/PackingCollabPage";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListByRoomId,
+  getPackingListEventAccessByRoomId,
   listPackingCommitmentsForUser,
   type PackingItemPayload,
   type PackingSectionPayload,
@@ -18,6 +19,25 @@ export default async function PublicPackingPage({
 }: {
   params: { roomId: string };
 }) {
+  const access = await getPackingListEventAccessByRoomId(params.roomId);
+  if (!access) {
+    notFound();
+  }
+
+  if (access.packingListVisibility === PackingListVisibility.MEMBERS_ONLY) {
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
+      redirect(
+        `/sign-in?redirect_url=${encodeURIComponent(`/packing/${params.roomId}`)}`,
+      );
+    }
+    const dbUser = await getOrCreateUser();
+    const row = await getEventForUser(access.eventId, dbUser.id);
+    if (!row) {
+      redirect("/dashboard");
+    }
+  }
+
   const list = await getPackingListByRoomId(params.roomId);
   if (!list) {
     notFound();
@@ -169,6 +189,9 @@ export default async function PublicPackingPage({
     })),
   }));
 
+  const membersOnlySubtitle =
+    list.event.packingListVisibility === PackingListVisibility.MEMBERS_ONLY;
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 md:p-10 dark:bg-gray-950">
       <div className="mx-auto max-w-5xl">
@@ -181,7 +204,9 @@ export default async function PublicPackingPage({
               Rendecrew
             </Link>
             <span className="mx-2">·</span>
-            Shared packing list (no account required)
+            {membersOnlySubtitle
+              ? "Shared packing list (event members)"
+              : "Shared packing list (no account required)"}
           </p>
           {!clerkUser && (
             <Link

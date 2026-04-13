@@ -87,15 +87,15 @@ export default async function DashboardPage() {
                     </div>
                     <span
                       className={
-                        role === "owner"
+                        role === "creator"
                           ? "shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-200"
                           : role === "admin"
                             ? "shrink-0 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200"
                             : "shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                       }
                     >
-                      {role === "owner"
-                        ? "Owner"
+                      {role === "creator"
+                        ? "Organizer"
                         : role === "admin"
                           ? "Admin"
                           : "Going"}

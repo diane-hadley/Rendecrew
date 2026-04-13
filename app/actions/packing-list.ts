@@ -1,5 +1,6 @@
 "use server";
 
+import { PackingListVisibility } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
   createPackingListForEvent,
@@ -43,8 +44,8 @@ export type SyncPackingListContext = {
 };
 
 /**
- * Public sync: anyone who knows the unguessable room id can persist (same trust model as the share link).
- * Organizers may change the full list; others only their own sign-ups (see `persistPackingListItems`).
+ * Public sync: share URL participants can persist when the list is URL-public;
+ * members-only lists require a signed-in event member.
  */
 export async function syncPackingListToDatabase(
   liveblocksRoomId: string,
@@ -55,25 +56,49 @@ export async function syncPackingListToDatabase(
   if (!list) {
     return { ok: false, error: "Invalid packing list" };
   }
-  const dbUser = await getOptionalDbUser();
+
   let actor: PackingPersistActor;
-  if (dbUser) {
-    const row = await getEventForUser(list.event.id, dbUser.id);
-    const isOrg = row != null && canManageEvent(row.role);
-    actor = isOrg
-      ? { kind: "organizer" }
-      : { kind: "participant", userId: dbUser.id };
-  } else {
-    const gn = context.guestDisplayName?.trim();
-    if (!gn) {
+
+  if (list.event.packingListVisibility === PackingListVisibility.MEMBERS_ONLY) {
+    const dbUser = await getOptionalDbUser();
+    if (!dbUser) {
       return {
         ok: false,
-        error:
-          "Use your display name as a guest, or sign in, so sign-ups can sync to the event.",
+        error: "Sign in to sync this members-only packing list.",
       };
     }
-    actor = { kind: "guest", displayName: gn };
+    const row = await getEventForUser(list.event.id, dbUser.id);
+    if (!row) {
+      return {
+        ok: false,
+        error: "You are not a member of this event.",
+      };
+    }
+    const isOrg = canManageEvent(row.role);
+    actor = isOrg
+      ? { kind: "organizer", userId: dbUser.id }
+      : { kind: "participant", userId: dbUser.id };
+  } else {
+    const dbUser = await getOptionalDbUser();
+    if (dbUser) {
+      const row = await getEventForUser(list.event.id, dbUser.id);
+      const isOrg = row != null && canManageEvent(row.role);
+      actor = isOrg
+        ? { kind: "organizer", userId: dbUser.id }
+        : { kind: "participant", userId: dbUser.id };
+    } else {
+      const gn = context.guestDisplayName?.trim();
+      if (!gn) {
+        return {
+          ok: false,
+          error:
+            "Use your display name as a guest, or sign in, so sign-ups can sync to the event.",
+        };
+      }
+      actor = { kind: "guest", displayName: gn };
+    }
   }
+
   const result = await persistPackingListItems(
     liveblocksRoomId,
     payload,

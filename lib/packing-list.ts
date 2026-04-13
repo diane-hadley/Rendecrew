@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { PackingListVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { itemQuantityCap } from "@/lib/packing-quantity";
 
@@ -35,7 +36,7 @@ export type PackingListSyncPayload = {
 
 /** Who is persisting: organizers apply the full payload; others may only change their own sign-ups. */
 export type PackingPersistActor =
-  | { kind: "organizer" }
+  | { kind: "organizer"; userId: string }
   | { kind: "participant"; userId: string }
   | { kind: "guest"; displayName: string };
 
@@ -270,11 +271,29 @@ const sectionsInclude = {
   orderBy: { sortOrder: "asc" as const },
 };
 
+/** Lightweight access check before loading full list payloads (e.g. members-only lists). */
+export async function getPackingListEventAccessByRoomId(roomId: string) {
+  const row = await prisma.packingList.findUnique({
+    where: { liveblocksRoomId: roomId },
+    select: {
+      eventId: true,
+      event: { select: { id: true, packingListVisibility: true } },
+    },
+  });
+  if (!row) return null;
+  return {
+    eventId: row.eventId,
+    packingListVisibility: row.event.packingListVisibility,
+  };
+}
+
 export async function getPackingListByRoomId(roomId: string) {
   return prisma.packingList.findUnique({
     where: { liveblocksRoomId: roomId },
     include: {
-      event: { select: { id: true, title: true } },
+      event: {
+        select: { id: true, title: true, packingListVisibility: true },
+      },
       sections: sectionsInclude,
       items: {
         orderBy: { sortOrder: "asc" },
@@ -412,6 +431,8 @@ export async function persistPackingListItems(
     where: { liveblocksRoomId },
     select: {
       id: true,
+      eventId: true,
+      event: { select: { packingListVisibility: true } },
       sections: {
         orderBy: { sortOrder: "asc" },
         select: { id: true, title: true },
@@ -424,6 +445,35 @@ export async function persistPackingListItems(
   });
   if (!list) {
     return { ok: false, error: "Packing list not found" };
+  }
+
+  if (list.event.packingListVisibility === PackingListVisibility.MEMBERS_ONLY) {
+    if (actor.kind === "guest") {
+      return {
+        ok: false,
+        error:
+          "This packing list is only available to signed-in event members.",
+      };
+    }
+    const userId =
+      actor.kind === "organizer" || actor.kind === "participant"
+        ? actor.userId
+        : null;
+    if (!userId) {
+      return { ok: false, error: "Not authorized to sync this packing list." };
+    }
+    const membership = await prisma.eventMember.findUnique({
+      where: {
+        eventId_userId: { eventId: list.eventId, userId },
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      return {
+        ok: false,
+        error: "You do not have access to this event packing list.",
+      };
+    }
   }
 
   let sectionsToPersist = sectionsIn;

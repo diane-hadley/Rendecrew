@@ -39,7 +39,7 @@ describe("sendEventChatMessage", () => {
     } as Awaited<ReturnType<typeof getOrCreateUser>>);
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "e1", title: "E" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(getEventAISystemPromptSection).mockResolvedValue("CTX");
   });

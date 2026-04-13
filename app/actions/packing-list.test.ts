@@ -31,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+import { PackingListVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canManageEvent, getEventForUser } from "@/lib/events";
 import type { PackingItemPayload } from "@/lib/packing-list";
@@ -54,7 +55,7 @@ describe("enablePackingListForEvent", () => {
     >);
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "e1" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
     vi.mocked(createPackingListForEvent).mockResolvedValue({
@@ -102,7 +103,11 @@ describe("syncPackingListToDatabase", () => {
     vi.clearAllMocks();
     vi.mocked(getPackingListByRoomId).mockResolvedValue({
       eventId: "ev1",
-      event: { id: "ev1", title: "Party" },
+      event: {
+        id: "ev1",
+        title: "Party",
+        packingListVisibility: PackingListVisibility.URL_PUBLIC,
+      },
       liveblocksRoomId: "room-1",
     } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
     vi.mocked(persistPackingListItems).mockResolvedValue({ ok: true });
@@ -113,7 +118,7 @@ describe("syncPackingListToDatabase", () => {
     });
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "ev1" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
   });
@@ -148,7 +153,7 @@ describe("syncPackingListToDatabase", () => {
     expect(persistPackingListItems).toHaveBeenCalledWith(
       "room-1",
       { sections: [], items },
-      { kind: "organizer" },
+      { kind: "organizer", userId: "u1" },
     );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/ev1");
     expect(revalidatePath).toHaveBeenCalledWith("/packing/room-1");

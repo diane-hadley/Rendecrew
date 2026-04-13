@@ -1,3 +1,8 @@
+import {
+  EventMemberRole,
+  MemberManagementPolicy,
+  PackingListVisibility,
+} from "@prisma/client";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -11,8 +16,12 @@ vi.mock("./EventChat", () => ({
   EventChat: () => <div data-testid="event-chat" />,
 }));
 
-vi.mock("./DeleteEventPanel", () => ({
-  DeleteEventPanel: () => <div data-testid="delete-panel" />,
+vi.mock("./EventMembersSection", () => ({
+  EventMembersSection: () => <div data-testid="members-section" />,
+}));
+
+vi.mock("./EventSettingsForm", () => ({
+  EventSettingsForm: () => <div data-testid="settings-form" />,
 }));
 
 vi.mock("./EditEventForm", () => ({
@@ -36,7 +45,10 @@ vi.mock("./EditEventForm", () => ({
 
 const baseProps = {
   eventId: "e1",
-  role: "organizer",
+  createdById: "u1",
+  currentUserId: "u1",
+  actorRole: EventMemberRole.creator,
+  isCreator: true,
   display: {
     title: "Summit",
     description: null,
@@ -55,7 +67,15 @@ const baseProps = {
     liveblocksRoomId: null,
     commitments: [],
     packingListPath: null,
+    suggestionApprovalRequired: false,
+    pendingSuggestionDraftCount: 0,
   },
+  settings: {
+    memberManagementPolicy: MemberManagementPolicy.ANY_MEMBER_CAN_INVITE,
+    packingListVisibility: PackingListVisibility.URL_PUBLIC,
+    suggestionApprovalRequired: false,
+  },
+  membersInitial: [],
 };
 
 describe("EventDetailClient", () => {
@@ -63,22 +83,22 @@ describe("EventDetailClient", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(screen.getByRole("heading", { name: "Summit" })).toBeInTheDocument();
     expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("delete-panel")).not.toBeInTheDocument();
   });
 
-  it("does not show settings when not editable", () => {
+  it("does not show edit when not editable", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(
-      screen.queryByRole("button", { name: "Event settings" }),
+      screen.queryByRole("button", { name: "Edit event details" }),
     ).not.toBeInTheDocument();
   });
 
-  it("opens edit form and delete panel when settings clicked", async () => {
+  it("opens edit form when edit is clicked", async () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
-    await user.click(screen.getByRole("button", { name: "Event settings" }));
+    await user.click(
+      screen.getByRole("button", { name: "Edit event details" }),
+    );
     expect(screen.getByTestId("edit-form")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-panel")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Summit" }),
     ).not.toBeInTheDocument();
@@ -87,15 +107,31 @@ describe("EventDetailClient", () => {
   it("closes edit mode when cancel runs", async () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
-    await user.click(screen.getByRole("button", { name: "Event settings" }));
+    await user.click(
+      screen.getByRole("button", { name: "Edit event details" }),
+    );
     await user.click(screen.getByRole("button", { name: "Cancel edit" }));
     expect(screen.getByRole("heading", { name: "Summit" })).toBeInTheDocument();
     expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
   });
 
-  it("always renders packing and chat sections", () => {
+  it("always renders packing and chat on overview", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(screen.getByTestId("packing-section")).toBeInTheDocument();
     expect(screen.getByTestId("event-chat")).toBeInTheDocument();
+  });
+
+  it("shows members tab content", async () => {
+    const user = userEvent.setup();
+    render(<EventDetailClient {...baseProps} editable={false} />);
+    await user.click(screen.getByRole("button", { name: "Members" }));
+    expect(screen.getByTestId("members-section")).toBeInTheDocument();
+  });
+
+  it("shows settings tab content", async () => {
+    const user = userEvent.setup();
+    render(<EventDetailClient {...baseProps} editable />);
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByTestId("settings-form")).toBeInTheDocument();
   });
 });

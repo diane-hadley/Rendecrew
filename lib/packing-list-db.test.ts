@@ -1,3 +1,4 @@
+import { PackingListVisibility } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PackingItemPayload } from "./packing-list";
 import {
@@ -18,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: vi.fn(),
     },
     user: { findUnique: vi.fn() },
+    eventMember: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -137,6 +139,8 @@ describe("persistPackingListItems", () => {
 
   const baseList = {
     id: "plist-1",
+    eventId: "ev1",
+    event: { packingListVisibility: PackingListVisibility.URL_PUBLIC },
     sections: [] as unknown[],
     items: [] as unknown[],
   };
@@ -160,6 +164,7 @@ describe("persistPackingListItems", () => {
     vi.mocked(prisma.packingList.findUnique).mockResolvedValue(null);
     const r = await persistPackingListItems("room", [], {
       kind: "organizer",
+      userId: "u-org",
     });
     expect(r).toEqual({ ok: false, error: "Packing list not found" });
   });
@@ -177,6 +182,7 @@ describe("persistPackingListItems", () => {
     }));
     const r = await persistPackingListItems("room", items, {
       kind: "organizer",
+      userId: "u-org",
     });
     expect(r).toEqual({ ok: false, error: "Too many items" });
   });
@@ -196,7 +202,7 @@ describe("persistPackingListItems", () => {
           signUps: [],
         },
       ],
-      { kind: "organizer" },
+      { kind: "organizer", userId: "u-org" },
     );
     expect(r).toEqual({ ok: false, error: "Invalid item name" });
   });
@@ -219,6 +225,7 @@ describe("persistPackingListItems", () => {
     ];
     const r = await persistPackingListItems("room", items, {
       kind: "organizer",
+      userId: "u-org",
     });
     expect(r).toEqual({ ok: true });
     expect(tx.packingItem.upsert).toHaveBeenCalled();
@@ -251,7 +258,7 @@ describe("persistPackingListItems", () => {
           ],
         },
       ],
-      { kind: "organizer" },
+      { kind: "organizer", userId: "u-org" },
     );
     expect(r).toEqual({ ok: false, error: "Invalid user for sign-up" });
   });

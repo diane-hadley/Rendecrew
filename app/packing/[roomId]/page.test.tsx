@@ -1,16 +1,21 @@
+import { PackingListVisibility } from "@prisma/client";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { notFound } = vi.hoisted(() => ({
+const { notFound, redirect } = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
+  redirect: vi.fn((url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  }),
 }));
 
-vi.mock("next/navigation", () => ({ notFound }));
+vi.mock("next/navigation", () => ({ notFound, redirect }));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
 vi.mock("@/lib/user", () => ({ getOrCreateUser: vi.fn() }));
 vi.mock("@/lib/packing-list", () => ({
+  getPackingListEventAccessByRoomId: vi.fn(),
   getPackingListByRoomId: vi.fn(),
   listPackingCommitmentsForUser: vi.fn().mockReturnValue([]),
 }));
@@ -49,13 +54,20 @@ vi.mock("@/components/packing/PackingCollabPage", () => ({
 
 import { currentUser } from "@clerk/nextjs/server";
 import { canManageEvent, getEventForUser } from "@/lib/events";
-import { getPackingListByRoomId } from "@/lib/packing-list";
+import {
+  getPackingListByRoomId,
+  getPackingListEventAccessByRoomId,
+} from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 import PublicPackingPage from "./page";
 
 const mockList = {
   liveblocksRoomId: "room-xyz",
-  event: { id: "e1", title: "Weekend trip" },
+  event: {
+    id: "e1",
+    title: "Weekend trip",
+    packingListVisibility: PackingListVisibility.URL_PUBLIC,
+  },
   sections: [{ id: "sec-gear", title: "Gear" }],
   items: [
     {
@@ -80,17 +92,22 @@ const mockList = {
 
 describe("PublicPackingPage", () => {
   beforeEach(() => {
+    vi.mocked(getPackingListEventAccessByRoomId).mockReset();
     vi.mocked(getPackingListByRoomId).mockReset();
     vi.mocked(currentUser).mockReset();
     vi.mocked(getOrCreateUser).mockReset();
     vi.mocked(getEventForUser).mockReset();
     vi.mocked(canManageEvent).mockReturnValue(false);
     vi.mocked(currentUser).mockResolvedValue(null);
+    vi.mocked(getPackingListEventAccessByRoomId).mockResolvedValue({
+      eventId: "e1",
+      packingListVisibility: PackingListVisibility.URL_PUBLIC,
+    });
     capturePackingProps.mockClear();
   });
 
   it("calls notFound when the room id is unknown", async () => {
-    vi.mocked(getPackingListByRoomId).mockResolvedValue(null);
+    vi.mocked(getPackingListEventAccessByRoomId).mockResolvedValueOnce(null);
     await expect(
       PublicPackingPage({ params: { roomId: "bad" } }),
     ).rejects.toThrow("NOT_FOUND");
@@ -137,5 +154,71 @@ describe("PublicPackingPage", () => {
       name: "Sam",
       email: "sam@example.com",
     });
+  });
+
+  it("members-only: redirects anonymous visitors to sign-in before loading list data", async () => {
+    vi.mocked(getPackingListEventAccessByRoomId).mockResolvedValue({
+      eventId: "e1",
+      packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+    });
+    vi.mocked(currentUser).mockResolvedValue(null);
+    await expect(
+      PublicPackingPage({ params: { roomId: "room-xyz" } }),
+    ).rejects.toThrow("REDIRECT:");
+    expect(redirect).toHaveBeenCalledWith(
+      `/sign-in?redirect_url=${encodeURIComponent("/packing/room-xyz")}`,
+    );
+    expect(getPackingListByRoomId).not.toHaveBeenCalled();
+  });
+
+  it("members-only: redirects signed-in non-members to the dashboard without list data", async () => {
+    vi.mocked(getPackingListEventAccessByRoomId).mockResolvedValue({
+      eventId: "e1",
+      packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+    });
+    vi.mocked(currentUser).mockResolvedValue({ id: "c1" } as Awaited<
+      ReturnType<typeof currentUser>
+    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u-stranger",
+      name: "Alex",
+      email: "alex@example.com",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getEventForUser).mockResolvedValue(null);
+    await expect(
+      PublicPackingPage({ params: { roomId: "room-xyz" } }),
+    ).rejects.toThrow("REDIRECT:");
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
+    expect(getPackingListByRoomId).not.toHaveBeenCalled();
+  });
+
+  it("members-only: loads the list when the signed-in user is an event member", async () => {
+    vi.mocked(getPackingListEventAccessByRoomId).mockResolvedValue({
+      eventId: "e1",
+      packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+    });
+    vi.mocked(getPackingListByRoomId).mockResolvedValue({
+      ...mockList,
+      event: {
+        ...mockList.event,
+        packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+      },
+    } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
+    vi.mocked(currentUser).mockResolvedValue({ id: "c1" } as Awaited<
+      ReturnType<typeof currentUser>
+    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      name: "Sam",
+      email: "sam@example.com",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: { id: "e1" },
+      role: "member",
+    } as Awaited<ReturnType<typeof getEventForUser>>);
+    const ui = await PublicPackingPage({ params: { roomId: "room-xyz" } });
+    render(ui);
+    expect(getPackingListByRoomId).toHaveBeenCalledWith("room-xyz");
+    expect(screen.getByTestId("packing-collab")).toBeInTheDocument();
   });
 });
