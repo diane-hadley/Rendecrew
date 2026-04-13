@@ -3,8 +3,9 @@ import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import type { EventMemberListItem } from "@/app/actions/event-members";
 import { EventDetailClient } from "@/components/events/EventDetailClient";
-import { canManageEvent, getEventForUser } from "@/lib/events";
+import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
@@ -61,6 +62,22 @@ export default async function EventDetailPage({
 
   const dateRangeLabel = formatRange(event.startAt, event.endAt);
 
+  const memberRows = await prisma.eventMember.findMany({
+    where: { eventId: event.id },
+    include: { user: { select: { id: true, name: true, email: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  const membersInitial: EventMemberListItem[] = memberRows.map((m) => ({
+    membershipId: m.id,
+    userId: m.userId,
+    name: m.user.name,
+    email: m.user.email,
+    role: m.role,
+    createdAt: m.createdAt.toISOString(),
+  }));
+
+  const isCreator = canDeleteEvent(dbUser.id, event);
+
   return (
     <div className="min-h-screen p-8">
       <div className="mx-auto max-w-7xl">
@@ -79,8 +96,11 @@ export default async function EventDetailPage({
 
         <EventDetailClient
           eventId={event.id}
+          createdById={event.createdById}
+          currentUserId={dbUser.id}
+          actorRole={role}
+          isCreator={isCreator}
           editable={editable}
-          role={role}
           display={{
             title: event.title,
             description: event.description,
@@ -103,6 +123,13 @@ export default async function EventDetailPage({
               event.suggestionApprovalRequired ?? false,
             pendingSuggestionDraftCount,
           }}
+          settings={{
+            memberManagementPolicy: event.memberManagementPolicy,
+            packingListVisibility: event.packingListVisibility,
+            suggestionApprovalRequired:
+              event.suggestionApprovalRequired ?? false,
+          }}
+          membersInitial={membersInitial}
         />
       </div>
     </div>

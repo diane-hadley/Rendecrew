@@ -1,3 +1,8 @@
+import {
+  EventMemberRole,
+  type MemberManagementPolicy,
+  type PackingListVisibility,
+} from "@prisma/client";
 import { prisma } from "./prisma";
 
 export type DashboardEventRow = {
@@ -10,15 +15,26 @@ export type DashboardEventRow = {
     location: string | null;
     createdById: string;
     suggestionApprovalRequired: boolean;
+    memberManagementPolicy: MemberManagementPolicy;
+    packingListVisibility: PackingListVisibility;
     createdAt: Date;
     updatedAt: Date;
   };
-  /** Membership role, or "owner" when the user is creator but has no membership row. */
-  role: string;
+  /** Effective membership role for the current user. */
+  role: EventMemberRole;
 };
 
+export {
+  normalizeEventRole,
+  isEventAdmin,
+  canManageEvent,
+  isEventCreator,
+  canDeleteEvent,
+  formatEventRoleLabel,
+} from "./event-role-utils";
+
 /**
- * Events the user is part of as a member, or created (owner), deduplicated.
+ * Events the user is part of as a member, or created (creator), deduplicated.
  */
 export async function getEventsForUser(
   userId: string,
@@ -39,7 +55,10 @@ export async function getEventsForUser(
   return events.map((event) => {
     const membership = event.eventMembers[0];
     const role =
-      membership?.role ?? (event.createdById === userId ? "owner" : "member");
+      membership?.role ??
+      (event.createdById === userId
+        ? EventMemberRole.creator
+        : EventMemberRole.member);
     const { eventMembers, ...eventRow } = event;
     void eventMembers;
     return { event: eventRow, role };
@@ -70,12 +89,11 @@ export async function getEventForUser(
 
   const membership = event.eventMembers[0];
   const role =
-    membership?.role ?? (event.createdById === userId ? "owner" : "member");
+    membership?.role ??
+    (event.createdById === userId
+      ? EventMemberRole.creator
+      : EventMemberRole.member);
   const { eventMembers, ...eventRow } = event;
   void eventMembers;
   return { event: eventRow, role };
-}
-
-export function canManageEvent(role: string): boolean {
-  return role === "owner" || role === "admin";
 }

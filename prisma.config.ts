@@ -7,9 +7,29 @@ import { defineConfig } from "prisma/config";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
+/**
+ * Prisma CLI (migrate, db execute, etc.) must not use Supabase's transaction
+ * pooler on port 6543 — it often hangs. The app runtime still uses DATABASE_URL
+ * from the environment as-is (see lib/prisma.ts).
+ *
+ * Override: set PRISMA_SCHEMA_DATABASE_URL to a direct/session connection string.
+ */
+function schemaDatasourceUrl(): string | undefined {
+  const explicit = process.env["PRISMA_SCHEMA_DATABASE_URL"]?.trim();
+  if (explicit) return explicit;
+
+  const raw = process.env["DATABASE_URL"]?.trim();
+  if (!raw) return undefined;
+
+  if (raw.includes(":6543")) {
+    return raw.replaceAll(":6543", ":5432");
+  }
+  return raw;
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: schemaDatasourceUrl(),
   },
 });

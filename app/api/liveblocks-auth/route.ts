@@ -1,6 +1,8 @@
 import { currentUser } from "@clerk/nextjs/server";
+import { PackingListVisibility } from "@prisma/client";
 import { Liveblocks } from "@liveblocks/node";
 import { NextRequest, NextResponse } from "next/server";
+import { getEventForUser } from "@/lib/events";
 import { getPackingListByRoomId } from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -85,6 +87,20 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         );
       }
+      if (
+        list.event.packingListVisibility === PackingListVisibility.MEMBERS_ONLY
+      ) {
+        const access = await getEventForUser(list.event.id, dbUser.id);
+        if (!access) {
+          return NextResponse.json(
+            {
+              error: "forbidden",
+              reason: "This packing list is only available to event members.",
+            },
+            { status: 403 },
+          );
+        }
+      }
       const displayName =
         dbUser.name ||
         [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
@@ -95,6 +111,19 @@ export async function POST(request: NextRequest) {
       session.allow(room, session.FULL_ACCESS);
       const { status, body: responseBody } = await session.authorize();
       return new NextResponse(responseBody, { status });
+    }
+
+    if (
+      list.event.packingListVisibility === PackingListVisibility.MEMBERS_ONLY
+    ) {
+      return NextResponse.json(
+        {
+          error: "forbidden",
+          reason:
+            "This packing list is only available to signed-in event members.",
+        },
+        { status: 403 },
+      );
     }
 
     const guestSessionId =

@@ -16,6 +16,7 @@ vi.mock("@/lib/user", () => ({ getOrCreateUser: vi.fn() }));
 vi.mock("@/lib/events", () => ({
   getEventForUser: vi.fn(),
   canManageEvent: vi.fn(),
+  canDeleteEvent: vi.fn(),
 }));
 vi.mock("@/lib/packing-list", () => ({
   getPackingListForEvent: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/lib/packing-list", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     packingSuggestion: { count: vi.fn().mockResolvedValue(0) },
+    eventMember: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock("@/components/events/EventDetailClient", () => ({
@@ -34,7 +36,7 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 import { currentUser } from "@clerk/nextjs/server";
-import { canManageEvent, getEventForUser } from "@/lib/events";
+import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
@@ -46,6 +48,7 @@ describe("EventDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(canManageEvent).mockReturnValue(true);
+    vi.mocked(canDeleteEvent).mockReturnValue(false);
     vi.mocked(getPackingListForEvent).mockResolvedValue(null);
     vi.mocked(listPackingCommitmentsForUser).mockReturnValue([]);
   });
@@ -89,7 +92,12 @@ describe("EventDetailPage", () => {
         location: "Beach",
         startAt: new Date("2026-07-01T10:00:00Z"),
         endAt: new Date("2026-07-02T10:00:00Z"),
+        createdById: "u1",
         suggestionApprovalRequired: false,
+        memberManagementPolicy: "ANY_MEMBER_CAN_INVITE",
+        packingListVisibility: "URL_PUBLIC",
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       role: "member",
     } as Awaited<ReturnType<typeof getEventForUser>>);

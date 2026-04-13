@@ -61,7 +61,7 @@ describe("setSuggestionApprovalRequired", () => {
     >);
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "e1" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
     vi.mocked(prisma.event.update).mockResolvedValue({} as never);
@@ -195,7 +195,7 @@ describe("moderatePackingSuggestion", () => {
     >);
     vi.mocked(getEventForUser).mockResolvedValue({
       event: { id: "e1" },
-      role: "owner",
+      role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
     vi.mocked(prisma.packingSuggestion.findUnique).mockResolvedValue({

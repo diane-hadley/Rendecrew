@@ -16,13 +16,29 @@ enum PackingSuggestionStatus {
   ARCHIVED
 }
 
+enum EventMemberRole {
+  creator
+  admin
+  member
+}
+
+enum MemberManagementPolicy {
+  ANY_MEMBER_CAN_INVITE
+  ADMINS_ONLY
+}
+
+enum PackingListVisibility {
+  URL_PUBLIC
+  MEMBERS_ONLY
+}
+
 model User {
   id        String   @id @default(uuid())
   clerkId   String   @unique @map("clerk_id")
   email     String   @unique
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   createdEvents        Event[]               @relation("EventCreatedBy")
   eventMembers         EventMember[]
@@ -46,6 +62,8 @@ model Event {
   createdById String   @map("created_by_id")
   /** When true, participant-submitted catalog ideas stay DRAFT_USER until an organizer publishes them. */
   suggestionApprovalRequired Boolean @default(false) @map("suggestion_approval_required")
+  memberManagementPolicy MemberManagementPolicy @default(ANY_MEMBER_CAN_INVITE) @map("member_management_policy")
+  packingListVisibility  PackingListVisibility  @default(URL_PUBLIC) @map("packing_list_visibility")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -139,9 +157,9 @@ model EventMember {
   id       String   @id @default(uuid())
   userId   String   @map("user_id")
   eventId  String   @map("event_id")
-  role     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role     EventMemberRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)

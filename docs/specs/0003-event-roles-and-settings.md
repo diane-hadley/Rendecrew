@@ -60,7 +60,7 @@ Keep `Event.createdById` as the **source of truth** for who the creator is. Stor
 
 - `isEventAdmin(role)` — `creator` or `admin`
 - `isEventCreator(userId, event)` — `event.createdById === userId` (or membership role `creator`)
-- `canDeleteEvent(userId, event, role)` — **creator only** (per FR-1)
+- `canDeleteEvent(userId, event)` — **creator only**, determined from `event.createdById` (per FR-1); membership `role` is not required for delete.
 
 Refactor **`canManageEvent`** to mean **“organizer / admin capabilities”** (edit event, packing template, suggestion approval, **settings write**) = `creator` **or** `admin`. **Do not** use it for delete; use **`canDeleteEvent`**.
 

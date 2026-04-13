@@ -40,11 +40,17 @@ vi.mock("@/lib/packing-list", () => ({
   getPackingListByRoomId: vi.fn(),
 }));
 
+vi.mock("@/lib/events", () => ({
+  getEventForUser: vi.fn(),
+}));
+
 vi.mock("@/lib/user", () => ({
   getOrCreateUser: vi.fn(),
 }));
 
+import { PackingListVisibility } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
+import { getEventForUser } from "@/lib/events";
 import { getPackingListByRoomId } from "@/lib/packing-list";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -55,10 +61,15 @@ describe("POST /api/liveblocks-auth", () => {
     vi.clearAllMocks();
     liveblocksMocks.state.constructError = null;
     process.env.LIVEBLOCKS_SECRET_KEY = "sk_test_secret_key";
+    vi.mocked(getEventForUser).mockReset();
     vi.mocked(getPackingListByRoomId).mockResolvedValue({
       id: "pl",
       liveblocksRoomId: "room-abc",
       eventId: "e1",
+      event: {
+        id: "e1",
+        packingListVisibility: PackingListVisibility.URL_PUBLIC,
+      },
     } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
     liveblocksMocks.authorize.mockResolvedValue({
       status: 200,
@@ -165,6 +176,57 @@ describe("POST /api/liveblocks-auth", () => {
     expect(res.status).toBe(403);
     const j = await res.json();
     expect(j.reason).toBe("Could not load user");
+  });
+
+  it("returns 403 for guests when list is members-only", async () => {
+    vi.mocked(currentUser).mockResolvedValue(null);
+    vi.mocked(getPackingListByRoomId).mockResolvedValueOnce({
+      id: "pl",
+      liveblocksRoomId: "room-abc",
+      eventId: "e1",
+      event: {
+        id: "e1",
+        packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+      },
+    } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
+    const res = await POST(
+      req({
+        room: "room-abc",
+        guestSessionId: "12345678",
+        guestDisplayName: "Guest",
+      }),
+    );
+    expect(res.status).toBe(403);
+    const j = await res.json();
+    expect(j.reason).toMatch(/signed-in event members/i);
+  });
+
+  it("returns 403 for signed-in non-member when list is members-only", async () => {
+    vi.mocked(currentUser).mockResolvedValue({
+      id: "clerk-1",
+      firstName: "A",
+      lastName: "B",
+      emailAddresses: [{ emailAddress: "a@b.c" }],
+    } as Awaited<ReturnType<typeof currentUser>>);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "db-u1",
+      name: "A B",
+      email: "a@b.c",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getPackingListByRoomId).mockResolvedValueOnce({
+      id: "pl",
+      liveblocksRoomId: "room-abc",
+      eventId: "e1",
+      event: {
+        id: "e1",
+        packingListVisibility: PackingListVisibility.MEMBERS_ONLY,
+      },
+    } as Awaited<ReturnType<typeof getPackingListByRoomId>>);
+    vi.mocked(getEventForUser).mockResolvedValueOnce(null);
+    const res = await POST(req({ room: "room-abc" }));
+    expect(res.status).toBe(403);
+    const j = await res.json();
+    expect(j.reason).toMatch(/event members/i);
   });
 
   it("returns 403 for guests without a valid session id", async () => {

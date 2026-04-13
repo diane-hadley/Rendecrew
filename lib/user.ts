@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { currentUser } from "@clerk/nextjs/server";
 import { backfillPackingItemSignUpsForUser } from "@/lib/packing-list";
+import { isPreviewPlatformOperator } from "@/lib/preview-platform";
 
 /** Clerk-signed-in DB user, or null (guest / not signed in). */
 export async function getOptionalDbUser(): Promise<{
@@ -42,6 +43,16 @@ export async function getOrCreateUser() {
     clerkUser.firstName && clerkUser.lastName
       ? `${clerkUser.firstName} ${clerkUser.lastName}`
       : clerkUser.firstName || clerkUser.lastName || email;
+
+  const existing = await prisma.user.findUnique({
+    where: { clerkId: clerkUser.id },
+    select: { id: true },
+  });
+  if (!existing && !isPreviewPlatformOperator(clerkUser.id)) {
+    throw new Error(
+      "New accounts are limited during preview. Ask your Rendecrew preview operator for access.",
+    );
+  }
 
   // Upsert: create with Clerk-derived name; updates only sync email so `name` stays the DB display value.
   const user = await prisma.user.upsert({
