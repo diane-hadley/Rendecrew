@@ -26,17 +26,17 @@ This document specifies how **event membership and roles** evolve so that **crea
 
 ## 3. Functional requirements (authoritative)
 
-| ID    | Requirement |
-| ----- | ----------- |
-| FR-1  | Every participant has exactly one of **`creator`**, **`admin`**, or **`member`** for a given event. **Creator** has **all admin capabilities** and is the **only** role that may **delete the event**. |
-| FR-2  | **Admins** (including the creator) may configure whether **only admins** may add/remove members, or **any member** may add/remove members. **Default:** any member may add/remove members. **Hierarchy overrides (FR-6)** always apply regardless of this policy. |
-| FR-3  | The **event view** exposes a **side tab** labeled **Members** where members can **see all members** and **perform allowed add/remove (and related) actions** per FR-2, FR-6, FR-7, and FR-8. |
-| FR-4  | The **event view** exposes a **side tab** labeled **Settings** where **all members** can **view** event settings, and **admins** (including creator) can **change** them. Non-admins see read-only controls or copy explaining that only admins can edit. |
-| FR-5  | **Admins** may configure whether the **packing list** is visible **only to event members** or to **anyone with the share URL** (unchanged from today’s “link works for strangers” behavior when set to URL mode). When **members-only**, guests are **sent to the sign-in page** (see §6). |
-| FR-6  | A **non-creator admin** **cannot** **remove** the **creator** from the event. **Only the creator** may **remove** or **demote** **another** user who is an **`admin`**. An **`admin`** may **leave** the event (remove **only their own** membership); they **cannot** remove a **different** **`admin`**. |
-| FR-7  | **Any** **`admin`** (**`creator`** or **`admin`**) may **promote** a **`member`** to **`admin`**. This is **not** delegated to plain **`member`** actors by FR-2—**only admins** may promote. Demoting or removing **another** **`admin`** remains **creator-only** (FR-6). |
-| FR-8  | **Add member** (to an event) may **only** attach **existing** Rendecrew **`User`** rows. **No** inviting or adding someone **by email** who is **not** already a user. Search UI may match on name or email to **disambiguate**, but the server must accept **only** a resolved **`userId`** that already exists in the app database. |
-| FR-9  | While the product is in **preview**, **only** **the designated preview operator** may invite or approve **new** people becoming Rendecrew **users** (platform-level onboarding—e.g. Clerk sign-up / invitations). Other people (including event **admins**) **cannot** create new platform accounts; they may only add **existing** users to events (FR-8). |
+| ID   | Requirement                                                                                                                                                                                                                                                                                                                                                 |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-1 | Every participant has exactly one of **`creator`**, **`admin`**, or **`member`** for a given event. **Creator** has **all admin capabilities** and is the **only** role that may **delete the event**.                                                                                                                                                      |
+| FR-2 | **Admins** (including the creator) may configure whether **only admins** may add/remove members, or **any member** may add/remove members. **Default:** any member may add/remove members. **Hierarchy overrides (FR-6)** always apply regardless of this policy.                                                                                           |
+| FR-3 | The **event view** exposes a **side tab** labeled **Members** where members can **see all members** and **perform allowed add/remove (and related) actions** per FR-2, FR-6, FR-7, and FR-8.                                                                                                                                                                |
+| FR-4 | The **event view** exposes a **side tab** labeled **Settings** where **all members** can **view** event settings, and **admins** (including creator) can **change** them. Non-admins see read-only controls or copy explaining that only admins can edit.                                                                                                   |
+| FR-5 | **Admins** may configure whether the **packing list** is visible **only to event members** or to **anyone with the share URL** (unchanged from today’s “link works for strangers” behavior when set to URL mode). When **members-only**, guests are **sent to the sign-in page** (see §6).                                                                  |
+| FR-6 | A **non-creator admin** **cannot** **remove** the **creator** from the event. **Only the creator** may **remove** or **demote** **another** user who is an **`admin`**. An **`admin`** may **leave** the event (remove **only their own** membership); they **cannot** remove a **different** **`admin`**.                                                  |
+| FR-7 | **Any** **`admin`** (**`creator`** or **`admin`**) may **promote** a **`member`** to **`admin`**. This is **not** delegated to plain **`member`** actors by FR-2—**only admins** may promote. Demoting or removing **another** **`admin`** remains **creator-only** (FR-6).                                                                                 |
+| FR-8 | **Add member** (to an event) may **only** attach **existing** Rendecrew **`User`** rows. **No** inviting or adding someone **by email** who is **not** already a user. Search UI may match on name or email to **disambiguate**, but the server must accept **only** a resolved **`userId`** that already exists in the app database.                       |
+| FR-9 | While the product is in **preview**, **only** **the designated preview operator** may invite or approve **new** people becoming Rendecrew **users** (platform-level onboarding—e.g. Clerk sign-up / invitations). Other people (including event **admins**) **cannot** create new platform accounts; they may only add **existing** users to events (FR-8). |
 
 ---
 
@@ -46,11 +46,11 @@ This document specifies how **event membership and roles** evolve so that **crea
 
 **Canonical roles** (replace ambiguous `"owner"` string):
 
-| Role        | Dashboard event access | Edit core event fields (title, dates, …) | Manage event settings (FR-4) | Add/remove members (when policy allows) | Delete event |
-| ----------- | ---------------------- | ---------------------------------------- | ------------------------------ | ----------------------------------------- | ------------ |
-| `creator`   | Yes                    | Yes                                      | Yes                            | Full under FR-2 for **`member`** targets; **may remove/demote another `admin`**; **never** removable by others (FR-6) | **Yes**      |
-| `admin`     | Yes                    | Yes                                      | Yes                            | Under FR-2 for **`member`** targets; **may leave** (remove self); **cannot** remove **`creator`** or **another** **`admin`** (FR-6) | **No**       |
-| `member`    | Yes                    | No                                       | No                             | Under FR-2 for **`member`** targets; **cannot** remove **`creator`** or **`admin`** (FR-6) | **No**       |
+| Role      | Dashboard event access | Edit core event fields (title, dates, …) | Manage event settings (FR-4) | Add/remove members (when policy allows)                                                                                             | Delete event |
+| --------- | ---------------------- | ---------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `creator` | Yes                    | Yes                                      | Yes                          | Full under FR-2 for **`member`** targets; **may remove/demote another `admin`**; **never** removable by others (FR-6)               | **Yes**      |
+| `admin`   | Yes                    | Yes                                      | Yes                          | Under FR-2 for **`member`** targets; **may leave** (remove self); **cannot** remove **`creator`** or **another** **`admin`** (FR-6) | **No**       |
+| `member`  | Yes                    | No                                       | No                           | Under FR-2 for **`member`** targets; **cannot** remove **`creator`** or **`admin`** (FR-6)                                          | **No**       |
 
 **Creator assignment:**
 
@@ -68,10 +68,10 @@ Refactor **`canManageEvent`** to mean **“organizer / admin capabilities”** (
 
 Persist at least:
 
-| Setting                         | Type      | Default | Description |
-| ------------------------------- | --------- | ------- | ----------- |
-| `memberManagementPolicy`        | enum/bool | `ANY_MEMBER_CAN_INVITE` | When `ADMINS_ONLY`, only admins (incl. creator) may add/remove members or change roles, **subject to FR-6** and **FR-7** (creator protection, **another**-`admin` removal / demotion, **`admin`** self-leave, and **any-admin** promotion `member` → `admin`). |
-| `packingListVisibility`         | enum      | `LINK_PUBLIC` or `ANYONE_WITH_URL` | **`MEMBERS_ONLY`:** no shared list data for unauthorized users. **Unauthenticated** visitors → **redirect to the app sign-in page** (optionally preserve a return URL after login). **Signed in but not a member** → redirect to a safe destination (e.g. dashboard) or a short “no access” page—**not** sign-in (would loop). **`URL_PUBLIC`:** same behavior as today for anonymous read. |
+| Setting                  | Type      | Default                            | Description                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | --------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memberManagementPolicy` | enum/bool | `ANY_MEMBER_CAN_INVITE`            | When `ADMINS_ONLY`, only admins (incl. creator) may add/remove members or change roles, **subject to FR-6** and **FR-7** (creator protection, **another**-`admin` removal / demotion, **`admin`** self-leave, and **any-admin** promotion `member` → `admin`).                                                                                                                              |
+| `packingListVisibility`  | enum      | `LINK_PUBLIC` or `ANYONE_WITH_URL` | **`MEMBERS_ONLY`:** no shared list data for unauthorized users. **Unauthenticated** visitors → **redirect to the app sign-in page** (optionally preserve a return URL after login). **Signed in but not a member** → redirect to a safe destination (e.g. dashboard) or a short “no access” page—**not** sign-in (would loop). **`URL_PUBLIC`:** same behavior as today for anonymous read. |
 
 Naming is implementation detail; prefer **Prisma enum** + snake_case `@map` for Postgres.
 
@@ -111,18 +111,18 @@ Document hierarchy rules explicitly in the Members tab (tooltips / disabled acti
 
 All mutations must re-check policy **server-side** (never UI-only).
 
-| Action                         | Required capability |
-| ------------------------------ | ------------------- |
-| Read event (dashboard)         | Member (any role)   |
-| Update event core fields       | Admin (`creator`/`admin`) |
-| Update event settings          | Admin               |
-| Delete event                   | **Creator**         |
-| Add member / remove **`member`** | Per `memberManagementPolicy` + §4.3; add requires **existing `User`** (FR-8) |
-| Remove **`creator`**           | **Forbidden** (not even other admins) |
-| Remove **another** **`admin`** or demote them `admin` → `member` | **Creator** only |
-| **`Admin`** leave event (remove **own** membership) | **`Admin`** (self only) |
-| Promote `member` → `admin`     | **Any** **`admin`** (FR-7) |
-| List members                   | Any member          |
+| Action                                                           | Required capability                                                          |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Read event (dashboard)                                           | Member (any role)                                                            |
+| Update event core fields                                         | Admin (`creator`/`admin`)                                                    |
+| Update event settings                                            | Admin                                                                        |
+| Delete event                                                     | **Creator**                                                                  |
+| Add member / remove **`member`**                                 | Per `memberManagementPolicy` + §4.3; add requires **existing `User`** (FR-8) |
+| Remove **`creator`**                                             | **Forbidden** (not even other admins)                                        |
+| Remove **another** **`admin`** or demote them `admin` → `member` | **Creator** only                                                             |
+| **`Admin`** leave event (remove **own** membership)              | **`Admin`** (self only)                                                      |
+| Promote `member` → `admin`                                       | **Any** **`admin`** (FR-7)                                                   |
+| List members                                                     | Any member                                                                   |
 
 **Packing list page (`/packing/[roomId]`):**
 
