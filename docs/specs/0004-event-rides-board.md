@@ -13,20 +13,20 @@ Primary surfaces: event detail UI (tabs), event settings, and a new Rides board 
 
 ## 3. Functional requirements (authoritative)
 
-| ID   | Requirement |
-| ---- | ----------- |
-| FR-1 | An event can **enable** / **disable** rides from **Event Settings** (admins only). When enabled, the event shows a **Rides** tab. |
-| FR-2 | A **car** has mandatory fields: **Driver** (an event member) and **Number of passengers** (capacity, can be 0). |
-| FR-3 | A car has optional fields: **Make/model**, **Fun car name** with fallback display name: if fun name missing, show “Driver’s Make Model”; if make/model missing too, show “Driver’s car”. |
-| FR-4 | A car can apply to **To Event**, **From Event**, or **both** (two booleans). The UI shows **two lists**: To Event cars and From Event cars. |
-| FR-5 | **To Event** info fields (all optional): **From**, **Departs**, **Arrives**, **Notes**. |
-| FR-6 | **From Event** info fields: **Departs**, **Arrives**, **To**, **Notes**. (Fields may be left blank; the direction itself is controlled by the car’s booleans.) |
-| FR-7 | All times default to the **event timezone**, but the user can change the timezone used for display and editing. |
-| FR-8 | A member can only be in **one To Event car** and **one From Event car** (drivers count as being “in a car” for that direction). |
-| FR-9 | Creating cars: there is an **Add Car** button; the create form has **two tabs** (To Event Info / From Event Info). Any event member can **add** a car (driver can be self or another member). Any event member can **delete** a car (must confirm). |
-| FR-10 | If a car is deleted “in one direction”, ask if the user also wants to delete it in the other direction. |
+| ID    | Requirement                                                                                                                                                                                                                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-1  | An event can **enable** / **disable** rides from **Event Settings** (admins only). When enabled, the event shows a **Rides** tab.                                                                                                                                                                          |
+| FR-2  | A **car** has mandatory fields: **Driver** (an event member) and **Number of passengers** (capacity, can be 0).                                                                                                                                                                                            |
+| FR-3  | A car has optional fields: **Make/model**, **Fun car name** with fallback display name: if fun name missing, show “Driver’s Make Model”; if make/model missing too, show “Driver’s car”.                                                                                                                   |
+| FR-4  | A car can apply to **To Event**, **From Event**, or **both** (two booleans). The UI shows **two lists**: To Event cars and From Event cars.                                                                                                                                                                |
+| FR-5  | **To Event** info fields (all optional): **From**, **Departs**, **Arrives**, **Notes**.                                                                                                                                                                                                                    |
+| FR-6  | **From Event** info fields: **Departs**, **Arrives**, **To**, **Notes**. (Fields may be left blank; the direction itself is controlled by the car’s booleans.)                                                                                                                                             |
+| FR-7  | All times default to the **event timezone**, but the user can change the timezone used for display and editing.                                                                                                                                                                                            |
+| FR-8  | A member can only be in **one To Event car** and **one From Event car** (drivers count as being “in a car” for that direction).                                                                                                                                                                            |
+| FR-9  | Creating cars: there is an **Add Car** button; the create form has **two tabs** (To Event Info / From Event Info). Any event member can **add** a car (driver can be self or another member). Any event member can **delete** a car (must confirm).                                                        |
+| FR-10 | If a car is deleted “in one direction”, ask if the user also wants to delete it in the other direction.                                                                                                                                                                                                    |
 | FR-11 | Signing up: any event member can sign up **self** or **another member** into a car, and can also remove **self** or **another member**. When adding/removing a member, ask whether to also add/remove in the other direction if the car drives both ways and the member’s other-direction state allows it. |
-| FR-12 | View: cars render as **table rows** with an **inline expand** to show names/details, like the reference screenshot. Also show who **still needs a ride** for To Event and From Event (members not assigned for that direction). |
+| FR-12 | View: cars render as **table rows** with an **inline expand** to show names/details, like the reference screenshot. Also show who **still needs a ride** for To Event and From Event (members not assigned for that direction).                                                                            |
 
 ## 4. Domain model
 
@@ -299,4 +299,3 @@ Recommended read pattern for the board:
 - Ship schema + server-side authorization/validation before UI.
 - Add the Settings toggle (admins only), then Rides tab gated by `ridesEnabled`.
 - Consider feature-flagging in addition to `ridesEnabled` if a staged rollout is desired.
-
