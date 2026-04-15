@@ -3,19 +3,15 @@ import { describe, expect, it } from "vitest";
 import { EventDisplayCard } from "./EventDisplayCard";
 
 describe("EventDisplayCard", () => {
-  it("renders title, role badge, and date range", () => {
+  it("renders role badge and date range", () => {
     render(
       <EventDisplayCard
-        title="Camping trip"
         role="organizer"
         dateRangeLabel="Jun 1 – Jun 3, 2026"
         location={null}
         generalInformation={null}
       />,
     );
-    expect(
-      screen.getByRole("heading", { name: "Camping trip" }),
-    ).toBeInTheDocument();
     expect(screen.getByText("organizer")).toBeInTheDocument();
     expect(screen.getByText("Jun 1 – Jun 3, 2026")).toBeInTheDocument();
   });
@@ -23,7 +19,6 @@ describe("EventDisplayCard", () => {
   it("omits the general information block when none is provided", () => {
     render(
       <EventDisplayCard
-        title="T"
         role="guest"
         dateRangeLabel="Soon"
         location={null}
@@ -38,7 +33,6 @@ describe("EventDisplayCard", () => {
   it("shows location and renders markdown general information", () => {
     render(
       <EventDisplayCard
-        title="T"
         role="guest"
         dateRangeLabel="Soon"
         location="Park"

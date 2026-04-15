@@ -130,7 +130,6 @@ export function EventDetailClient({
                     </div>
                   ) : null}
                   <EventDisplayCard
-                    title={display.title}
                     role={roleLabel}
                     dateRangeLabel={display.dateRangeLabel}
                     location={display.location}
