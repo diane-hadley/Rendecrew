@@ -28,6 +28,7 @@ const baseEvent = {
   startAt: null as Date | null,
   endAt: null as Date | null,
   location: null as string | null,
+  timezone: "UTC",
   createdById: "creator-1",
   suggestionApprovalRequired: false,
   memberManagementPolicy: "ANY_MEMBER_CAN_INVITE" as const,

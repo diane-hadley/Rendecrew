@@ -9,17 +9,16 @@ const { redirect } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
+vi.mock("@/lib/user", () => ({ getOrCreateUser: vi.fn() }));
 vi.mock("@/components/events/CreateEventForm", () => ({
   CreateEventForm: () => <div data-testid="create-form">Create form</div>,
 }));
 vi.mock("@/components/events/DescribeEventForm", () => ({
   DescribeEventForm: () => <div data-testid="describe-form">Describe form</div>,
 }));
-vi.mock("@clerk/nextjs", () => ({
-  UserButton: () => <div>UserButton</div>,
-}));
 
 import { currentUser } from "@clerk/nextjs/server";
+import { getOrCreateUser } from "@/lib/user";
 import NewEventPage from "./page";
 
 describe("NewEventPage", () => {
@@ -37,6 +36,10 @@ describe("NewEventPage", () => {
     vi.mocked(currentUser).mockResolvedValue({ id: "c1" } as Awaited<
       ReturnType<typeof currentUser>
     >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      timezone: "America/Los_Angeles",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
     const ui = await NewEventPage();
     render(ui);
     expect(

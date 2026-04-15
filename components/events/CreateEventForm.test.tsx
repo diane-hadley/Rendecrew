@@ -16,7 +16,7 @@ describe("CreateEventForm", () => {
   it("submits trimmed fields and datetime state", async () => {
     const user = userEvent.setup();
     createEvent.mockResolvedValue({ ok: true as const });
-    render(<CreateEventForm />);
+    render(<CreateEventForm defaultTimeZone="UTC" />);
 
     await user.type(screen.getByLabelText(/Title/i), "Meetup");
     await user.type(
@@ -38,6 +38,7 @@ describe("CreateEventForm", () => {
           title: "Meetup",
           generalInformation: "details",
           location: "Cafe",
+          timezone: "UTC",
         }),
       );
     });
@@ -54,14 +55,14 @@ describe("CreateEventForm", () => {
       ok: false as const,
       error: "Invalid time",
     });
-    render(<CreateEventForm />);
+    render(<CreateEventForm defaultTimeZone="UTC" />);
     await user.type(screen.getByLabelText(/Title/i), "T");
     await user.click(screen.getByRole("button", { name: /Create event/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid time");
   });
 
   it("links cancel to dashboard", () => {
-    render(<CreateEventForm />);
+    render(<CreateEventForm defaultTimeZone="UTC" />);
     expect(screen.getByRole("link", { name: /Cancel/i })).toHaveAttribute(
       "href",
       "/dashboard",

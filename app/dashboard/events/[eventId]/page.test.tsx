@@ -31,9 +31,6 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/components/events/EventDetailClient", () => ({
   EventDetailClient: () => <div data-testid="event-detail-client">Detail</div>,
 }));
-vi.mock("@clerk/nextjs", () => ({
-  UserButton: () => <div>UserButton</div>,
-}));
 
 import { currentUser } from "@clerk/nextjs/server";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
@@ -92,6 +89,7 @@ describe("EventDetailPage", () => {
         location: "Beach",
         startAt: new Date("2026-07-01T10:00:00Z"),
         endAt: new Date("2026-07-02T10:00:00Z"),
+        timezone: "UTC",
         createdById: "u1",
         suggestionApprovalRequired: false,
         memberManagementPolicy: "ANY_MEMBER_CAN_INVITE",

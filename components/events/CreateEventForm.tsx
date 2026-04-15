@@ -1,16 +1,35 @@
 "use client";
 
 import { createEvent } from "@/app/actions/events";
+import { TimezoneSelect } from "@/components/TimezoneSelect";
+import {
+  APP_DEFAULT_TIME_ZONE,
+  normalizeTimeZone,
+} from "@/lib/event-datetime";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
-export function CreateEventForm() {
+export type CreateEventFormProps = {
+  /** IANA zone from the signed-in user's profile — default for this form. */
+  defaultTimeZone: string;
+};
+
+export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
+  const [timeZone, setTimeZone] = useState(() =>
+    normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE),
+  );
+
+  useEffect(() => {
+    setTimeZone(
+      normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE),
+    );
+  }, [defaultTimeZone]);
 
   return (
     <div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
@@ -33,6 +52,7 @@ export function CreateEventForm() {
               location: location.trim() || null,
               startAt,
               endAt,
+              timezone: timeZone,
             });
 
             if (!result.ok) {
@@ -97,6 +117,20 @@ export function CreateEventForm() {
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
             placeholder="Optional"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <TimezoneSelect
+            id="event-timezone"
+            label="Times below are in"
+            value={timeZone}
+            onChange={setTimeZone}
+            disabled={isPending}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Starts as your account timezone; pick another if this event is in a
+            different region.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">

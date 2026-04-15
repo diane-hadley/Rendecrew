@@ -61,6 +61,7 @@ const baseProps = {
     location: null,
     startAt: null,
     endAt: null,
+    timezone: "UTC",
   },
   packing: {
     canManagePacking: false,

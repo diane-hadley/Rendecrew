@@ -38,6 +38,7 @@ export type EventDetailClientProps = {
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
+    timezone: string;
   };
   packing: {
     canManagePacking: boolean;
