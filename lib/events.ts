@@ -12,6 +12,7 @@ export type DashboardEventRow = {
     generalInformation: string | null;
     startAt: Date | null;
     endAt: Date | null;
+    timezone: string;
     location: string | null;
     createdById: string;
     suggestionApprovalRequired: boolean;

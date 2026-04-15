@@ -2,7 +2,6 @@ import { PackingSuggestionStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import { EventDetailClient } from "@/components/events/EventDetailClient";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
@@ -10,19 +9,9 @@ import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
+import { formatEventDateRangeWithTimeZone } from "@/lib/event-datetime";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
-
-function formatRange(start: Date | null, end: Date | null) {
-  if (!start || !end) {
-    return "No date set";
-  }
-  const opts: Intl.DateTimeFormatOptions = {
-    dateStyle: "medium",
-    timeStyle: "short",
-  };
-  return `${start.toLocaleString(undefined, opts)} – ${end.toLocaleString(undefined, opts)}`;
-}
 
 export default async function EventDetailPage({
   params,
@@ -60,7 +49,11 @@ export default async function EventDetailPage({
         })
       : 0;
 
-  const dateRangeLabel = formatRange(event.startAt, event.endAt);
+  const dateRangeLabel = formatEventDateRangeWithTimeZone(
+    event.startAt,
+    event.endAt,
+    event.timezone,
+  );
 
   const memberRows = await prisma.eventMember.findMany({
     where: { eventId: event.id },
@@ -79,59 +72,53 @@ export default async function EventDetailPage({
   const isCreator = canDeleteEvent(dbUser.id, event);
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              ← Dashboard
-            </Link>
-            <h1 className="text-3xl font-bold">Event</h1>
-          </div>
-          <UserButton afterSignOutUrl="/" />
-        </div>
-
-        <EventDetailClient
-          eventId={event.id}
-          createdById={event.createdById}
-          currentUserId={dbUser.id}
-          actorRole={role}
-          isCreator={isCreator}
-          editable={editable}
-          display={{
-            title: event.title,
-            generalInformation: event.generalInformation,
-            location: event.location,
-            dateRangeLabel,
-          }}
-          editInitial={{
-            title: event.title,
-            generalInformation: event.generalInformation,
-            location: event.location,
-            startAt: event.startAt,
-            endAt: event.endAt,
-          }}
-          packing={{
-            canManagePacking: editable,
-            liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
-            commitments: myPackingCommitments,
-            packingListPath,
-            suggestionApprovalRequired:
-              event.suggestionApprovalRequired ?? false,
-            pendingSuggestionDraftCount,
-          }}
-          settings={{
-            memberManagementPolicy: event.memberManagementPolicy,
-            packingListVisibility: event.packingListVisibility,
-            suggestionApprovalRequired:
-              event.suggestionApprovalRequired ?? false,
-          }}
-          membersInitial={membersInitial}
-        />
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-8 flex flex-wrap items-center gap-4">
+        <Link
+          href="/dashboard"
+          className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          ← Dashboard
+        </Link>
+        <h1 className="text-3xl font-bold">Event</h1>
       </div>
+
+      <EventDetailClient
+        eventId={event.id}
+        createdById={event.createdById}
+        currentUserId={dbUser.id}
+        actorRole={role}
+        isCreator={isCreator}
+        editable={editable}
+        display={{
+          title: event.title,
+          generalInformation: event.generalInformation,
+          location: event.location,
+          dateRangeLabel,
+        }}
+        editInitial={{
+          title: event.title,
+          generalInformation: event.generalInformation,
+          location: event.location,
+          startAt: event.startAt,
+          endAt: event.endAt,
+          timezone: event.timezone,
+        }}
+        packing={{
+          canManagePacking: editable,
+          liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
+          commitments: myPackingCommitments,
+          packingListPath,
+          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
+          pendingSuggestionDraftCount,
+        }}
+        settings={{
+          memberManagementPolicy: event.memberManagementPolicy,
+          packingListVisibility: event.packingListVisibility,
+          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
+        }}
+        membersInitial={membersInitial}
+      />
     </div>
   );
 }

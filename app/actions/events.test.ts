@@ -56,11 +56,12 @@ import {
 describe("updateEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
-      ReturnType<typeof getOrCreateUser>
-    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      timezone: "UTC",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
     vi.mocked(getEventForUser).mockResolvedValue({
-      event: { id: "e1" },
+      event: { id: "e1", timezone: "UTC" },
       role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
@@ -162,6 +163,7 @@ describe("updateEvent", () => {
         generalInformation: "d",
         startAt: null,
         endAt: null,
+        timezone: "UTC",
         location: "L",
       },
     });
@@ -216,9 +218,10 @@ describe("deleteEvent", () => {
 describe("createEventFromNaturalLanguage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
-      ReturnType<typeof getOrCreateUser>
-    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      timezone: "UTC",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
     transaction.mockImplementation(
       async (fn: (tx: unknown) => Promise<void>) => {
         const tx = {
@@ -281,9 +284,10 @@ describe("createEventFromNaturalLanguage", () => {
 describe("createEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
-      ReturnType<typeof getOrCreateUser>
-    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      timezone: "UTC",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
     transaction.mockImplementation(
       async (fn: (tx: unknown) => Promise<void>) => {
         const tx = {

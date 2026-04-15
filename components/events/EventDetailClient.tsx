@@ -38,6 +38,7 @@ export type EventDetailClientProps = {
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
+    timezone: string;
   };
   packing: {
     canManagePacking: boolean;
@@ -105,6 +106,7 @@ export function EventDetailClient({
             <>
               {editable && isEditing ? (
                 <EditEventForm
+                  key={eventId}
                   eventId={eventId}
                   initial={editInitial}
                   onCancel={() => setIsEditing(false)}

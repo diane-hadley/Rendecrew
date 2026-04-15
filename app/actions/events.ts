@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
+import { normalizeTimeZone, parseEventDateTime } from "@/lib/event-datetime";
 import { getOrCreateUser } from "@/lib/user";
 
 export type CreateEventInput = {
@@ -13,6 +14,8 @@ export type CreateEventInput = {
   generalInformation?: string | null;
   startAt?: Date | string | null;
   endAt?: Date | string | null;
+  /** IANA zone; omitted or invalid uses the creating user's default. */
+  timezone?: string | null;
   location?: string | null;
 };
 
@@ -28,25 +31,17 @@ export type UpdateEventResult = { ok: true } | { ok: false; error: string };
 
 export type DeleteEventResult = { ok: true } | { ok: false; error: string };
 
-function parseDate(value: Date | string | null | undefined): Date | null {
-  if (value == null) return null;
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-  const s = String(value).trim();
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function validateCreateEventInput(input: CreateEventInput): string | null {
+function validateCreateEventInput(
+  input: CreateEventInput,
+  resolvedTimeZone: string,
+): string | null {
   const title = input.title.trim();
   if (!title) {
     return "Title is required";
   }
 
-  const startAt = parseDate(input.startAt);
-  const endAt = parseDate(input.endAt);
+  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
+  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
   const hasStart = startAt != null;
   const hasEnd = endAt != null;
   if (hasStart !== hasEnd) {
@@ -61,15 +56,20 @@ function validateCreateEventInput(input: CreateEventInput): string | null {
 async function createEventRecord(
   userId: string,
   input: CreateEventInput,
+  actorDefaultTimeZone: string,
 ): Promise<CreateEventResult> {
-  const validationError = validateCreateEventInput(input);
+  const resolvedTimeZone = normalizeTimeZone(
+    input.timezone,
+    actorDefaultTimeZone,
+  );
+  const validationError = validateCreateEventInput(input, resolvedTimeZone);
   if (validationError) {
     return { ok: false, error: validationError };
   }
 
   const title = input.title.trim();
-  const startAt = parseDate(input.startAt);
-  const endAt = parseDate(input.endAt);
+  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
+  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
 
   try {
     let eventId = "";
@@ -80,6 +80,7 @@ async function createEventRecord(
           generalInformation: input.generalInformation?.trim() || null,
           startAt: startAt ?? null,
           endAt: endAt ?? null,
+          timezone: resolvedTimeZone,
           location: input.location?.trim() || null,
           createdById: userId,
         },
@@ -105,7 +106,7 @@ export async function createEvent(
   input: CreateEventInput,
 ): Promise<CreateEventResult> {
   const user = await getOrCreateUser();
-  const result = await createEventRecord(user.id, input);
+  const result = await createEventRecord(user.id, input, user.timezone);
   if (!result.ok) {
     return result;
   }
@@ -130,13 +131,18 @@ export async function createEventFromNaturalLanguage(
   }
 
   const { fields } = parsed;
-  const result = await createEventRecord(user.id, {
-    title: fields.title,
-    generalInformation: fields.generalInformation,
-    location: fields.location,
-    startAt: fields.startAt,
-    endAt: fields.endAt,
-  });
+  const result = await createEventRecord(
+    user.id,
+    {
+      title: fields.title,
+      generalInformation: fields.generalInformation,
+      location: fields.location,
+      startAt: fields.startAt,
+      endAt: fields.endAt,
+      timezone: user.timezone,
+    },
+    user.timezone,
+  );
   if (!result.ok) {
     return result;
   }
@@ -155,8 +161,21 @@ export async function updateEvent(
     return { ok: false, error: "Title is required" };
   }
 
-  const startAt = parseDate(input.startAt);
-  const endAt = parseDate(input.endAt);
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(input.eventId, user.id);
+  if (!row || !canManageEvent(row.role)) {
+    return {
+      ok: false,
+      error: "You do not have permission to edit this event",
+    };
+  }
+
+  const resolvedTimeZone = normalizeTimeZone(
+    input.timezone,
+    row.event.timezone,
+  );
+  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
+  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
   const hasStart = startAt != null;
   const hasEnd = endAt != null;
   if (hasStart !== hasEnd) {
@@ -169,15 +188,6 @@ export async function updateEvent(
     return { ok: false, error: "End must be on or after start" };
   }
 
-  const user = await getOrCreateUser();
-  const row = await getEventForUser(input.eventId, user.id);
-  if (!row || !canManageEvent(row.role)) {
-    return {
-      ok: false,
-      error: "You do not have permission to edit this event",
-    };
-  }
-
   try {
     await prisma.event.update({
       where: { id: input.eventId },
@@ -186,6 +196,7 @@ export async function updateEvent(
         generalInformation: input.generalInformation?.trim() || null,
         startAt: startAt ?? null,
         endAt: endAt ?? null,
+        timezone: resolvedTimeZone,
         location: input.location?.trim() || null,
       },
     });

@@ -3,8 +3,12 @@
 import { updateEvent } from "@/app/actions/events";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { EventGeneralInformationAiPanel } from "./EventGeneralInformationAiPanel";
+import { TimezoneSelect } from "@/components/TimezoneSelect";
 import {
-  isoToDatetimeLocal,
+  rezoneWallDatetimeLocal,
+  utcToWallDatetimeLocal,
+} from "@/lib/event-datetime";
+import {
   normalizeStartEndPair,
   shouldSyncEndToStart,
 } from "@/lib/datetime-local";
@@ -19,6 +23,7 @@ export type EditEventFormProps = {
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
+    timezone: string;
   };
   onCancel?: () => void;
   onSaved?: () => void;
@@ -39,17 +44,21 @@ export function EditEventForm({
   const generalInformationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const initialPair = useMemo(() => {
-    const start = isoToDatetimeLocal(
+    const tz = initial.timezone;
+    const start = utcToWallDatetimeLocal(
       initial.startAt != null ? String(initial.startAt) : null,
+      tz,
     );
-    const end = isoToDatetimeLocal(
+    const end = utcToWallDatetimeLocal(
       initial.endAt != null ? String(initial.endAt) : null,
+      tz,
     );
     return normalizeStartEndPair(start, end);
-  }, [initial.startAt, initial.endAt]);
+  }, [initial.startAt, initial.endAt, initial.timezone]);
 
   const [startAt, setStartAt] = useState(initialPair.start);
   const [endAt, setEndAt] = useState(initialPair.end);
+  const [timeZone, setTimeZone] = useState(initial.timezone);
 
   return (
     <div className="w-full rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
@@ -71,6 +80,7 @@ export function EditEventForm({
               location: location.trim() || null,
               startAt,
               endAt,
+              timezone: timeZone,
             });
 
             if (!result.ok) {
@@ -119,6 +129,20 @@ export function EditEventForm({
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:focus:ring-blue-400"
           />
         </div>
+
+        <TimezoneSelect
+          id="edit-event-timezone"
+          label="Times below are in"
+          value={timeZone}
+          onChange={(nextTz) => {
+            setTimeZone((prevTz) => {
+              setStartAt((s) => rezoneWallDatetimeLocal(s, prevTz, nextTz));
+              setEndAt((e) => rezoneWallDatetimeLocal(e, prevTz, nextTz));
+              return nextTz;
+            });
+          }}
+          disabled={isPending}
+        />
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
           <EventDateTimeFields

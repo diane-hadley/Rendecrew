@@ -20,6 +20,10 @@ export function joinDatetimeLocal(date: string, time: string): string {
   return `${d}T${t}`;
 }
 
+/**
+ * Formats an ISO instant using the **JavaScript environment’s local timezone** (not an IANA event zone).
+ * For event start/end wall strings, use `utcToWallDatetimeLocal` from `@/lib/event-datetime` instead.
+ */
 export function isoToDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -28,22 +32,29 @@ export function isoToDatetimeLocal(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function parseDatetimeLocalMs(value: string): number | null {
+const WALL_LOCAL_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+function parseWallDatetimeAsUtcMs(value: string): number | null {
   const v = value.trim();
   if (!v) return null;
-  const t = new Date(v).getTime();
-  return Number.isNaN(t) ? null : t;
+  const { date, time } = splitDatetimeLocal(v);
+  if (!date || !/^\d{2}:\d{2}$/.test(time)) return null;
+  const [y, mo, d] = date.split("-").map((x) => parseInt(x, 10));
+  const [h, mi] = time.split(":").map((x) => parseInt(x, 10));
+  if ([y, mo, d, h, mi].some((n) => Number.isNaN(n))) return null;
+  const ms = Date.UTC(y, mo - 1, d, h, mi);
+  return Number.isNaN(ms) ? null : ms;
 }
 
-/** Snap to nearest 5 minutes in local time (handles day/month rollover). */
+/** Snap to nearest 5 minutes using calendar components (no browser local TZ). */
 export function snapDatetimeLocalToFiveMinutes(value: string): string {
   if (!value.trim()) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  const ms = parseWallDatetimeAsUtcMs(value);
+  if (ms == null) return value;
   const fiveMs = 5 * 60 * 1000;
-  const snapped = new Date(Math.round(d.getTime() / fiveMs) * fiveMs);
+  const snapped = new Date(Math.round(ms / fiveMs) * fiveMs);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${snapped.getFullYear()}-${pad(snapped.getMonth() + 1)}-${pad(snapped.getDate())}T${pad(snapped.getHours())}:${pad(snapped.getMinutes())}`;
+  return `${snapped.getUTCFullYear()}-${pad(snapped.getUTCMonth() + 1)}-${pad(snapped.getUTCDate())}T${pad(snapped.getUTCHours())}:${pad(snapped.getUTCMinutes())}`;
 }
 
 /** Hour/minute strings on the 5-minute grid (for `HH:mm` parts, 24-hour). */
@@ -88,10 +99,16 @@ export function hour12PeriodToHour24(
 
 /** When start changes: copy start to end if end is empty or end is before start. */
 export function shouldSyncEndToStart(start: string, end: string): boolean {
-  const startMs = parseDatetimeLocalMs(start);
+  const s = start.trim();
+  const e = end.trim();
+  if (!s) return false;
+  if (!e) return true;
+  if (WALL_LOCAL_PATTERN.test(s) && WALL_LOCAL_PATTERN.test(e)) {
+    return e < s;
+  }
+  const startMs = parseWallDatetimeAsUtcMs(s);
   if (startMs == null) return false;
-  if (!end.trim()) return true;
-  const endMs = parseDatetimeLocalMs(end);
+  const endMs = parseWallDatetimeAsUtcMs(e);
   if (endMs == null) return true;
   return endMs < startMs;
 }

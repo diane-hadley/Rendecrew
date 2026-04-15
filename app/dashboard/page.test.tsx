@@ -11,9 +11,6 @@ vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
 vi.mock("@/lib/user", () => ({ getOrCreateUser: vi.fn() }));
 vi.mock("@/lib/events", () => ({ getEventsForUser: vi.fn() }));
-vi.mock("@clerk/nextjs", () => ({
-  UserButton: () => <div>UserButton</div>,
-}));
 
 import { currentUser } from "@clerk/nextjs/server";
 import { getEventsForUser } from "@/lib/events";
@@ -38,6 +35,7 @@ describe("DashboardPage", () => {
     vi.mocked(getOrCreateUser).mockResolvedValue({
       id: "u1",
       name: "Alex",
+      timezone: "UTC",
     } as Awaited<ReturnType<typeof getOrCreateUser>>);
     vi.mocked(getEventsForUser).mockResolvedValue([]);
     const ui = await DashboardPage();
@@ -53,6 +51,7 @@ describe("DashboardPage", () => {
     vi.mocked(getOrCreateUser).mockResolvedValue({
       id: "u1",
       name: "Alex",
+      timezone: "UTC",
     } as Awaited<ReturnType<typeof getOrCreateUser>>);
     vi.mocked(getEventsForUser).mockResolvedValue([
       {
@@ -61,6 +60,7 @@ describe("DashboardPage", () => {
           title: "Camping",
           startAt: new Date("2026-06-01T12:00:00Z"),
           endAt: new Date("2026-06-02T12:00:00Z"),
+          timezone: "UTC",
           location: "Yosemite",
         },
         role: "creator",
