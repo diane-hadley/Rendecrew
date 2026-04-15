@@ -73,14 +73,14 @@ export default async function EventDetailPage({
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-8 flex flex-wrap items-center gap-4">
+      <div className="mb-8 flex flex-wrap items-center gap-4 lg:grid lg:grid-cols-[12rem_1fr] lg:items-center lg:gap-10">
         <Link
           href="/dashboard"
           className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
         >
           ← Dashboard
         </Link>
-        <h1 className="text-3xl font-bold">Event</h1>
+        <h1 className="text-3xl font-bold lg:col-start-2">{event.title}</h1>
       </div>
 
       <EventDetailClient

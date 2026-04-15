@@ -82,7 +82,8 @@ const baseProps = {
 describe("EventDetailClient", () => {
   it("shows display card when not editing", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
-    expect(screen.getByRole("heading", { name: "Summit" })).toBeInTheDocument();
+    expect(screen.getByText("Creator")).toBeInTheDocument();
+    expect(screen.getByText("Apr 2026")).toBeInTheDocument();
     expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
   });
 
@@ -100,9 +101,7 @@ describe("EventDetailClient", () => {
       screen.getByRole("button", { name: "Edit event information" }),
     );
     expect(screen.getByTestId("edit-form")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Summit" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Apr 2026")).not.toBeInTheDocument();
   });
 
   it("closes edit mode when cancel runs", async () => {
@@ -112,7 +111,8 @@ describe("EventDetailClient", () => {
       screen.getByRole("button", { name: "Edit event information" }),
     );
     await user.click(screen.getByRole("button", { name: "Cancel edit" }));
-    expect(screen.getByRole("heading", { name: "Summit" })).toBeInTheDocument();
+    expect(screen.getByText("Creator")).toBeInTheDocument();
+    expect(screen.getByText("Apr 2026")).toBeInTheDocument();
     expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
   });
 
