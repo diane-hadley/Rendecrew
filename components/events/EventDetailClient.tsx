@@ -106,6 +106,7 @@ export function EventDetailClient({
             <>
               {editable && isEditing ? (
                 <EditEventForm
+                  key={eventId}
                   eventId={eventId}
                   initial={editInitial}
                   onCancel={() => setIsEditing(false)}

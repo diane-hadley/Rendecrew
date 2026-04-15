@@ -24,7 +24,11 @@ export function normalizeTimeZone(
 }
 
 /**
- * Parse a wall-clock `YYYY-MM-DDTHH:mm` in `eventTimeZone`, or an ISO instant string, into a UTC `Date`.
+ * Parse into a UTC `Date` (instant):
+ * - Wall `YYYY-MM-DDTHH:mm` → interpreted in `eventTimeZone`.
+ * - ISO with `Z` or offset → that instant (zone param ignored for the numeric instant).
+ * - ISO without offset → treated as UTC wall (same as Luxon `fromISO(..., { zone: "utc" })`).
+ * - `Date` → returned as-is (already an instant; use when values come from the DB).
  */
 export function parseEventDateTime(
   value: Date | string | null | undefined,
@@ -42,11 +46,15 @@ export function parseEventDateTime(
   }
   const dt = DateTime.fromISO(s, { setZone: true });
   if (dt.isValid) return dt.toUTC().toJSDate();
+  // Last resort for non-ISO strings (environment-dependent; prefer ISO from clients).
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Format a stored UTC instant as wall `YYYY-MM-DDTHH:mm` in the given IANA zone. */
+/**
+ * Format a stored UTC instant as wall `YYYY-MM-DDTHH:mm` in the given IANA zone.
+ * For strings, prefers ISO with `Z` or explicit offset; naive `YYYY-MM-DDTHH:mm` is read as UTC wall.
+ */
 export function utcToWallDatetimeLocal(
   iso: string | Date | null | undefined,
   timeZone: string,
@@ -109,9 +117,7 @@ export function formatEventDateRangeWithTimeZone(
   const range = `${start.toLocaleString(loc, opts)} – ${end.toLocaleString(loc, opts)}`;
   const abbr = timeZoneAbbreviation(start, timeZone);
   const zoneSuffix =
-    abbr && abbr !== timeZone
-      ? `${abbr} · ${timeZone}`
-      : timeZone;
+    abbr && abbr !== timeZone ? `${abbr} · ${timeZone}` : timeZone;
   return `${range} (${zoneSuffix})`;
 }
 
@@ -131,7 +137,11 @@ const SELECTABLE_TIMEZONE_CHOICES: TimezoneSelectChoice[] = [
   { group: "Americas", id: "America/Chicago", label: "Central (US & Canada)" },
   { group: "Americas", id: "America/Denver", label: "Mountain (US & Canada)" },
   { group: "Americas", id: "America/Phoenix", label: "Arizona (no DST)" },
-  { group: "Americas", id: "America/Los_Angeles", label: "Pacific (US & Canada)" },
+  {
+    group: "Americas",
+    id: "America/Los_Angeles",
+    label: "Pacific (US & Canada)",
+  },
   { group: "Americas", id: "America/Anchorage", label: "Alaska" },
   { group: "Americas", id: "Pacific/Honolulu", label: "Hawaii" },
   { group: "Americas", id: "America/Toronto", label: "Toronto" },

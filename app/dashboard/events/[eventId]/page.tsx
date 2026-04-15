@@ -109,15 +109,13 @@ export default async function EventDetailPage({
           liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
           commitments: myPackingCommitments,
           packingListPath,
-          suggestionApprovalRequired:
-            event.suggestionApprovalRequired ?? false,
+          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
           pendingSuggestionDraftCount,
         }}
         settings={{
           memberManagementPolicy: event.memberManagementPolicy,
           packingListVisibility: event.packingListVisibility,
-          suggestionApprovalRequired:
-            event.suggestionApprovalRequired ?? false,
+          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
         }}
         membersInitial={membersInitial}
       />

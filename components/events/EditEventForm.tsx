@@ -4,7 +4,10 @@ import { updateEvent } from "@/app/actions/events";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { EventGeneralInformationAiPanel } from "./EventGeneralInformationAiPanel";
 import { TimezoneSelect } from "@/components/TimezoneSelect";
-import { rezoneWallDatetimeLocal, utcToWallDatetimeLocal } from "@/lib/event-datetime";
+import {
+  rezoneWallDatetimeLocal,
+  utcToWallDatetimeLocal,
+} from "@/lib/event-datetime";
 import {
   normalizeStartEndPair,
   shouldSyncEndToStart,

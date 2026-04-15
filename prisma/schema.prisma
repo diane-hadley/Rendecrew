@@ -61,8 +61,8 @@ model Event {
   generalInformation String? @map("general_information")
   startAt     DateTime? @map("start_at")
   endAt       DateTime? @map("end_at")
-  /** IANA zone for interpreting start/end wall times and for display. */
-  timezone    String    @default("UTC")
+  /** IANA zone for interpreting start/end wall times and for display (default matches user default / app constant). */
+  timezone    String    @default("America/Los_Angeles")
   location    String?
   createdById String   @map("created_by_id")
   /** When true, participant-submitted catalog ideas stay DRAFT_USER until an organizer publishes them. */

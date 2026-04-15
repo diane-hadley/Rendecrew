@@ -2,10 +2,7 @@
 
 import { createEvent } from "@/app/actions/events";
 import { TimezoneSelect } from "@/components/TimezoneSelect";
-import {
-  APP_DEFAULT_TIME_ZONE,
-  normalizeTimeZone,
-} from "@/lib/event-datetime";
+import { APP_DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/event-datetime";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import Link from "next/link";
@@ -26,9 +23,7 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
   );
 
   useEffect(() => {
-    setTimeZone(
-      normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE),
-    );
+    setTimeZone(normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE));
   }, [defaultTimeZone]);
 
   return (

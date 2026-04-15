@@ -20,6 +20,10 @@ export function joinDatetimeLocal(date: string, time: string): string {
   return `${d}T${t}`;
 }
 
+/**
+ * Formats an ISO instant using the **JavaScript environment’s local timezone** (not an IANA event zone).
+ * For event start/end wall strings, use `utcToWallDatetimeLocal` from `@/lib/event-datetime` instead.
+ */
 export function isoToDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);

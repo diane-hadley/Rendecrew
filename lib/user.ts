@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { currentUser } from "@clerk/nextjs/server";
+import { APP_DEFAULT_TIME_ZONE } from "@/lib/event-datetime";
 import { backfillPackingItemSignUpsForUser } from "@/lib/packing-list";
 import { isPreviewPlatformOperator } from "@/lib/preview-platform";
 
@@ -66,6 +67,7 @@ export async function getOrCreateUser() {
       clerkId: clerkUser.id,
       email,
       name,
+      timezone: APP_DEFAULT_TIME_ZONE,
     },
   });
 

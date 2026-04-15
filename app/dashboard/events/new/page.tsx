@@ -3,10 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CreateEventForm } from "@/components/events/CreateEventForm";
 import { DescribeEventForm } from "@/components/events/DescribeEventForm";
-import {
-  APP_DEFAULT_TIME_ZONE,
-  normalizeTimeZone,
-} from "@/lib/event-datetime";
+import { APP_DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/event-datetime";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function NewEventPage() {

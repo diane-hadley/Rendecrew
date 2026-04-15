@@ -34,9 +34,20 @@ describe("event-datetime", () => {
     expect(back).toBe("2026-06-01T12:00");
   });
 
+  it("utcToWallDatetimeLocal respects explicit offset in ISO strings", () => {
+    const iso = "2026-06-01T12:00:00.000+05:30";
+    expect(utcToWallDatetimeLocal(iso, "America/New_York")).toBe(
+      "2026-06-01T02:30",
+    );
+  });
+
   it("rezoneWallDatetimeLocal preserves the instant", () => {
     const wall = "2026-06-01T12:00";
-    const next = rezoneWallDatetimeLocal(wall, "America/New_York", "Europe/London");
+    const next = rezoneWallDatetimeLocal(
+      wall,
+      "America/New_York",
+      "Europe/London",
+    );
     const a = parseEventDateTime(wall, "America/New_York")!.getTime();
     const b = parseEventDateTime(next, "Europe/London")!.getTime();
     expect(a).toBe(b);
@@ -51,9 +62,9 @@ describe("event-datetime", () => {
   });
 
   it("formatEventDateRangeWithTimeZone handles missing dates", () => {
-    expect(
-      formatEventDateRangeWithTimeZone(null, null, "UTC"),
-    ).toBe("No date set");
+    expect(formatEventDateRangeWithTimeZone(null, null, "UTC")).toBe(
+      "No date set",
+    );
   });
 
   it("getTimezoneSelectChoices lists curated zones", () => {

@@ -6,10 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
-import {
-  normalizeTimeZone,
-  parseEventDateTime,
-} from "@/lib/event-datetime";
+import { normalizeTimeZone, parseEventDateTime } from "@/lib/event-datetime";
 import { getOrCreateUser } from "@/lib/user";
 
 export type CreateEventInput = {
