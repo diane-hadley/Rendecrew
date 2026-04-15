@@ -2,179 +2,300 @@
 
 ## 1. Purpose
 
-This document specifies an **optional per-event rides coordination** feature: a **Rides** tab where members organize **cars**, **drivers**, and **passengers** for travel **to** the event, **from** the event, or **both** under a single car when the event does not use separate outbound and return boards.
+Add an **optional rides board** to events to coordinate **drivers**, **cars**, and **passengers** for **To Event** and **From Event** directions. The rides board is enabled/disabled per event, appears as a **Rides** tab when enabled, and enforces that a member can only be assigned to **one car per direction**.
 
-**Goals:** reduce coordination friction, make **capacity** and **gaps** obvious, and enforce **membership-scoped** rules (who can ride with whom, one car per leg, and clear “still needs a ride” visibility).
+Primary surfaces: event detail UI (tabs), event settings, and a new Rides board view (table rows with inline expand similar to the reference screenshot).
 
-**Implementation:** Prisma (`Event`, `EventMember`, new rides models), server mutations for rides, and `components/events/EventDetailClient.tsx` (**Rides** tab with Overview, Members, Settings).
+## 2. Current behavior (baseline)
 
-**Related:** `docs/specs/0003-event-roles-and-settings.md`. **Drivers and passengers are always event members.** Custom field **definitions** are **admin-only** (FR-10).
+- Events have no rides coordination feature.
+- There is no domain model for cars, directional trip info, or passenger sign-ups.
 
----
+## 3. Functional requirements (authoritative)
 
-## 2. Functional requirements (authoritative)
+| ID    | Requirement                                                                                                                                                                                                                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-1  | An event can **enable** / **disable** rides from **Event Settings** (admins only). When enabled, the event shows a **Rides** tab.                                                                                                                                                                          |
+| FR-2  | A **car** has mandatory fields: **Driver** (an event member) and **Number of passengers** (capacity, can be 0).                                                                                                                                                                                            |
+| FR-3  | A car has optional fields: **Make/model**, **Fun car name** with fallback display name: if fun name missing, show “Driver’s Make Model”; if make/model missing too, show “Driver’s car”.                                                                                                                   |
+| FR-4  | A car can apply to **To Event**, **From Event**, or **both** (two booleans). The UI shows **two lists**: To Event cars and From Event cars.                                                                                                                                                                |
+| FR-5  | **To Event** info fields (all optional): **From**, **Departs**, **Arrives**, **Notes**.                                                                                                                                                                                                                    |
+| FR-6  | **From Event** info fields: **Departs**, **Arrives**, **To**, **Notes**. (Fields may be left blank; the direction itself is controlled by the car’s booleans.)                                                                                                                                             |
+| FR-7  | All times default to the **event timezone**, but the user can change the timezone used for display and editing.                                                                                                                                                                                            |
+| FR-8  | A member can only be in **one To Event car** and **one From Event car** (drivers count as being “in a car” for that direction).                                                                                                                                                                            |
+| FR-9  | Creating cars: there is an **Add Car** button; the create form has **two tabs** (To Event Info / From Event Info). Any event member can **add** a car (driver can be self or another member). Any event member can **delete** a car (must confirm).                                                        |
+| FR-10 | If a car is deleted “in one direction”, ask if the user also wants to delete it in the other direction.                                                                                                                                                                                                    |
+| FR-11 | Signing up: any event member can sign up **self** or **another member** into a car, and can also remove **self** or **another member**. When adding/removing a member, ask whether to also add/remove in the other direction if the car drives both ways and the member’s other-direction state allows it. |
+| FR-12 | View: cars render as **table rows** with an **inline expand** to show names/details, like the reference screenshot. Also show who **still needs a ride** for To Event and From Event (members not assigned for that direction).                                                                            |
 
-| ID    | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-1  | Rides are **optional per event**. **Only admins** (`creator` / `admin`) may **enable** or **disable** rides for an event. When disabled, the event UI has **no** Rides tab (or the tab is hidden). When enabled, the event shows a **Rides** tab as the main rides surface.                                                                                                                                                                                            |
-| FR-2  | When rides are enabled, an **admin** configures **one board mode**: **unified** (same car roster for both directions) or **split** (separate coordination for **to the event** vs **from the event**). **Split mode is optional**; unified mode must remain supported.                                                                                                                                                                                                 |
-| FR-3  | A **car** always has **mandatory** fields: **driver** (must be an **event member**), **passenger capacity** (integer **≥ 0**, meaning “number of passenger seats offered,” excluding the driver).                                                                                                                                                                                                                                                                      |
-| FR-4  | **Optional built-in** car fields: **make/model**; **fun car name**; **notes**; and **direction-specific** fields when applicable (see §3.3). **Display name** for a car follows §4.2 when fun name or make/model are absent.                                                                                                                                                                                                                                           |
-| FR-5  | **Datetime fields** (depart/arrive, etc.) **default** to the event’s **IANA timezone** (`Event.timezone` today). The UI **may override** timezone **per car** or **per datetime** (implementation choice—see §5.2); stored instants must be unambiguous (UTC + tz metadata as needed).                                                                                                                                                                                 |
-| FR-6  | The **driver** is **one event member** attached to the car (not a free-text name). Changing the driver reassigns that role on the car; validation must keep **one driver per car**.                                                                                                                                                                                                                                                                                    |
-| FR-7  | **Unified mode:** an event member may appear in **at most one car** in any capacity (**driver** or **passenger**) for that event’s rides board.                                                                                                                                                                                                                                                                                                                        |
-| FR-8  | **Split mode:** each car has a **direction coverage** of **`BOTH`**, **`TO_EVENT`**, or **`FROM_EVENT`**, defaulting to **`BOTH`** when created. **Signup for “there”** and **signup for “back”** are **independent** for members and for capacity: the UI shows **Rides there** and **Rides back** as **separate** sections. A member may be in **at most one car for the outbound leg** and **at most one car for the return leg** (different cars allowed per leg). |
-| FR-9  | **Any event member** may: **create a car** with themselves **or another member** as driver; **add** themselves or another member as a **passenger** on a car (subject to capacity and FR-7/FR-8); **remove** themselves or another member from a car; **delete** a car, after **explicit confirmation** in the UI (destructive action).                                                                                                                                |
-| FR-10 | **Admins** (`creator` / `admin` per `EventMemberRole`) may **define custom fields** on the rides board (**text**, **number**, **boolean**) and **remove** custom field definitions. Admins may also **hide** (disable) **irrelevant built-in optional** fields so they are not shown or edited on cars (see §3.6). **Members** use the configured field set but do not change schema.                                                                                  |
-| FR-11 | The board must make **capacity obvious**: which cars have **remaining passenger seats** and which are **full** (driver + assigned passengers ≥ capacity, treating capacity as **maximum passengers**, not including the driver).                                                                                                                                                                                                                                       |
-| FR-12 | The board must show **who still needs a ride**: event members **not** assigned for the relevant **leg** (in unified mode: not driver and not passenger on any car; in split mode: separate lists or clearly labeled columns for **needs ride there** / **needs ride back** when a member is missing that leg).                                                                                                                                                         |
-| FR-13 | Cars are listed in a **manually controlled order**. Any event member may **drag and drop** to reorder cars; order is **persisted** (see §3.2 `sortOrder`).                                                                                                                                                                                                                                                                                                             |
+## 4. Domain model
 
-Sections **3–6** elaborate **data shape**, **validation**, **implementation**, and **acceptance tests**. They do **not** add requirements beyond **FR-1–FR-13**.
+### 4.1 Conceptual model
 
----
+- **Rides board**: an event-level capability flag `ridesEnabled`.
+- **Ride car**: one logical car with a driver, capacity, display metadata, and two directional “legs” (To Event / From Event).
+- **Directional leg**: the trip metadata that differs by direction (depart/arrive/from/to/notes).
+- **Seat assignment**: membership of a specific event member in a specific car for a specific direction.
 
-## 3. Domain model (proposed)
+Key invariants:
 
-> Naming is illustrative; align with existing Prisma conventions (`@map`, `onDelete`, indexes).
+- **One-car-per-direction per member** (FR-8), including drivers.
+- **Capacity** limits passengers per direction (capacity excludes driver).
+- Directional legs can be enabled independently and can share the same base car metadata.
 
-### 3.0 Modes and mode changes
+### 4.2 Proposed Prisma schema additions
 
-**Switching** `ridesMode` (unified ↔ split) is **destructive or lossy** unless a migration is defined. **v1:** allow switching **only when the board is empty**, or require **admin** confirmation with a clear warning.
+Add an event setting flag:
 
-### 3.1 Event-level rides configuration
+- `Event.ridesEnabled Boolean @default(false) @map("rides_enabled")`
 
-Persist on `Event` (preferred) **or** a 1:1 `EventRidesBoard` row:
+Introduce rides tables. Names are illustrative; follow existing snake_case mapping conventions.
 
-| Field                             | Type                                  | Description                                  |
-| --------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `ridesEnabled`                    | `Boolean`                             | FR-1                                         |
-| `ridesMode`                       | enum `RIDES_UNIFIED` \| `RIDES_SPLIT` | FR-2                                         |
-| `ridesBoardVersion` / `updatedAt` | optional                              | optimistic concurrency (future); v1 can omit |
+Enums:
 
-### 3.2 Car
+- `enum RideDirection { TO_EVENT FROM_EVENT }`
 
-| Field                            | Type                                      | Notes                                                                                                         |
-| -------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `id`                             | UUID                                      | Primary key                                                                                                   |
-| `eventId`                        | FK → `Event`                              | Cascade delete with event                                                                                     |
-| `driverEventMemberId`            | FK → `EventMember`                        | FR-6; must belong to same `eventId`                                                                           |
-| `passengerCapacity`              | `Int`                                     | FR-3, ≥ 0                                                                                                     |
-| `direction`                      | enum `BOTH` \| `TO_EVENT` \| `FROM_EVENT` | FR-8; when `ridesMode === UNIFIED`, store `BOTH` and ignore for uniqueness (use `leg` on passengers—see §3.4) |
-| `sortOrder`                      | `Int`                                     | FR-13; stable ordering after DnD (gapless or fractional—implementation detail)                                |
-| **Optional built-ins**           | nullable strings / datetimes              | Per §3.3; make/model, fun name, notes; departure location; datetimes                                          |
-| **Per-field timezone overrides** | optional strings (IANA)                   | §5.2; null = event default                                                                                    |
+Models:
 
-**Indexes:** `[eventId]`, `[eventId, direction]` (split), `[eventId, sortOrder]` (listing).
+- `EventRideCar`
+  - `id String @id @default(uuid())`
+  - `eventId String @map("event_id")`
+  - `driverEventMemberId String @map("driver_event_member_id")`
+  - `passengerCapacity Int @map("passenger_capacity")` (>= 0; excludes driver)
+  - `makeModel String? @map("make_model")`
+  - `funName String? @map("fun_name")`
+  - `toEventEnabled Boolean @default(false) @map("to_event_enabled")`
+  - `fromEventEnabled Boolean @default(false) @map("from_event_enabled")`
+  - `toEventFrom String? @map("to_event_from")`
+  - `toEventDepartsAt DateTime? @map("to_event_departs_at")`
+  - `toEventArrivesAt DateTime? @map("to_event_arrives_at")`
+  - `toEventNotes String? @map("to_event_notes")`
+  - `fromEventTo String? @map("from_event_to")`
+  - `fromEventDepartsAt DateTime? @map("from_event_departs_at")`
+  - `fromEventArrivesAt DateTime? @map("from_event_arrives_at")`
+  - `fromEventNotes String? @map("from_event_notes")`
+  - `createdAt DateTime @default(now()) @map("created_at")`
+  - `updatedAt DateTime @updatedAt @map("updated_at")`
+  - Relations:
+    - `event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)`
+    - `driver EventMember @relation(fields: [driverEventMemberId], references: [id], onDelete: Cascade)`
+    - `seats EventRideSeat[]`
+  - Indexes:
+    - `@@index([eventId])`
+    - `@@index([eventId, driverEventMemberId])`
+    - `@@map("event_ride_cars")`
 
-### 3.3 Built-in optional fields (direction)
+- `EventRideSeat`
+  - `id String @id @default(uuid())`
+  - `eventId String @map("event_id")` (denormalized for fast unique constraints)
+  - `carId String @map("car_id")`
+  - `eventMemberId String @map("event_member_id")`
+  - `direction RideDirection`
+  - `createdAt DateTime @default(now()) @map("created_at")`
+  - Relations:
+    - `car EventRideCar @relation(fields: [carId], references: [id], onDelete: Cascade)`
+    - `eventMember EventMember @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)`
+  - Constraints:
+    - `@@unique([eventId, eventMemberId, direction])` (enforces FR-8)
+    - `@@index([carId, direction])`
+    - `@@map("event_ride_seats")`
 
-Cars store nullable columns for: **departure location**; **departure datetime** (toward event); **expected arrival at event**; **departure from event** datetime; **expected arrival home**; **returning-to** (destination). Which inputs appear in the UI depends on **`ridesMode`** and the car’s **`direction`** (FR-2, FR-8); omit or read-only where a leg does not apply (e.g. return-only car: no “arrival at event” requirement unless product says otherwise).
+#### Why `EventRideSeat` is needed
 
-**`BOTH` cars in split mode:** do not require duplicate stored values for one logical fact; if one UI section collects “home arrival,” store once and surface in both sections as needed—the model must not force contradictory duplicates.
+The “one car per direction” constraint is simplest and safest as a database uniqueness rule on `(eventId, memberId, direction)`. It also naturally supports “needs ride” queries by direction.
 
-### 3.4 Passenger assignments
+### 4.3 Derived display name
 
-Separate join table (recommended), e.g. `EventRidePassenger`:
+`displayName(car)` (client derived; not stored):
 
-| Field           | Type                                         | Notes                                                         |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------- |
-| `id`            | UUID                                         |                                                               |
-| `carId`         | FK                                           | Cascade with car                                              |
-| `eventMemberId` | FK → `EventMember`                           | Same event as car                                             |
-| `leg`           | enum `UNIFIED` \| `TO_EVENT` \| `FROM_EVENT` | Unified: `UNIFIED`. Split: `TO_EVENT` / `FROM_EVENT` for FR-8 |
+1. If `funName` present → use it.
+2. Else if `makeModel` present → `"{driverFirstName}’s {makeModel}"`
+3. Else → `"{driverFirstName}’s car"`
 
-**Uniqueness:** unified: at most one row per `(eventMemberId)` with `leg = UNIFIED` (e.g. `@@unique([eventMemberId, leg])` or partial unique index). Split: at most one row per `(eventMemberId, leg)` for `leg ∈ {TO_EVENT, FROM_EVENT}`.
+Note: driver display name should come from the associated `User.name` for the driver’s `EventMember`.
 
-**Alternative** `toCarId` / `fromCarId` on `EventMember`: simpler reads, weaker normalization—**prefer join table**.
+## 5. Timezone behavior
 
-### 3.5 Admin-configurable field definitions
+### 5.1 Storage
 
-`EventRideCustomFieldDefinition`: `id`, `eventId`, `label`, `type` enum `TEXT` \| `NUMBER` \| `BOOLEAN` (FR-10), `sortOrder`, `required` (default false unless product dictates).
+- Store times as `DateTime` in Postgres (timestamptz) and treat them as **absolute instants**.
+- The event has a default IANA timezone (`Event.timezone`) used as the default display/edit zone.
 
-`EventRideCustomFieldValue`: `id`, `fieldDefinitionId` (cascade on definition delete), `carId`, typed value columns or validated JSON—pick one; Prisma often uses nullable typed columns + SQL check constraint.
+### 5.2 Display + editing
 
-**v1:** deleting a definition **cascades** values.
+- Default timezone selection for the rides board is `Event.timezone`.
+- Users may change a **timezone selector** in the rides UI; this affects:
+  - How times are displayed in rows and expanded details
+  - How date/time inputs interpret typed values
+- Persistence of the user’s chosen timezone:
+  - v1: store in **client local storage** keyed by `eventId` (fast, no schema changes).
+  - Optional later: store as a per-user-per-event preference.
 
-### 3.6 Built-in field visibility
+## 6. UI / UX specification
 
-Do **not** drop DB columns. Store per-event hidden keys (JSON enum list or bitflags): `MAKE_MODEL`, `FUN_NAME`, `NOTES`, `DEPARTURE_LOCATION`, … Members’ forms **omit** hidden fields. On re-enable, keep or clear stale values—product choice; note in release notes.
+### 6.1 Navigation and settings
 
----
+- **Event Settings** (admins only) includes a toggle:
+  - **Enable rides** → sets `Event.ridesEnabled = true`
+  - **Disable rides** → sets `Event.ridesEnabled = false`
+- When `ridesEnabled === true`, show a **Rides** tab in the event UI.
+- When disabled, hide the tab. Data retention:
+  - v1: disabling rides **does not delete** cars or sign-ups; it only hides UI and blocks rides endpoints (see §7). Re-enabling restores previous state.
+  - UI copy should warn that disabling hides rides coordination.
 
-## 4. Business rules and validation
+### 6.2 Rides board layout
 
-**Authorization:** follows **FR-1**, **FR-9**, **FR-10**—**server-side** via `EventMember` for actor and targets on the same `eventId`. Admins: enable/disable rides, mode, custom fields, hidden built-ins. Any member: view (when enabled), car CRUD, passengers, driver changes, reorder, delete car (with confirm).
+The rides board has two main sections:
 
-### 4.1 Capacity (FR-3, FR-11)
+- **To Event**
+  - Cars list (table)
+  - “Needs a ride” list (members not assigned to any To Event car, and not driving a To Event car)
+- **From Event**
+  - Cars list (table)
+  - “Needs a ride” list for From Event
 
-- **`passengerCapacity`:** max **passenger** seats (**0** = driver-only, full for passengers immediately).
-- **Occupied:** **unified** — count all passenger rows on the car. **Split** — when validating or displaying a leg, count passenger rows on that car with that `leg` (`TO_EVENT` or `FROM_EVENT`). **Remaining** = `passengerCapacity − occupied`, clamped ≥ 0 for display.
-- **Driver** does not consume a passenger seat. Same `EventMember` must **not** be both driver and passenger on the **same** car.
-- Reject new passenger if `occupied >= passengerCapacity`. Prefer **reject** (clear error) if lowering capacity below current occupancy.
+Each car renders as a **single row** in the table for that direction, with:
 
-### 4.2 Car display name (FR-4)
+- **Car / Driver**: display name + driver name
+- **From / To**: per direction (To Event shows “From”; From Event shows “To”)
+- **Departs / Arrives**
+- **Passengers**: seat avatars indicating filled vs open seats (capacity), matching the reference screenshot’s “filled/open seats at a glance”
+- **Actions**: sign up / manage menu (expand row or inline controls)
 
-Let `driverName` be the driver’s display name (same as Members tab).
+Expanding the row reveals:
 
-1. Fun car name present → use it.
-2. Else make/model → `{driverName}’s {makeModel}` (apostrophe per app typography).
-3. Else → `{driverName}’s car`.
+- Passenger name list (for that direction)
+- Directional notes
+- Controls to add/remove passengers (self or other member)
+- Controls to edit car info (see §6.4)
 
-### 4.3 Driver change
+Reference UI: see attached screenshot asset at `assets/Screenshot_2026-04-15_at_1.38.03_PM-930c8965-8f63-4563-a873-297d5c82cecf.png`.
 
-- New driver must be an event member. If they are a passenger on **this** car: **reject** (simpler than auto-clear).
-- If they are a passenger on **another** car (same leg in split): **reject** in v1 (no auto-remove).
+### 6.3 “Needs a ride” definition
 
-### 4.4 Membership removal
+For a given direction \(d\):
 
-If an `EventMember` leaves the event:
+- A member **has a ride** if either:
+  - They are the driver of a car with that direction enabled, or
+  - They have an `EventRideSeat` row for \(d\)
+- “Needs a ride” list is:
+  - `all event members` minus `members who have a ride for d`
 
-- **Driver:** do not null the driver. **Recommendation:** **block** removal until they are not driving any car (UI → Rides); admin may **delete** those cars first (any member can delete a car).
-- **Passenger rows:** `onDelete: Cascade` from `EventMember` or delete in the same transaction.
+If the product later needs “opting out / I don’t need a ride”, add an explicit per-member-per-direction status (out of scope for v1).
 
-### 4.5 “Needs a ride” (FR-12)
+### 6.4 Add Car / Edit Car flow
 
-Per relevant **leg**: **driver** on a car whose `direction` covers that leg counts as covered; **passenger** row on that leg on such a car counts. Everyone else appears on the **needs ride** list for that leg. **Unified:** one list.
+- **Add Car** button is visible to any event member.
+- The create/edit form includes:
+  - Base info: Driver (event member), passenger capacity, make/model, fun name
+  - Two tabs:
+    - **To Event Info**: enabled toggle + from/departs/arrives/notes
+    - **From Event Info**: enabled toggle + to/departs/arrives/notes
+- Validation:
+  - Capacity must be an integer >= 0
+  - Driver must be an event member
+  - At least one direction should be enabled for a newly created car (otherwise the car is not visible anywhere)
+- Conflict handling:
+  - If setting the driver for a direction would violate FR-8 (driver already assigned for that direction), show a clear error and do not save.
 
----
+### 6.5 Delete semantics
 
-## 5. Implementation notes
+Deletion is confirmation-gated.
 
-### 5.1 Split UI layout
+Two user intents exist:
 
-**Getting there** vs **Heading home:** list cars whose `direction` is in `{BOTH, TO_EVENT}` vs `{BOTH, FROM_EVENT}`. `BOTH` cars appear in **both** (same `carId`) with **leg-specific** passenger controls. Sort by **`sortOrder`** in each list; dragging in one section updates **global** order.
+1. **Delete the entire car**: removes the `EventRideCar` row and all `EventRideSeat` rows.
+2. **Delete one direction** (e.g. “remove To Event leg”):
+   - Clears the leg fields for that direction, sets that direction enabled flag to false
+   - Deletes all seats for that direction (including driver’s implicit “has a ride” status comes from being the driver; driver remains the driver of the car but no longer “has a ride” for that direction because the direction is disabled)
+   - If both directions are now disabled, delete the whole car
 
-### 5.2 Timezones (FR-5)
+When a user deletes one direction and the other is enabled, prompt:
 
-Store **timestamptz** (UTC). Default zone = `Event.timezone`. Optional per-car or per-field IANA strings; on write, wall time + zone → UTC.
+- “Also delete the other direction?” (FR-10)
 
----
+### 6.6 Passenger sign-up / removal
 
-## 6. Acceptance criteria (testable)
+Operations:
 
-1. Rides **off** → **no** Rides tab (or equivalent).
-2. **Unified:** passenger on car B **fails** if already driver or passenger on car A.
-3. **Split:** same member may be outbound on A and return on B; **cannot** be on two outbound cars.
-4. **Capacity 0:** car **full** for passengers; no passenger adds.
-5. Display name matches §4.2 for all three branches.
-6. **Needs ride** updates when the last assignment for a leg is removed.
-7. Non-members cannot read or mutate rides (same as event access).
-8. **Delete car:** UI confirmation; server rejects unauthenticated / non-member.
-9. Non-admin cannot set `ridesEnabled`.
-10. After DnD reorder, refresh preserves **new** `sortOrder` order.
+- **Add passenger** (self or another member) to a specific car and direction
+  - Must respect uniqueness constraint (FR-8) and capacity
+- **Remove passenger** (self or another member) from a specific car and direction
 
----
+Cross-direction prompt (FR-11):
 
-## 7. Implementation checklist
+- If the car drives both directions:
+  - On add: ask whether to also add the member to the other direction, if they are not already assigned elsewhere for that direction and there is capacity.
+  - On remove: ask whether to also remove the member from the other direction if they are currently in this car for that other direction.
 
-**Server (illustrative):** `getEventRidesBoard` (config, cars, assignments, custom defs/values, derived needs-ride); `createCar` / `updateCar` / `deleteCar` (member; delete with `confirm: true` or idempotency); `addPassenger` / `removePassenger` / `setDriver`; `updateRidesSettings` (admin-only; **`ridesEnabled`** not writable by members); `reorderCars`; `upsertCustomFieldDefinition` / `deleteCustomFieldDefinition` (admin). Structured errors, e.g. `CAPACITY_FULL`, `DUPLICATE_LEG_ASSIGNMENT`, `INVALID_DIRECTION`, `TARGET_NOT_MEMBER`, `FIELD_HIDDEN`.
+## 7. APIs and server responsibilities
 
-**Out of scope for v1:** audit/activity logs; realtime collab (server actions + revalidate is enough).
+### 7.1 Authorization
 
-- [ ] Prisma models + migration + indexes/uniques for leg assignments.
-- [ ] Server-side validation (capacity, uniqueness, direction vs mode).
-- [ ] `EventDetailClient` Rides tab + section components.
-- [ ] Admin UI: custom fields, hide built-ins, enable/disable rides, board mode.
-- [ ] DnD car ordering + reorder mutation.
-- [ ] Tests: uniqueness, capacity, mode switch constraints, membership cascade, sort persistence.
+All rides endpoints require:
+
+- Caller is signed in and is an `EventMember` for the event (consistent with “choose a member from the event” flows).
+- Additionally, `Event.ridesEnabled === true` for read and write (except admin can toggle enable/disable).
+
+Settings:
+
+- Toggle rides enable/disable: admins only (reuse existing `canManageEvent` semantics from roles spec).
+
+Cars and seats:
+
+- Any event member can create/update/delete cars and add/remove passengers (per FR-9, FR-11).
+
+### 7.2 Proposed server actions / routes (illustrative)
+
+- `setEventRidesEnabled(eventId, enabled)` (admin only)
+- `listEventRides(eventId)` → returns cars + seats + enough member info to render driver/passenger names and avatars
+- `createRideCar(eventId, payload)` / `updateRideCar(carId, payload)` / `deleteRideCar(carId)`
+- `disableRideCarDirection(carId, direction)` (direction delete semantics, §6.5)
+- `addRideSeat(eventId, carId, direction, eventMemberId)` / `removeRideSeat(eventId, carId, direction, eventMemberId)`
+
+### 7.3 Server-side validation (must be enforced server-side)
+
+- Reject all mutations if rides are disabled for the event.
+- **FR-8** uniqueness: rely on DB constraint and map unique-violation errors to a user-friendly message (“That member is already in another car for To Event/From Event.”).
+- Capacity: enforce `count(seats where carId+direction) <= passengerCapacity`.
+- Driver membership: ensure `driverEventMemberId` belongs to the same event.
+- Visibility: only return rides data to event members.
+
+## 8. Queries and performance
+
+Recommended read pattern for the board:
+
+- Query `EventRideCar` by `eventId` including:
+  - driver `EventMember` → `User` (name/avatar)
+  - seats filtered/grouped by direction, including passenger `EventMember` → `User`
+- Indexing listed in §4.2 should support:
+  - Listing cars per event
+  - Listing seats per car+direction
+  - “Needs a ride” computation using `EventRideSeat` uniqueness + “drivers in enabled cars” sets
+
+## 9. Migration
+
+1. Add `Event.ridesEnabled` column (default false).
+2. Create tables `event_ride_cars` and `event_ride_seats`.
+3. No backfill required for existing events.
+
+## 10. Testing
+
+- **Unit**
+  - `displayName` fallback logic
+  - “needs ride” computation per direction
+  - validation: capacity bounds, driver belongs to event
+- **Integration**
+  - uniqueness (member can’t be added to two cars for same direction)
+  - capacity enforcement (can’t exceed passengerCapacity)
+  - direction delete semantics clears seats for that direction and optionally deletes car when both disabled
+  - rides disabled blocks reads/writes (except toggling by admins)
+- **E2E**
+  - create car with both legs, sign up passenger, cross-direction prompt behavior, remove passenger with cross-direction prompt
+  - two lists (To Event / From Event) render correctly and expand shows details
+
+## 11. Rollout notes
+
+- Ship schema + server-side authorization/validation before UI.
+- Add the Settings toggle (admins only), then Rides tab gated by `ridesEnabled`.
+- Consider feature-flagging in addition to `ridesEnabled` if a staged rollout is desired.
