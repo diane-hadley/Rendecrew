@@ -116,6 +116,7 @@ export default async function EventDetailPage({
           memberManagementPolicy: event.memberManagementPolicy,
           packingListVisibility: event.packingListVisibility,
           suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
+          ridesEnabled: event.ridesEnabled,
         }}
         membersInitial={membersInitial}
       />

@@ -1,0 +1,588 @@
+"use server";
+
+import { RideCarDirection, RidePassengerLeg } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { getEventForUser } from "@/lib/events";
+import { prisma } from "@/lib/prisma";
+import { getOrCreateUser } from "@/lib/user";
+
+export type RideMemberListItem = {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+};
+
+export type RidePassenger = {
+  membershipId: string;
+  userId: string;
+  name: string;
+};
+
+export type RideCarRow = {
+  id: string;
+  eventId: string;
+  driver: RideMemberListItem;
+  passengerCapacity: number;
+  direction: RideCarDirection;
+  makeModel: string | null;
+  funName: string | null;
+  notes: string | null;
+  toEvent: {
+    from: string | null;
+    departsAt: string | null;
+    arrivesAt: string | null;
+  };
+  fromEvent: {
+    to: string | null;
+    departsAt: string | null;
+    arrivesAt: string | null;
+  };
+  passengers: {
+    TO_EVENT: RidePassenger[];
+    FROM_EVENT: RidePassenger[];
+  };
+};
+
+export type ListEventRidesResult =
+  | {
+      ok: true;
+      event: { id: string; timezone: string };
+      cars: RideCarRow[];
+    }
+  | { ok: false; error: string };
+
+function carCoversLeg(
+  direction: RideCarDirection,
+  leg: RidePassengerLeg,
+): boolean {
+  if (leg === RidePassengerLeg.UNIFIED) return false;
+  if (direction === RideCarDirection.BOTH) return true;
+  if (direction === RideCarDirection.TO_EVENT)
+    return leg === RidePassengerLeg.TO_EVENT;
+  return leg === RidePassengerLeg.FROM_EVENT;
+}
+
+function directionCoversLeg(
+  direction: RideCarDirection,
+  leg: RidePassengerLeg,
+): boolean {
+  return carCoversLeg(direction, leg);
+}
+
+async function requireEventMember(eventId: string) {
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(eventId, user.id);
+  if (!row) return { ok: false as const, error: "Event not found" };
+  return { ok: true as const, user, row };
+}
+
+async function requireRidesEnabled(eventId: string) {
+  const r = await requireEventMember(eventId);
+  if (!r.ok) return r;
+  if (!r.row.event.ridesEnabled) {
+    return { ok: false as const, error: "Rides are disabled for this event" };
+  }
+  return r;
+}
+
+function toIso(d: Date | null): string | null {
+  return d ? d.toISOString() : null;
+}
+
+export async function listEventRides(
+  eventId: string,
+): Promise<ListEventRidesResult> {
+  const r = await requireRidesEnabled(eventId);
+  if (!r.ok) return r;
+
+  const cars = await prisma.eventRideCar.findMany({
+    where: { eventId },
+    orderBy: [{ sort_order: "asc" }, { createdAt: "asc" }],
+    include: {
+      driver: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+      },
+      event_ride_passengers: {
+        include: {
+          event_members: {
+            include: {
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return {
+    ok: true,
+    event: { id: eventId, timezone: r.row.event.timezone },
+    cars: cars.map((c) => {
+      const passengersTo: RidePassenger[] = [];
+      const passengersFrom: RidePassenger[] = [];
+      for (const p of c.event_ride_passengers) {
+        if (p.leg === RidePassengerLeg.TO_EVENT) {
+          passengersTo.push({
+            membershipId: p.event_members.id,
+            userId: p.event_members.user.id,
+            name: p.event_members.user.name,
+          });
+        } else if (p.leg === RidePassengerLeg.FROM_EVENT) {
+          passengersFrom.push({
+            membershipId: p.event_members.id,
+            userId: p.event_members.user.id,
+            name: p.event_members.user.name,
+          });
+        }
+      }
+
+      return {
+        id: c.id,
+        eventId: c.eventId,
+        driver: {
+          membershipId: c.driver.id,
+          userId: c.driver.user.id,
+          name: c.driver.user.name,
+          email: c.driver.user.email,
+        },
+        passengerCapacity: c.passengerCapacity,
+        direction: c.direction,
+        makeModel: c.makeModel,
+        funName: c.funName,
+        notes: c.notes,
+        toEvent: {
+          from: c.departure_location,
+          departsAt: toIso(c.departure_toward_event_at),
+          arrivesAt: toIso(c.expected_arrival_at_event_at),
+        },
+        fromEvent: {
+          to: c.returning_to,
+          departsAt: toIso(c.departure_from_event_at),
+          arrivesAt: toIso(c.expected_arrival_home_at),
+        },
+        passengers: {
+          TO_EVENT: passengersTo,
+          FROM_EVENT: passengersFrom,
+        },
+      } satisfies RideCarRow;
+    }),
+  };
+}
+
+export type UpsertRideCarInput = {
+  eventId: string;
+  carId?: string;
+  driverEventMemberId: string;
+  passengerCapacity: number;
+  direction: RideCarDirection;
+  makeModel?: string | null;
+  funName?: string | null;
+  notes?: string | null;
+  toEvent?: {
+    from?: string | null;
+    departsAt?: Date | string | null;
+    arrivesAt?: Date | string | null;
+  };
+  fromEvent?: {
+    to?: string | null;
+    departsAt?: Date | string | null;
+    arrivesAt?: Date | string | null;
+  };
+};
+
+export type UpsertRideCarResult =
+  | { ok: true; carId: string }
+  | { ok: false; error: string };
+
+function normalizeCapacity(n: unknown): number | null {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v) || !Number.isInteger(v) || v < 0) return null;
+  return v;
+}
+
+function normalizeText(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+}
+
+async function assertDriverAllowedForDirection(params: {
+  eventId: string;
+  carId?: string;
+  driverEventMemberId: string;
+  direction: RideCarDirection;
+}): Promise<string | null> {
+  const legs: RidePassengerLeg[] =
+    params.direction === RideCarDirection.BOTH
+      ? [RidePassengerLeg.TO_EVENT, RidePassengerLeg.FROM_EVENT]
+      : params.direction === RideCarDirection.TO_EVENT
+        ? [RidePassengerLeg.TO_EVENT]
+        : [RidePassengerLeg.FROM_EVENT];
+
+  for (const leg of legs) {
+    const otherDriving = await prisma.eventRideCar.findFirst({
+      where: {
+        eventId: params.eventId,
+        id: params.carId ? { not: params.carId } : undefined,
+        driverEventMemberId: params.driverEventMemberId,
+        OR: [
+          { direction: RideCarDirection.BOTH },
+          {
+            direction:
+              leg === RidePassengerLeg.TO_EVENT
+                ? RideCarDirection.TO_EVENT
+                : RideCarDirection.FROM_EVENT,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (otherDriving) {
+      return `That member is already driving another car for ${leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`;
+    }
+
+    const alreadyPassenger = await prisma.event_ride_passengers.findFirst({
+      where: { event_member_id: params.driverEventMemberId, leg },
+      select: { id: true },
+    });
+    if (alreadyPassenger) {
+      return `That member is already in another car for ${leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`;
+    }
+  }
+
+  return null;
+}
+
+export async function upsertRideCar(
+  input: UpsertRideCarInput,
+): Promise<UpsertRideCarResult> {
+  const r = await requireRidesEnabled(input.eventId);
+  if (!r.ok) return r;
+
+  const cap = normalizeCapacity(input.passengerCapacity);
+  if (cap == null)
+    return { ok: false, error: "Passenger capacity must be an integer ≥ 0" };
+
+  if (input.direction === RideCarDirection.BOTH) {
+    // ok
+  } else if (
+    input.direction !== RideCarDirection.TO_EVENT &&
+    input.direction !== RideCarDirection.FROM_EVENT
+  ) {
+    return { ok: false, error: "Choose at least one direction for the car" };
+  }
+
+  const driverMember = await prisma.eventMember.findFirst({
+    where: { id: input.driverEventMemberId, eventId: input.eventId },
+    select: { id: true },
+  });
+  if (!driverMember)
+    return { ok: false, error: "Driver must be a member of this event" };
+
+  const driverErr = await assertDriverAllowedForDirection({
+    eventId: input.eventId,
+    carId: input.carId,
+    driverEventMemberId: input.driverEventMemberId,
+    direction: input.direction,
+  });
+  if (driverErr) return { ok: false, error: driverErr };
+
+  if (input.carId) {
+    const existing = await prisma.eventRideCar.findFirst({
+      where: { id: input.carId, eventId: input.eventId },
+      include: { event_ride_passengers: true },
+    });
+    if (!existing) return { ok: false, error: "Car not found" };
+
+    const legsToCheck: RidePassengerLeg[] =
+      input.direction === RideCarDirection.BOTH
+        ? [RidePassengerLeg.TO_EVENT, RidePassengerLeg.FROM_EVENT]
+        : input.direction === RideCarDirection.TO_EVENT
+          ? [RidePassengerLeg.TO_EVENT]
+          : [RidePassengerLeg.FROM_EVENT];
+
+    for (const leg of legsToCheck) {
+      const count = existing.event_ride_passengers.filter(
+        (p) => p.leg === leg,
+      ).length;
+      if (count > cap) {
+        return {
+          ok: false,
+          error: `Passenger capacity cannot be less than current sign-ups (${count}) for ${leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`,
+        };
+      }
+    }
+
+    const updated = await prisma.eventRideCar.update({
+      where: { id: input.carId },
+      data: {
+        driverEventMemberId: input.driverEventMemberId,
+        passengerCapacity: cap,
+        direction: input.direction,
+        makeModel: normalizeText(input.makeModel),
+        funName: normalizeText(input.funName),
+        notes: normalizeText(input.notes),
+        departure_location: normalizeText(input.toEvent?.from),
+        departure_toward_event_at: input.toEvent?.departsAt
+          ? new Date(input.toEvent.departsAt as any)
+          : null,
+        expected_arrival_at_event_at: input.toEvent?.arrivesAt
+          ? new Date(input.toEvent.arrivesAt as any)
+          : null,
+        returning_to: normalizeText(input.fromEvent?.to),
+        departure_from_event_at: input.fromEvent?.departsAt
+          ? new Date(input.fromEvent.departsAt as any)
+          : null,
+        expected_arrival_home_at: input.fromEvent?.arrivesAt
+          ? new Date(input.fromEvent.arrivesAt as any)
+          : null,
+      },
+      select: { id: true },
+    });
+
+    revalidatePath(`/dashboard/events/${input.eventId}`);
+    return { ok: true, carId: updated.id };
+  }
+
+  const created = await prisma.eventRideCar.create({
+    data: {
+      eventId: input.eventId,
+      driverEventMemberId: input.driverEventMemberId,
+      passengerCapacity: cap,
+      direction: input.direction,
+      makeModel: normalizeText(input.makeModel),
+      funName: normalizeText(input.funName),
+      notes: normalizeText(input.notes),
+      departure_location: normalizeText(input.toEvent?.from),
+      departure_toward_event_at: input.toEvent?.departsAt
+        ? new Date(input.toEvent.departsAt as any)
+        : null,
+      expected_arrival_at_event_at: input.toEvent?.arrivesAt
+        ? new Date(input.toEvent.arrivesAt as any)
+        : null,
+      returning_to: normalizeText(input.fromEvent?.to),
+      departure_from_event_at: input.fromEvent?.departsAt
+        ? new Date(input.fromEvent.departsAt as any)
+        : null,
+      expected_arrival_home_at: input.fromEvent?.arrivesAt
+        ? new Date(input.fromEvent.arrivesAt as any)
+        : null,
+    },
+    select: { id: true },
+  });
+
+  revalidatePath(`/dashboard/events/${input.eventId}`);
+  return { ok: true, carId: created.id };
+}
+
+export type DeleteRideCarResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteRideCar(
+  eventId: string,
+  carId: string,
+): Promise<DeleteRideCarResult> {
+  const r = await requireRidesEnabled(eventId);
+  if (!r.ok) return r;
+
+  const car = await prisma.eventRideCar.findFirst({
+    where: { id: carId, eventId },
+    select: { id: true },
+  });
+  if (!car) return { ok: false, error: "Car not found" };
+
+  await prisma.eventRideCar.delete({ where: { id: carId } });
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true };
+}
+
+export async function disableRideCarLeg(params: {
+  eventId: string;
+  carId: string;
+  leg: "TO_EVENT" | "FROM_EVENT";
+}): Promise<DeleteRideCarResult> {
+  const r = await requireRidesEnabled(params.eventId);
+  if (!r.ok) return r;
+
+  const leg =
+    params.leg === "TO_EVENT"
+      ? RidePassengerLeg.TO_EVENT
+      : RidePassengerLeg.FROM_EVENT;
+
+  const car = await prisma.eventRideCar.findFirst({
+    where: { id: params.carId, eventId: params.eventId },
+    select: { id: true, direction: true },
+  });
+  if (!car) return { ok: false, error: "Car not found" };
+  if (!directionCoversLeg(car.direction, leg))
+    return { ok: false, error: "That car does not drive this direction" };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.event_ride_passengers.deleteMany({
+      where: { car_id: params.carId, leg },
+    });
+
+    if (car.direction === RideCarDirection.BOTH) {
+      const nextDirection =
+        leg === RidePassengerLeg.TO_EVENT
+          ? RideCarDirection.FROM_EVENT
+          : RideCarDirection.TO_EVENT;
+      await tx.eventRideCar.update({
+        where: { id: params.carId },
+        data:
+          leg === RidePassengerLeg.TO_EVENT
+            ? {
+                direction: nextDirection,
+                departure_location: null,
+                departure_toward_event_at: null,
+                expected_arrival_at_event_at: null,
+              }
+            : {
+                direction: nextDirection,
+                returning_to: null,
+                departure_from_event_at: null,
+                expected_arrival_home_at: null,
+              },
+      });
+      return;
+    }
+
+    // Only one direction existed; deleting that direction deletes the car.
+    await tx.eventRideCar.delete({ where: { id: params.carId } });
+  });
+
+  revalidatePath(`/dashboard/events/${params.eventId}`);
+  return { ok: true };
+}
+
+export type MutateRidePassengerResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+async function assertPassengerAllowed(params: {
+  eventId: string;
+  carId: string;
+  leg: RidePassengerLeg;
+  eventMemberId: string;
+}): Promise<string | null> {
+  if (params.leg === RidePassengerLeg.UNIFIED) return "Invalid direction";
+
+  const car = await prisma.eventRideCar.findFirst({
+    where: { id: params.carId, eventId: params.eventId },
+    select: {
+      id: true,
+      direction: true,
+      passengerCapacity: true,
+      driverEventMemberId: true,
+      event_ride_passengers: {
+        where: { leg: params.leg },
+        select: { id: true },
+      },
+    },
+  });
+  if (!car) return "Car not found";
+  if (!carCoversLeg(car.direction, params.leg))
+    return "That car does not drive this direction";
+  if (car.driverEventMemberId === params.eventMemberId) {
+    return "Drivers are already assigned to their own car for this direction.";
+  }
+
+  const member = await prisma.eventMember.findFirst({
+    where: { id: params.eventMemberId, eventId: params.eventId },
+    select: { id: true },
+  });
+  if (!member) return "That member is not part of this event";
+
+  const otherDriving = await prisma.eventRideCar.findFirst({
+    where: {
+      eventId: params.eventId,
+      driverEventMemberId: params.eventMemberId,
+      OR: [
+        { direction: RideCarDirection.BOTH },
+        {
+          direction:
+            params.leg === RidePassengerLeg.TO_EVENT
+              ? RideCarDirection.TO_EVENT
+              : RideCarDirection.FROM_EVENT,
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  if (otherDriving) {
+    return `That member is already driving another car for ${params.leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`;
+  }
+
+  const count = car.event_ride_passengers.length;
+  if (count >= car.passengerCapacity) {
+    return "That car is full.";
+  }
+
+  return null;
+}
+
+export async function addRidePassenger(params: {
+  eventId: string;
+  carId: string;
+  leg: "TO_EVENT" | "FROM_EVENT";
+  eventMemberId: string;
+}): Promise<MutateRidePassengerResult> {
+  const r = await requireRidesEnabled(params.eventId);
+  if (!r.ok) return r;
+
+  const leg =
+    params.leg === "TO_EVENT"
+      ? RidePassengerLeg.TO_EVENT
+      : RidePassengerLeg.FROM_EVENT;
+  const err = await assertPassengerAllowed({
+    eventId: params.eventId,
+    carId: params.carId,
+    leg,
+    eventMemberId: params.eventMemberId,
+  });
+  if (err) return { ok: false, error: err };
+
+  try {
+    await prisma.event_ride_passengers.create({
+      data: {
+        id: crypto.randomUUID(),
+        car_id: params.carId,
+        event_member_id: params.eventMemberId,
+        leg,
+      },
+    });
+  } catch (e: any) {
+    if (e?.code === "P2002") {
+      return {
+        ok: false,
+        error: `That member is already in another car for ${leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`,
+      };
+    }
+    const msg = e instanceof Error ? e.message : "Failed to add passenger";
+    return { ok: false, error: msg };
+  }
+
+  revalidatePath(`/dashboard/events/${params.eventId}`);
+  return { ok: true };
+}
+
+export async function removeRidePassenger(params: {
+  eventId: string;
+  carId: string;
+  leg: "TO_EVENT" | "FROM_EVENT";
+  eventMemberId: string;
+}): Promise<MutateRidePassengerResult> {
+  const r = await requireRidesEnabled(params.eventId);
+  if (!r.ok) return r;
+
+  const leg =
+    params.leg === "TO_EVENT"
+      ? RidePassengerLeg.TO_EVENT
+      : RidePassengerLeg.FROM_EVENT;
+
+  await prisma.event_ride_passengers.deleteMany({
+    where: { car_id: params.carId, event_member_id: params.eventMemberId, leg },
+  });
+  revalidatePath(`/dashboard/events/${params.eventId}`);
+  return { ok: true };
+}

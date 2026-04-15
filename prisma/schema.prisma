@@ -1,12 +1,276 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id                         String                @id @default(uuid())
+  clerkId                    String                @unique @map("clerk_id")
+  email                      String                @unique
+  name                       String
+  createdAt                  DateTime              @default(now()) @map("created_at")
+  updatedAt                  DateTime              @default(now()) @updatedAt @map("updated_at")
+  /// * IANA timezone used as the default for new events (default: US Pacific).
+  timezone                   String                @default("America/Los_Angeles")
+  eventMembers               EventMember[]
+  createdEvents              Event[]               @relation("EventCreatedBy")
+  packingItemSignUps         PackingItemSignUp[]
+  packingSuggestionsCreated  PackingSuggestion[]   @relation("PackingSuggestionCreatedBy")
+  packingSuggestionsReviewed PackingSuggestion[]   @relation("PackingSuggestionReviewedBy")
+  personalPackingItems       PersonalPackingItem[]
+  userSuggestionStates       UserSuggestionState[]
+
+  @@map("users")
+}
+
+model Event {
+  id                                  String                                @id @default(uuid())
+  title                               String
+  /// * Markdown: itinerary, themed nights, links, and other general event info for the Overview tab.
+  generalInformation                  String?                               @map("general_information")
+  startAt                             DateTime?                             @map("start_at")
+  endAt                               DateTime?                             @map("end_at")
+  location                            String?
+  createdById                         String                                @map("created_by_id")
+  createdAt                           DateTime                              @default(now()) @map("created_at")
+  updatedAt                           DateTime                              @default(now()) @updatedAt @map("updated_at")
+  /// * When true, participant-submitted catalog ideas stay DRAFT_USER until an organizer publishes them.
+  suggestionApprovalRequired          Boolean                               @default(false) @map("suggestion_approval_required")
+  memberManagementPolicy              MemberManagementPolicy                @default(ANY_MEMBER_CAN_INVITE) @map("member_management_policy")
+  packingListVisibility               PackingListVisibility                 @default(URL_PUBLIC) @map("packing_list_visibility")
+  /// * IANA zone for interpreting start/end wall times and for display (default matches user default / app constant).
+  timezone                            String                                @default("America/Los_Angeles")
+  ridesEnabled                        Boolean                               @default(false) @map("rides_enabled")
+  rides_mode                          RidesMode                             @default(RIDES_UNIFIED)
+  rides_hidden_built_in_field_keys    String[]                              @default([])
+  eventMembers                        EventMember[]
+  rideCars                            EventRideCar[]
+  event_ride_custom_field_definitions event_ride_custom_field_definitions[]
+  createdBy                           User                                  @relation("EventCreatedBy", fields: [createdById], references: [id])
+  packingList                         PackingList?
+  packingSuggestions                  PackingSuggestion[]
+  personalPackingItems                PersonalPackingItem[]
+  userSuggestionStates                UserSuggestionState[]
+
+  @@map("events")
+}
+
+model PackingList {
+  id               String           @id @default(uuid())
+  eventId          String           @unique @map("event_id")
+  liveblocksRoomId String           @unique @map("liveblocks_room_id")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at")
+  items            PackingItem[]
+  event            Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sections         PackingSection[]
+
+  @@map("packing_lists")
+}
+
+model PackingSection {
+  id            String        @id @default(uuid())
+  packingListId String        @map("packing_list_id")
+  title         String
+  sortOrder     Int           @default(0) @map("sort_order")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  items         PackingItem[]
+  packingList   PackingList   @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+
+  @@index([packingListId])
+  @@map("packing_sections")
+}
+
+model PackingItem {
+  id               String              @id @default(uuid())
+  packingListId    String              @map("packing_list_id")
+  name             String
+  /// * Minimum (or exact when quantityMax is null).
+  quantity         Int?
+  sortOrder        Int                 @default(0) @map("sort_order")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
+  claimed_quantity Int?
+  /// * Legacy string section; superseded by `sectionId`. Cleared on save from the collaborative editor.
+  section          String?
+  /// * Upper bound inclusive; null means need exactly `quantity`.
+  quantityMax      Int?                @map("quantity_max")
+  /// * Named section bucket; null = Uncategorized.
+  sectionId        String?             @map("section_id")
+  signUps          PackingItemSignUp[]
+  packingList      PackingList         @relation(fields: [packingListId], references: [id], onDelete: Cascade)
+  packingSection   PackingSection?     @relation(fields: [sectionId], references: [id])
+
+  @@index([packingListId])
+  @@index([sectionId])
+  @@map("packing_items")
+}
+
+model PackingItemSignUp {
+  id            String      @id @default(uuid())
+  packingItemId String      @map("packing_item_id")
+  quantity      Int?
+  displayName   String      @map("display_name")
+  email         String?
+  userId        String?     @map("user_id")
+  sortOrder     Int         @default(0) @map("sort_order")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+  /// * Whether this person marked their contribution as packed (personal checklist; not edited on the shared list).
+  packed        Boolean     @default(false)
+  packingItem   PackingItem @relation(fields: [packingItemId], references: [id], onDelete: Cascade)
+  user          User?       @relation(fields: [userId], references: [id])
+
+  @@index([packingItemId])
+  @@index([email])
+  @@map("packing_item_sign_ups")
+}
+
+model EventMember {
+  id                    String                  @id @default(uuid())
+  userId                String                  @map("user_id")
+  eventId               String                  @map("event_id")
+  role                  EventMemberRole
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @default(now()) @updatedAt @map("updated_at")
+  event                 Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drivenRideCars        EventRideCar[]          @relation("RideCarDriver")
+  event_ride_passengers event_ride_passengers[]
+
+  @@unique([eventId, userId])
+  @@map("event_members")
+}
+
+model EventRideCar {
+  id                             String                           @id @default(uuid())
+  eventId                        String                           @map("event_id")
+  driverEventMemberId            String                           @map("driver_event_member_id")
+  passengerCapacity              Int                              @map("passenger_capacity")
+  direction                      RideCarDirection                 @default(BOTH)
+  sort_order                     Int                              @default(0)
+  makeModel                      String?                          @map("make_model")
+  funName                        String?                          @map("fun_name")
+  notes                          String?
+  departure_location             String?
+  departure_toward_event_at      DateTime?                        @db.Timestamptz(3)
+  expected_arrival_at_event_at   DateTime?                        @db.Timestamptz(3)
+  departure_from_event_at        DateTime?                        @db.Timestamptz(3)
+  expected_arrival_home_at       DateTime?                        @db.Timestamptz(3)
+  returning_to                   String?
+  createdAt                      DateTime                         @default(now()) @map("created_at")
+  updatedAt                      DateTime                         @updatedAt @map("updated_at")
+  driver                         EventMember                      @relation("RideCarDriver", fields: [driverEventMemberId], references: [id])
+  event                          Event                            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event_ride_custom_field_values event_ride_custom_field_values[]
+  event_ride_passengers          event_ride_passengers[]
+
+  @@index([eventId])
+  @@index([eventId, direction])
+  @@index([eventId, sort_order])
+  @@map("event_ride_cars")
+}
+
+model PersonalPackingItem {
+  id                 String             @id @default(uuid())
+  eventId            String             @map("event_id")
+  userId             String             @map("user_id")
+  name               String
+  section            String?
+  quantity           Int                @default(1)
+  sortOrder          Int                @default(0) @map("sort_order")
+  packed             Boolean            @default(false)
+  sourceSuggestionId String?            @map("source_suggestion_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sourceSuggestion   PackingSuggestion? @relation(fields: [sourceSuggestionId], references: [id])
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, userId])
+  @@map("personal_packing_items")
+}
+
+model PackingSuggestion {
+  id               String                  @id @default(uuid())
+  eventId          String                  @map("event_id")
+  name             String
+  section          String?
+  defaultQuantity  Int?                    @map("default_quantity")
+  status           PackingSuggestionStatus
+  createdByUserId  String                  @map("created_by_user_id")
+  reviewedByUserId String?                 @map("reviewed_by_user_id")
+  reviewedAt       DateTime?               @map("reviewed_at")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  createdBy        User                    @relation("PackingSuggestionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  event            Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reviewedBy       User?                   @relation("PackingSuggestionReviewedBy", fields: [reviewedByUserId], references: [id])
+  personalCopies   PersonalPackingItem[]
+
+  @@index([eventId, status])
+  @@map("packing_suggestions")
+}
+
+model UserSuggestionState {
+  id                          String    @id @default(uuid())
+  userId                      String    @map("user_id")
+  eventId                     String    @map("event_id")
+  lastSeenSuggestionCatalogAt DateTime? @map("last_seen_suggestion_catalog_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
+  event                       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user                        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@map("user_suggestion_states")
+}
+
+model event_ride_custom_field_definitions {
+  id                             String                           @id
+  event_id                       String
+  label                          String
+  type                           RideCustomFieldType
+  sort_order                     Int                              @default(0)
+  required                       Boolean                          @default(false)
+  created_at                     DateTime                         @default(now())
+  updated_at                     DateTime
+  events                         Event                            @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  event_ride_custom_field_values event_ride_custom_field_values[]
+
+  @@index([event_id])
+}
+
+model event_ride_custom_field_values {
+  id                                  String                              @id
+  field_definition_id                 String
+  car_id                              String
+  text_value                          String?
+  number_value                        Float?
+  boolean_value                       Boolean?
+  created_at                          DateTime                            @default(now())
+  updated_at                          DateTime
+  event_ride_cars                     EventRideCar                        @relation(fields: [car_id], references: [id], onDelete: Cascade)
+  event_ride_custom_field_definitions event_ride_custom_field_definitions @relation(fields: [field_definition_id], references: [id], onDelete: Cascade)
+
+  @@unique([field_definition_id, car_id])
+  @@index([car_id])
+}
+
+model event_ride_passengers {
+  id              String           @id
+  car_id          String
+  event_member_id String
+  leg             RidePassengerLeg
+  event_ride_cars EventRideCar     @relation(fields: [car_id], references: [id], onDelete: Cascade)
+  event_members   EventMember      @relation(fields: [event_member_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_member_id, leg])
+  @@index([car_id])
 }
 
 enum PackingSuggestionStatus {
@@ -32,203 +296,25 @@ enum PackingListVisibility {
   MEMBERS_ONLY
 }
 
-model User {
-  id        String   @id @default(uuid())
-  clerkId   String   @unique @map("clerk_id")
-  email     String   @unique
-  name      String
-  /** IANA timezone used as the default for new events (default: US Pacific). */
-  timezone  String   @default("America/Los_Angeles")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  createdEvents        Event[]               @relation("EventCreatedBy")
-  eventMembers         EventMember[]
-  packingItemSignUps   PackingItemSignUp[]
-  personalPackingItems PersonalPackingItem[]
-  packingSuggestionsCreated PackingSuggestion[] @relation("PackingSuggestionCreatedBy")
-  packingSuggestionsReviewed  PackingSuggestion[] @relation("PackingSuggestionReviewedBy")
-  userSuggestionStates UserSuggestionState[]
-
-  // PostgreSQL table name
-  @@map("users")
+enum RideCarDirection {
+  BOTH
+  TO_EVENT
+  FROM_EVENT
 }
 
-model Event {
-  id          String   @id @default(uuid())
-  title       String
-  /** Markdown: itinerary, themed nights, links, and other general event info for the Overview tab. */
-  generalInformation String? @map("general_information")
-  startAt     DateTime? @map("start_at")
-  endAt       DateTime? @map("end_at")
-  /** IANA zone for interpreting start/end wall times and for display (default matches user default / app constant). */
-  timezone    String    @default("America/Los_Angeles")
-  location    String?
-  createdById String   @map("created_by_id")
-  /** When true, participant-submitted catalog ideas stay DRAFT_USER until an organizer publishes them. */
-  suggestionApprovalRequired Boolean @default(false) @map("suggestion_approval_required")
-  memberManagementPolicy MemberManagementPolicy @default(ANY_MEMBER_CAN_INVITE) @map("member_management_policy")
-  packingListVisibility  PackingListVisibility  @default(URL_PUBLIC) @map("packing_list_visibility")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  createdBy    User          @relation("EventCreatedBy", fields: [createdById], references: [id])
-  eventMembers EventMember[]
-  packingList  PackingList?
-  packingSuggestions PackingSuggestion[]
-  personalPackingItems PersonalPackingItem[]
-  userSuggestionStates UserSuggestionState[]
-
-  // PostgreSQL table name
-  @@map("events")
+enum RideCustomFieldType {
+  TEXT
+  NUMBER
+  BOOLEAN
 }
 
-model PackingList {
-  id               String   @id @default(uuid())
-  eventId          String   @unique @map("event_id")
-  liveblocksRoomId String   @unique @map("liveblocks_room_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  event    Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  items    PackingItem[]
-  sections PackingSection[]
-
-  @@map("packing_lists")
+enum RidePassengerLeg {
+  UNIFIED
+  TO_EVENT
+  FROM_EVENT
 }
 
-model PackingSection {
-  id            String   @id @default(uuid())
-  packingListId String   @map("packing_list_id")
-  title         String
-  sortOrder     Int      @default(0) @map("sort_order")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  packingList PackingList   @relation(fields: [packingListId], references: [id], onDelete: Cascade)
-  items       PackingItem[]
-
-  @@index([packingListId])
-  @@map("packing_sections")
-}
-
-model PackingItem {
-  id            String   @id @default(uuid())
-  packingListId String   @map("packing_list_id")
-  /** Legacy string section; superseded by `sectionId`. Cleared on save from the collaborative editor. */
-  section       String?
-  /** Named section bucket; null = Uncategorized. */
-  sectionId     String?  @map("section_id")
-  name          String
-  /** Minimum (or exact when quantityMax is null). */
-  quantity      Int?
-  /** Upper bound inclusive; null means need exactly `quantity`. */
-  quantityMax   Int?     @map("quantity_max")
-  sortOrder     Int      @default(0) @map("sort_order")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  packingList    PackingList      @relation(fields: [packingListId], references: [id], onDelete: Cascade)
-  packingSection PackingSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  signUps        PackingItemSignUp[]
-
-  @@index([packingListId])
-  @@index([sectionId])
-  @@map("packing_items")
-}
-
-model PackingItemSignUp {
-  id            String   @id @default(uuid())
-  packingItemId String   @map("packing_item_id")
-  quantity      Int?
-  /** Whether this person marked their contribution as packed (personal checklist; not edited on the shared list). */
-  packed        Boolean  @default(false)
-  displayName   String   @map("display_name")
-  email         String?
-  userId        String?  @map("user_id")
-  sortOrder     Int      @default(0) @map("sort_order")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  packingItem PackingItem @relation(fields: [packingItemId], references: [id], onDelete: Cascade)
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([packingItemId])
-  @@index([email])
-  @@map("packing_item_sign_ups")
-}
-
-model EventMember {
-  id       String   @id @default(uuid())
-  userId   String   @map("user_id")
-  eventId  String   @map("event_id")
-  role     EventMemberRole
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  // Prevents duplicate memberships - a user can only have one membership per event
-  @@unique([eventId, userId])
-  // PostgreSQL table name
-  @@map("event_members")
-}
-
-model PersonalPackingItem {
-  id                 String   @id @default(uuid())
-  eventId            String   @map("event_id")
-  userId             String   @map("user_id")
-  name               String
-  section            String?
-  quantity           Int      @default(1)
-  sortOrder          Int      @default(0) @map("sort_order")
-  packed             Boolean  @default(false)
-  sourceSuggestionId String?  @map("source_suggestion_id")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sourceSuggestion PackingSuggestion? @relation(fields: [sourceSuggestionId], references: [id], onDelete: SetNull)
-
-  @@index([eventId, userId])
-  @@map("personal_packing_items")
-}
-
-model PackingSuggestion {
-  id                String                  @id @default(uuid())
-  eventId           String                  @map("event_id")
-  name              String
-  section           String?
-  defaultQuantity   Int?                    @map("default_quantity")
-  status            PackingSuggestionStatus
-  createdByUserId   String                  @map("created_by_user_id")
-  reviewedByUserId  String?                 @map("reviewed_by_user_id")
-  reviewedAt        DateTime?               @map("reviewed_at")
-  createdAt         DateTime                @default(now()) @map("created_at")
-  updatedAt         DateTime                @updatedAt @map("updated_at")
-
-  event       Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  createdBy   User  @relation("PackingSuggestionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  reviewedBy  User? @relation("PackingSuggestionReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  personalCopies PersonalPackingItem[]
-
-  @@index([eventId, status])
-  @@map("packing_suggestions")
-}
-
-model UserSuggestionState {
-  id                           String    @id @default(uuid())
-  userId                       String    @map("user_id")
-  eventId                      String    @map("event_id")
-  lastSeenSuggestionCatalogAt  DateTime? @map("last_seen_suggestion_catalog_at")
-  createdAt                    DateTime  @default(now()) @map("created_at")
-  updatedAt                    DateTime  @updatedAt @map("updated_at")
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, eventId])
-  @@map("user_suggestion_states")
+enum RidesMode {
+  RIDES_UNIFIED
+  RIDES_SPLIT
 }

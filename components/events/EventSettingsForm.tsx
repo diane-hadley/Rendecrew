@@ -20,6 +20,7 @@ type EventSettingsFormProps = {
     memberManagementPolicy: MemberManagementPolicy;
     packingListVisibility: PackingListVisibility;
     suggestionApprovalRequired: boolean;
+    ridesEnabled: boolean;
   };
 };
 
@@ -38,6 +39,7 @@ export function EventSettingsForm({
   const [suggestionApproval, setSuggestionApproval] = useState(
     initial.suggestionApprovalRequired,
   );
+  const [ridesEnabled, setRidesEnabled] = useState(initial.ridesEnabled);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -46,10 +48,12 @@ export function EventSettingsForm({
     setMemberPolicy(initial.memberManagementPolicy);
     setPackingVis(initial.packingListVisibility);
     setSuggestionApproval(initial.suggestionApprovalRequired);
+    setRidesEnabled(initial.ridesEnabled);
   }, [
     initial.memberManagementPolicy,
     initial.packingListVisibility,
     initial.suggestionApprovalRequired,
+    initial.ridesEnabled,
   ]);
 
   function save() {
@@ -62,6 +66,7 @@ export function EventSettingsForm({
         memberManagementPolicy: memberPolicy,
         packingListVisibility: packingVis,
         suggestionApprovalRequired: suggestionApproval,
+        ridesEnabled,
       });
       if (!r.ok) {
         setError(r.error);
@@ -171,6 +176,25 @@ export function EventSettingsForm({
           <span className="text-sm text-gray-800 dark:text-gray-200">
             Require admin approval before catalog ideas from participants go
             live on the shared list.
+          </span>
+        </label>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Rides board
+        </h3>
+        <label className="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={ridesEnabled}
+            onChange={(e) => setRidesEnabled(e.target.checked)}
+            className="mt-1"
+          />
+          <span className="text-sm text-gray-800 dark:text-gray-200">
+            Enable rides coordination for this event (adds a “Rides” tab).
+            Disabling hides rides info but does not delete cars or sign-ups.
           </span>
         </label>
       </section>
