@@ -298,7 +298,7 @@ export function EventRidesBoard({
   }, [cars, members]);
 
   function openCreate(tab: DirectionId) {
-    setEditor((prev) => {
+    setEditor(() => {
       const next = emptyEditor(members, tab, defaultTimeZone);
       next.open = true;
       return next;
@@ -582,7 +582,7 @@ export function EventRidesBoard({
                             ).map((p) => (
                               <span
                                 key={p.membershipId}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+                                className="inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
                                 title={p.name}
                               >
                                 {initials(p.name)}
@@ -591,7 +591,7 @@ export function EventRidesBoard({
                             {Array.from({ length: open }).map((_, i) => (
                               <span
                                 key={`open:${i}`}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 dark:border-gray-600"
+                                className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 dark:border-gray-600"
                                 title="Open seat"
                               >
                                 +
@@ -667,7 +667,7 @@ export function EventRidesBoard({
                                 </div>
 
                                 <div className="flex flex-wrap items-end gap-3 pt-2">
-                                  <div className="min-w-[16rem]">
+                                  <div className="min-w-64">
                                     <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
                                       Add passenger
                                     </label>
@@ -782,7 +782,7 @@ export function EventRidesBoard({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800">
         <div>
           <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Rides

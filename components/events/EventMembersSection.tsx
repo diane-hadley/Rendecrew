@@ -108,7 +108,7 @@ export function EventMembersSection({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or email…"
-              className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              className="min-w-48 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             />
             <button
               type="button"

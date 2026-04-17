@@ -1,6 +1,6 @@
 "use server";
 
-import { RideCarDirection, RidePassengerLeg } from "@prisma/client";
+import { Prisma, RideCarDirection, RidePassengerLeg } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getEventForUser } from "@/lib/events";
 import { prisma } from "@/lib/prisma";
@@ -325,17 +325,17 @@ export async function upsertRideCar(
         notes: normalizeText(input.notes),
         departure_location: normalizeText(input.toEvent?.from),
         departure_toward_event_at: input.toEvent?.departsAt
-          ? new Date(input.toEvent.departsAt as any)
+          ? new Date(input.toEvent.departsAt)
           : null,
         expected_arrival_at_event_at: input.toEvent?.arrivesAt
-          ? new Date(input.toEvent.arrivesAt as any)
+          ? new Date(input.toEvent.arrivesAt)
           : null,
         returning_to: normalizeText(input.fromEvent?.to),
         departure_from_event_at: input.fromEvent?.departsAt
-          ? new Date(input.fromEvent.departsAt as any)
+          ? new Date(input.fromEvent.departsAt)
           : null,
         expected_arrival_home_at: input.fromEvent?.arrivesAt
-          ? new Date(input.fromEvent.arrivesAt as any)
+          ? new Date(input.fromEvent.arrivesAt)
           : null,
       },
       select: { id: true },
@@ -356,17 +356,17 @@ export async function upsertRideCar(
       notes: normalizeText(input.notes),
       departure_location: normalizeText(input.toEvent?.from),
       departure_toward_event_at: input.toEvent?.departsAt
-        ? new Date(input.toEvent.departsAt as any)
+        ? new Date(input.toEvent.departsAt)
         : null,
       expected_arrival_at_event_at: input.toEvent?.arrivesAt
-        ? new Date(input.toEvent.arrivesAt as any)
+        ? new Date(input.toEvent.arrivesAt)
         : null,
       returning_to: normalizeText(input.fromEvent?.to),
       departure_from_event_at: input.fromEvent?.departsAt
-        ? new Date(input.fromEvent.departsAt as any)
+        ? new Date(input.fromEvent.departsAt)
         : null,
       expected_arrival_home_at: input.fromEvent?.arrivesAt
-        ? new Date(input.fromEvent.arrivesAt as any)
+        ? new Date(input.fromEvent.arrivesAt)
         : null,
     },
     select: { id: true },
@@ -551,8 +551,11 @@ export async function addRidePassenger(params: {
         leg,
       },
     });
-  } catch (e: any) {
-    if (e?.code === "P2002") {
+  } catch (e: unknown) {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
       return {
         ok: false,
         error: `That member is already in another car for ${leg === RidePassengerLeg.TO_EVENT ? "To Event" : "From Event"}.`,

@@ -131,7 +131,7 @@ export function EventDetailClient({
               ) : (
                 <>
                   {editable ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-gray-700 dark:bg-gray-900/40">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Update the event name, schedule, location, and the
                         information everyone sees on this tab.

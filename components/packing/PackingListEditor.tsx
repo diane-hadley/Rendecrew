@@ -583,7 +583,7 @@ function ReorderSectionSortableRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-2 py-2 dark:border-gray-600 dark:bg-gray-950"
+      className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-950"
     >
       <button
         type="button"
