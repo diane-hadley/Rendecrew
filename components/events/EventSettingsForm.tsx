@@ -19,6 +19,7 @@ type EventSettingsFormProps = {
   initial: {
     memberManagementPolicy: MemberManagementPolicy;
     packingListVisibility: PackingListVisibility;
+    packingEnabled: boolean;
     suggestionApprovalRequired: boolean;
     ridesEnabled: boolean;
   };
@@ -36,6 +37,7 @@ export function EventSettingsForm({
     initial.memberManagementPolicy,
   );
   const [packingVis, setPackingVis] = useState(initial.packingListVisibility);
+  const [packingEnabled, setPackingEnabled] = useState(initial.packingEnabled);
   const [suggestionApproval, setSuggestionApproval] = useState(
     initial.suggestionApprovalRequired,
   );
@@ -47,11 +49,13 @@ export function EventSettingsForm({
   useEffect(() => {
     setMemberPolicy(initial.memberManagementPolicy);
     setPackingVis(initial.packingListVisibility);
+    setPackingEnabled(initial.packingEnabled);
     setSuggestionApproval(initial.suggestionApprovalRequired);
     setRidesEnabled(initial.ridesEnabled);
   }, [
     initial.memberManagementPolicy,
     initial.packingListVisibility,
+    initial.packingEnabled,
     initial.suggestionApprovalRequired,
     initial.ridesEnabled,
   ]);
@@ -65,6 +69,7 @@ export function EventSettingsForm({
         eventId,
         memberManagementPolicy: memberPolicy,
         packingListVisibility: packingVis,
+        packingEnabled,
         suggestionApprovalRequired: suggestionApproval,
         ridesEnabled,
       });
@@ -159,6 +164,26 @@ export function EventSettingsForm({
             </span>
           </label>
         </fieldset>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Packing list
+        </h3>
+        <label className="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={packingEnabled}
+            onChange={(e) => setPackingEnabled(e.target.checked)}
+            className="mt-1"
+          />
+          <span className="text-sm text-gray-800 dark:text-gray-200">
+            Enable the shared packing list for this event (adds a “Packing list”
+            tab). Disabling hides packing info but does not delete the list or
+            sign-ups.
+          </span>
+        </label>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">

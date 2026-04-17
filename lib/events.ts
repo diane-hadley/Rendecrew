@@ -18,6 +18,7 @@ export type DashboardEventRow = {
     suggestionApprovalRequired: boolean;
     memberManagementPolicy: MemberManagementPolicy;
     packingListVisibility: PackingListVisibility;
+    packingEnabled: boolean;
     ridesEnabled: boolean;
     rides_mode: import("@prisma/client").RidesMode;
     rides_hidden_built_in_field_keys: string[];

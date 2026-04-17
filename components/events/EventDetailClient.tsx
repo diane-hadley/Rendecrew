@@ -17,7 +17,7 @@ import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import { useEffect, useState } from "react";
 import { EventRidesBoard } from "./rides/EventRidesBoard";
 
-const tabs = ["overview", "members", "rides", "settings"] as const;
+const tabs = ["overview", "packing", "members", "rides", "settings"] as const;
 type TabId = (typeof tabs)[number];
 
 export type EventDetailClientProps = {
@@ -52,6 +52,7 @@ export type EventDetailClientProps = {
   settings: {
     memberManagementPolicy: MemberManagementPolicy;
     packingListVisibility: PackingListVisibility;
+    packingEnabled: boolean;
     suggestionApprovalRequired: boolean;
     ridesEnabled: boolean;
   };
@@ -78,15 +79,25 @@ export function EventDetailClient({
   const [isEditing, setIsEditing] = useState(false);
 
   const roleLabel = formatEventRoleLabel(actorRole);
+  const showPackingTab =
+    settings.packingEnabled &&
+    (packing.packingListPath != null || packing.canManagePacking);
   const visibleTabs = tabs.filter((t) =>
-    t === "rides" ? settings.ridesEnabled : true,
+    t === "rides"
+      ? settings.ridesEnabled
+      : t === "packing"
+        ? showPackingTab
+        : true,
   );
 
   useEffect(() => {
     if (tab === "rides" && !settings.ridesEnabled) {
       setTab("overview");
     }
-  }, [tab, settings.ridesEnabled]);
+    if (tab === "packing" && !showPackingTab) {
+      setTab("overview");
+    }
+  }, [tab, settings.ridesEnabled, showPackingTab]);
 
   return (
     <div className="w-full space-y-6">
@@ -108,11 +119,13 @@ export function EventDetailClient({
             >
               {t === "overview"
                 ? "Overview"
-                : t === "members"
-                  ? "Members"
-                  : t === "rides"
-                    ? "Rides"
-                    : "Settings"}
+                : t === "packing"
+                  ? "Packing list"
+                  : t === "members"
+                    ? "Members"
+                    : t === "rides"
+                      ? "Rides"
+                      : "Settings"}
             </button>
           ))}
         </nav>
@@ -154,20 +167,20 @@ export function EventDetailClient({
                 </>
               )}
 
-              <EventPackingSection
-                eventId={eventId}
-                canManagePacking={packing.canManagePacking}
-                liveblocksRoomId={packing.liveblocksRoomId}
-                commitments={packing.commitments}
-                packingListPath={packing.packingListPath}
-                suggestionApprovalRequired={packing.suggestionApprovalRequired}
-                pendingSuggestionDraftCount={
-                  packing.pendingSuggestionDraftCount
-                }
-              />
-
               <EventChat eventId={eventId} />
             </>
+          )}
+
+          {tab === "packing" && showPackingTab && (
+            <EventPackingSection
+              eventId={eventId}
+              canManagePacking={packing.canManagePacking}
+              liveblocksRoomId={packing.liveblocksRoomId}
+              commitments={packing.commitments}
+              packingListPath={packing.packingListPath}
+              suggestionApprovalRequired={packing.suggestionApprovalRequired}
+              pendingSuggestionDraftCount={packing.pendingSuggestionDraftCount}
+            />
           )}
 
           {tab === "members" && (
