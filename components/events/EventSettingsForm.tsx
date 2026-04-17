@@ -8,6 +8,12 @@ import {
 } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import {
+  disableEventPackingFeature,
+  disableEventRidesFeature,
+  enableEventRidesFeature,
+} from "@/app/actions/event-optional-features";
+import { enablePackingListForEvent } from "@/app/actions/packing-list";
 import { updateEventSettings } from "@/app/actions/event-settings";
 import { DeleteEventPanel } from "./DeleteEventPanel";
 
@@ -37,26 +43,46 @@ export function EventSettingsForm({
     initial.memberManagementPolicy,
   );
   const [packingVis, setPackingVis] = useState(initial.packingListVisibility);
-  const [packingEnabled, setPackingEnabled] = useState(initial.packingEnabled);
   const [suggestionApproval, setSuggestionApproval] = useState(
     initial.suggestionApprovalRequired,
   );
+  const [packingEnabled, setPackingEnabled] = useState(initial.packingEnabled);
   const [ridesEnabled, setRidesEnabled] = useState(initial.ridesEnabled);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [showConfirmDisablePacking, setShowConfirmDisablePacking] =
+    useState(false);
+  const [showConfirmDisableRides, setShowConfirmDisableRides] = useState(false);
+  const [packingDisableError, setPackingDisableError] = useState<string | null>(
+    null,
+  );
+  const [ridesDisableError, setRidesDisableError] = useState<string | null>(
+    null,
+  );
+  const [isSavePending, startSaveTransition] = useTransition();
+  const [isPackingFeaturePending, startPackingFeatureTransition] =
+    useTransition();
+  const [isRidesFeaturePending, startRidesFeatureTransition] = useTransition();
 
   useEffect(() => {
     setMemberPolicy(initial.memberManagementPolicy);
     setPackingVis(initial.packingListVisibility);
-    setPackingEnabled(initial.packingEnabled);
     setSuggestionApproval(initial.suggestionApprovalRequired);
+    setPackingEnabled(initial.packingEnabled);
     setRidesEnabled(initial.ridesEnabled);
+    if (!initial.packingEnabled) {
+      setShowConfirmDisablePacking(false);
+      setPackingDisableError(null);
+    }
+    if (!initial.ridesEnabled) {
+      setShowConfirmDisableRides(false);
+      setRidesDisableError(null);
+    }
   }, [
     initial.memberManagementPolicy,
     initial.packingListVisibility,
-    initial.packingEnabled,
     initial.suggestionApprovalRequired,
+    initial.packingEnabled,
     initial.ridesEnabled,
   ]);
 
@@ -64,14 +90,12 @@ export function EventSettingsForm({
     if (!canEdit) return;
     setError(null);
     setSavedFlash(false);
-    startTransition(async () => {
+    startSaveTransition(async () => {
       const r = await updateEventSettings({
         eventId,
         memberManagementPolicy: memberPolicy,
         packingListVisibility: packingVis,
-        packingEnabled,
         suggestionApprovalRequired: suggestionApproval,
-        ridesEnabled,
       });
       if (!r.ok) {
         setError(r.error);
@@ -82,7 +106,8 @@ export function EventSettingsForm({
     });
   }
 
-  const disabled = !canEdit || isPending;
+  const isFeaturePending = isPackingFeaturePending || isRidesFeaturePending;
+  const disabled = !canEdit || isSavePending || isFeaturePending;
 
   return (
     <div className="space-y-8">
@@ -168,26 +193,6 @@ export function EventSettingsForm({
 
       <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Packing list
-        </h3>
-        <label className="mt-4 flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            disabled={disabled}
-            checked={packingEnabled}
-            onChange={(e) => setPackingEnabled(e.target.checked)}
-            className="mt-1"
-          />
-          <span className="text-sm text-gray-800 dark:text-gray-200">
-            Enable the shared packing list for this event (adds a “Packing list”
-            tab). Disabling hides packing info but does not delete the list or
-            sign-ups.
-          </span>
-        </label>
-      </section>
-
-      <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
           Suggestions
         </h3>
         <label className="mt-4 flex cursor-pointer items-start gap-3">
@@ -207,32 +212,247 @@ export function EventSettingsForm({
 
       <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Rides board
+          Optional features
         </h3>
-        <label className="mt-4 flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            disabled={disabled}
-            checked={ridesEnabled}
-            onChange={(e) => setRidesEnabled(e.target.checked)}
-            className="mt-1"
-          />
-          <span className="text-sm text-gray-800 dark:text-gray-200">
-            Enable rides coordination for this event (adds a “Rides” tab).
-            Disabling hides rides info but does not delete cars or sign-ups.
-          </span>
-        </label>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          Turn event modules on or off. Disabling a feature removes its tab and
+          permanently deletes stored data for that feature.
+        </p>
+        <ul className="mt-6 divide-y divide-gray-200 dark:divide-gray-700">
+          <li className="space-y-3 pb-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <div className="min-w-0 space-y-1">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Shared packing list
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Collaborative list with a Packing list tab, share link, and
+                  optional catalog suggestions.
+                </p>
+              </div>
+              <div className="shrink-0">
+                {packingEnabled ? (
+                  !showConfirmDisablePacking ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setError(null);
+                        setPackingDisableError(null);
+                        setShowConfirmDisableRides(false);
+                        setRidesDisableError(null);
+                        setShowConfirmDisablePacking(true);
+                      }}
+                      className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/40 dark:focus:ring-offset-gray-800"
+                    >
+                      Disable
+                    </button>
+                  ) : null
+                ) : (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setError(null);
+                      startPackingFeatureTransition(async () => {
+                        const r = await enablePackingListForEvent(eventId);
+                        if (!r.ok) {
+                          setError(r.error);
+                          return;
+                        }
+                        setPackingEnabled(true);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  >
+                    {isPackingFeaturePending ? "Enabling…" : "Enable"}
+                  </button>
+                )}
+              </div>
+            </div>
+            {packingEnabled && showConfirmDisablePacking ? (
+              <div
+                className="space-y-3 rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30"
+                role="region"
+                aria-label="Confirm disable shared packing list"
+              >
+                <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                  Disable shared packing list?
+                </p>
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  This permanently deletes the collaborative list (items and
+                  sign-ups), suggestions, personal packing copies linked to this
+                  event, and related data. This cannot be undone.
+                </p>
+                {packingDisableError && (
+                  <p
+                    className="rounded-md border border-red-200 bg-white/80 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-gray-900/80 dark:text-red-400"
+                    role="alert"
+                  >
+                    {packingDisableError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={isPackingFeaturePending}
+                    onClick={() => {
+                      setPackingDisableError(null);
+                      setShowConfirmDisablePacking(false);
+                    }}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPackingFeaturePending}
+                    onClick={() => {
+                      setPackingDisableError(null);
+                      startPackingFeatureTransition(async () => {
+                        const r = await disableEventPackingFeature(eventId);
+                        if (!r.ok) {
+                          setPackingDisableError(r.error);
+                          return;
+                        }
+                        setShowConfirmDisablePacking(false);
+                        setPackingEnabled(false);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-900"
+                  >
+                    {isPackingFeaturePending
+                      ? "Disabling…"
+                      : "Disable permanently"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </li>
+          <li className="space-y-3 pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <div className="min-w-0 space-y-1">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Rides coordination
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Rides tab for drivers, cars, and passenger sign-ups.
+                </p>
+              </div>
+              <div className="shrink-0">
+                {ridesEnabled ? (
+                  !showConfirmDisableRides ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setError(null);
+                        setRidesDisableError(null);
+                        setShowConfirmDisablePacking(false);
+                        setPackingDisableError(null);
+                        setShowConfirmDisableRides(true);
+                      }}
+                      className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/40 dark:focus:ring-offset-gray-800"
+                    >
+                      Disable
+                    </button>
+                  ) : null
+                ) : (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setError(null);
+                      startRidesFeatureTransition(async () => {
+                        const r = await enableEventRidesFeature(eventId);
+                        if (!r.ok) {
+                          setError(r.error);
+                          return;
+                        }
+                        setRidesEnabled(true);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  >
+                    {isRidesFeaturePending ? "Enabling…" : "Enable"}
+                  </button>
+                )}
+              </div>
+            </div>
+            {ridesEnabled && showConfirmDisableRides ? (
+              <div
+                className="space-y-3 rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30"
+                role="region"
+                aria-label="Confirm disable rides coordination"
+              >
+                <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                  Disable rides coordination?
+                </p>
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  This permanently deletes all ride cars, passengers, custom
+                  ride fields, and related data. This cannot be undone.
+                </p>
+                {ridesDisableError && (
+                  <p
+                    className="rounded-md border border-red-200 bg-white/80 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-gray-900/80 dark:text-red-400"
+                    role="alert"
+                  >
+                    {ridesDisableError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={isRidesFeaturePending}
+                    onClick={() => {
+                      setRidesDisableError(null);
+                      setShowConfirmDisableRides(false);
+                    }}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isRidesFeaturePending}
+                    onClick={() => {
+                      setRidesDisableError(null);
+                      startRidesFeatureTransition(async () => {
+                        const r = await disableEventRidesFeature(eventId);
+                        if (!r.ok) {
+                          setRidesDisableError(r.error);
+                          return;
+                        }
+                        setShowConfirmDisableRides(false);
+                        setRidesEnabled(false);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-900"
+                  >
+                    {isRidesFeaturePending
+                      ? "Disabling…"
+                      : "Disable permanently"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </li>
+        </ul>
       </section>
 
       {canEdit && (
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
-            disabled={isPending}
+            disabled={isSavePending || isFeaturePending}
             onClick={save}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {isPending ? "Saving…" : "Save settings"}
+            {isSavePending ? "Saving…" : "Save settings"}
           </button>
           {savedFlash && (
             <span className="text-sm text-green-700 dark:text-green-400">

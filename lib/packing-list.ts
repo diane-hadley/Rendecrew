@@ -361,8 +361,14 @@ export function listPackingCommitmentsForUser(
   return out;
 }
 
-export async function createPackingListForEvent(eventId: string) {
-  const existing = await prisma.packingList.findUnique({
+/** Use the Prisma transaction client when calling from `prisma.$transaction` so create + related updates are atomic. */
+export type PackingListDb = { packingList: typeof prisma.packingList };
+
+export async function createPackingListForEvent(
+  eventId: string,
+  db: PackingListDb = prisma,
+) {
+  const existing = await db.packingList.findUnique({
     where: { eventId },
   });
   if (existing) {
@@ -372,7 +378,7 @@ export async function createPackingListForEvent(eventId: string) {
   for (let attempt = 0; attempt < 8; attempt++) {
     const liveblocksRoomId = generateLiveblocksRoomId();
     try {
-      return await prisma.packingList.create({
+      return await db.packingList.create({
         data: { eventId, liveblocksRoomId },
       });
     } catch {

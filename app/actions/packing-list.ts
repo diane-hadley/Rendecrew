@@ -27,7 +27,14 @@ export async function enablePackingListForEvent(
         error: "You do not have permission to enable a packing list",
       };
     }
-    const list = await createPackingListForEvent(eventId);
+    const list = await prisma.$transaction(async (tx) => {
+      const created = await createPackingListForEvent(eventId, tx);
+      await tx.event.update({
+        where: { id: eventId },
+        data: { packingEnabled: true },
+      });
+      return created;
+    });
     revalidatePath("/dashboard");
     revalidatePath(`/dashboard/events/${eventId}`);
     return { ok: true, liveblocksRoomId: list.liveblocksRoomId };
