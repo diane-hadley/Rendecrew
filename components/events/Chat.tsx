@@ -4,7 +4,7 @@ import { sendEventChatMessage } from "@/app/actions/event-chat";
 import type { EventChatMessage } from "@/app/actions/event-chat";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-export function EventChat({ eventId }: { eventId: string }) {
+export function Chat({ eventId }: { eventId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<EventChatMessage[]>([]);
   const [input, setInput] = useState("");

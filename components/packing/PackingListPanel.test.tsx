@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PackingListEventPanel } from "./PackingListEventPanel";
+import { PackingListPanel } from "./PackingListPanel";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -14,7 +14,7 @@ vi.mock("@/app/actions/packing-list", () => ({
     enablePackingListForEvent(...args),
 }));
 
-describe("PackingListEventPanel", () => {
+describe("PackingListPanel", () => {
   beforeEach(() => {
     refresh.mockClear();
     enablePackingListForEvent.mockReset();
@@ -23,7 +23,7 @@ describe("PackingListEventPanel", () => {
   it("shows enable button when room id is missing", async () => {
     const user = userEvent.setup();
     enablePackingListForEvent.mockResolvedValue({ ok: true as const });
-    render(<PackingListEventPanel eventId="e1" liveblocksRoomId={null} />);
+    render(<PackingListPanel eventId="e1" liveblocksRoomId={null} />);
     await user.click(
       screen.getByRole("button", { name: /Enable packing list/i }),
     );
@@ -39,7 +39,7 @@ describe("PackingListEventPanel", () => {
       ok: false as const,
       error: "No permission",
     });
-    render(<PackingListEventPanel eventId="e1" liveblocksRoomId={null} />);
+    render(<PackingListPanel eventId="e1" liveblocksRoomId={null} />);
     await user.click(
       screen.getByRole("button", { name: /Enable packing list/i }),
     );
@@ -47,7 +47,7 @@ describe("PackingListEventPanel", () => {
   });
 
   it("shows share path and open link when room exists", () => {
-    render(<PackingListEventPanel eventId="e1" liveblocksRoomId="room-abc" />);
+    render(<PackingListPanel eventId="e1" liveblocksRoomId="room-abc" />);
     expect(screen.getByText(/\/packing\/room-abc/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open list/i })).toHaveAttribute(
       "href",
@@ -63,7 +63,7 @@ describe("PackingListEventPanel", () => {
       value: { writeText },
     });
 
-    render(<PackingListEventPanel eventId="e1" liveblocksRoomId="r1" />);
+    render(<PackingListPanel eventId="e1" liveblocksRoomId="r1" />);
 
     await vi.waitFor(() => {
       expect(

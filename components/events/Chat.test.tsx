@@ -1,21 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EventChat } from "./EventChat";
+import { Chat } from "./Chat";
 
 const sendEventChatMessage = vi.fn();
 vi.mock("@/app/actions/event-chat", () => ({
   sendEventChatMessage: (...args: unknown[]) => sendEventChatMessage(...args),
 }));
 
-describe("EventChat", () => {
+describe("Chat", () => {
   beforeEach(() => {
     sendEventChatMessage.mockReset();
   });
 
   it("shows empty-state hint before messages", async () => {
     const user = userEvent.setup();
-    render(<EventChat eventId="evt-1" />);
+    render(<Chat eventId="evt-1" />);
     await user.click(
       screen.getByRole("button", { name: /Open event assistant chat/i }),
     );
@@ -30,7 +30,7 @@ describe("EventChat", () => {
       ok: true as const,
       reply: "The event starts Saturday.",
     });
-    render(<EventChat eventId="evt-1" />);
+    render(<Chat eventId="evt-1" />);
     await user.click(
       screen.getByRole("button", { name: /Open event assistant chat/i }),
     );
@@ -49,7 +49,7 @@ describe("EventChat", () => {
       ok: false as const,
       error: "Rate limited",
     });
-    render(<EventChat eventId="evt-1" />);
+    render(<Chat eventId="evt-1" />);
     await user.click(
       screen.getByRole("button", { name: /Open event assistant chat/i }),
     );

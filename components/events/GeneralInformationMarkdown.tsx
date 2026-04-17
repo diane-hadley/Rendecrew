@@ -96,11 +96,7 @@ const markdownComponents: Components = {
   ),
 };
 
-export function EventGeneralInformationMarkdown({
-  markdown,
-}: {
-  markdown: string;
-}) {
+export function GeneralInformationMarkdown({ markdown }: { markdown: string }) {
   return (
     <div className="max-w-none">
       <ReactMarkdown

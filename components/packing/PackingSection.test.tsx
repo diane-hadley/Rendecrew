@@ -1,21 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { EventPackingSection } from "./EventPackingSection";
+import { PackingSection } from "./PackingSection";
 
-vi.mock("./PackingListEventPanel", () => ({
-  PackingListEventPanel: ({ eventId }: { eventId: string }) => (
+vi.mock("./PackingListPanel", () => ({
+  PackingListPanel: ({ eventId }: { eventId: string }) => (
     <div data-testid="packing-panel">panel-{eventId}</div>
   ),
 }));
 
-vi.mock("./MyEventPackingCommitments", () => ({
-  MyEventPackingCommitments: () => <div data-testid="commitments" />,
+vi.mock("./MyPackingCommitments", () => ({
+  MyPackingCommitments: () => <div data-testid="commitments" />,
 }));
 
-describe("EventPackingSection", () => {
+describe("PackingSection", () => {
   it("returns null when there is no list and user cannot manage", () => {
     const { container } = render(
-      <EventPackingSection
+      <PackingSection
         eventId="e1"
         canManagePacking={false}
         liveblocksRoomId={null}
@@ -28,7 +28,7 @@ describe("EventPackingSection", () => {
 
   it("renders organizer panel when canManagePacking", () => {
     render(
-      <EventPackingSection
+      <PackingSection
         eventId="e99"
         canManagePacking
         liveblocksRoomId={null}
@@ -45,7 +45,7 @@ describe("EventPackingSection", () => {
 
   it("renders commitments when list path exists", () => {
     render(
-      <EventPackingSection
+      <PackingSection
         eventId="e1"
         canManagePacking={false}
         liveblocksRoomId={null}

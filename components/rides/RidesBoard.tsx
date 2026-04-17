@@ -21,7 +21,7 @@ import {
 } from "@/lib/event-datetime";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 
-type EventRidesBoardProps = {
+type RidesBoardProps = {
   eventId: string;
   currentUserId: string;
   /** Event TZ when scheduled; otherwise viewer's TZ (from server). */
@@ -236,12 +236,12 @@ function directionFromEnabled(
   return null;
 }
 
-export function EventRidesBoard({
+export function RidesBoard({
   eventId,
   currentUserId,
   defaultTimeZone,
   members,
-}: EventRidesBoardProps) {
+}: RidesBoardProps) {
   const meMembershipId = useMemo(
     () => members.find((m) => m.userId === currentUserId)?.membershipId ?? null,
     [members, currentUserId],

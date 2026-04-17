@@ -1,4 +1,4 @@
-import { EventGeneralInformationMarkdown } from "./EventGeneralInformationMarkdown";
+import { GeneralInformationMarkdown } from "./GeneralInformationMarkdown";
 
 export function EventDisplayCard({
   role,
@@ -37,9 +37,7 @@ export function EventDisplayCard({
           aria-label="Event information"
           className="w-full rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800"
         >
-          <EventGeneralInformationMarkdown
-            markdown={generalInformationTrimmed}
-          />
+          <GeneralInformationMarkdown markdown={generalInformationTrimmed} />
         </section>
       ) : null}
     </div>

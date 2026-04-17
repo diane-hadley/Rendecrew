@@ -1,7 +1,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { UserTimezoneForm } from "@/components/settings/UserTimezoneForm";
+import { UserTimezoneForm } from "@/components/user-settings/UserTimezoneForm";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function DashboardSettingsPage() {

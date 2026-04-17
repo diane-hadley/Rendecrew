@@ -1,9 +1,9 @@
-import { EventPackingSuggestionSettings } from "./EventPackingSuggestionSettings";
-import { MyEventPackingCommitments } from "./MyEventPackingCommitments";
-import { PackingListEventPanel } from "./PackingListEventPanel";
+import { PackingSuggestionSettings } from "./PackingSuggestionSettings";
+import { MyPackingCommitments } from "./MyPackingCommitments";
+import { PackingListPanel } from "./PackingListPanel";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 
-export function EventPackingSection({
+export function PackingSection({
   eventId,
   canManagePacking,
   liveblocksRoomId,
@@ -32,7 +32,7 @@ export function EventPackingSection({
         Packing list
       </h2>
       {canManagePacking && (
-        <PackingListEventPanel
+        <PackingListPanel
           embedded
           eventId={eventId}
           liveblocksRoomId={liveblocksRoomId}
@@ -42,7 +42,7 @@ export function EventPackingSection({
         hasList &&
         suggestionApprovalRequired !== undefined &&
         pendingSuggestionDraftCount !== undefined && (
-          <EventPackingSuggestionSettings
+          <PackingSuggestionSettings
             eventId={eventId}
             approvalRequired={suggestionApprovalRequired}
             packingListPath={packingListPath}
@@ -50,7 +50,7 @@ export function EventPackingSection({
           />
         )}
       {hasList && (
-        <MyEventPackingCommitments
+        <MyPackingCommitments
           embedded
           showTopBorder={canManagePacking && hasList}
           showOpenListLink={!canManagePacking}

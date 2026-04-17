@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EventGeneralInformationAiPanel } from "./EventGeneralInformationAiPanel";
+import { GeneralInformationAiPanel } from "./GeneralInformationAiPanel";
 
 const assistEventGeneralInformation = vi.fn();
 vi.mock("@/app/actions/event-general-information-ai", () => ({
@@ -9,7 +9,7 @@ vi.mock("@/app/actions/event-general-information-ai", () => ({
     assistEventGeneralInformation(...args),
 }));
 
-describe("EventGeneralInformationAiPanel", () => {
+describe("GeneralInformationAiPanel", () => {
   beforeEach(() => {
     assistEventGeneralInformation.mockReset();
   });
@@ -18,7 +18,7 @@ describe("EventGeneralInformationAiPanel", () => {
     const user = userEvent.setup();
     const onApply = vi.fn();
     render(
-      <EventGeneralInformationAiPanel
+      <GeneralInformationAiPanel
         eventId="ev-1"
         getCurrentMarkdown={() => "## draft"}
         onApplyMarkdown={onApply}
@@ -43,7 +43,7 @@ describe("EventGeneralInformationAiPanel", () => {
       markdown: "## updated",
     });
     render(
-      <EventGeneralInformationAiPanel
+      <GeneralInformationAiPanel
         eventId="ev-1"
         getCurrentMarkdown={() => draft}
         onApplyMarkdown={(md) => {
@@ -78,7 +78,7 @@ describe("EventGeneralInformationAiPanel", () => {
       error: "Rate limited",
     });
     render(
-      <EventGeneralInformationAiPanel
+      <GeneralInformationAiPanel
         eventId="ev-1"
         getCurrentMarkdown={() => ""}
         onApplyMarkdown={() => {}}

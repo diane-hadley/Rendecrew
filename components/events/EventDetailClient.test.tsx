@@ -8,24 +8,24 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EventDetailClient } from "./EventDetailClient";
 
-vi.mock("@/components/packing/EventPackingSection", () => ({
-  EventPackingSection: () => <div data-testid="packing-section" />,
+vi.mock("@/components/packing/PackingSection", () => ({
+  PackingSection: () => <div data-testid="packing-section" />,
 }));
 
-vi.mock("./EventChat", () => ({
-  EventChat: () => <div data-testid="event-chat" />,
+vi.mock("./Chat", () => ({
+  Chat: () => <div data-testid="event-chat" />,
 }));
 
-vi.mock("./EventMembersSection", () => ({
-  EventMembersSection: () => <div data-testid="members-section" />,
+vi.mock("./MembersSection", () => ({
+  MembersSection: () => <div data-testid="members-section" />,
 }));
 
 vi.mock("./EventSettingsForm", () => ({
   EventSettingsForm: () => <div data-testid="settings-form" />,
 }));
 
-vi.mock("./rides/EventRidesBoard", () => ({
-  EventRidesBoard: () => <div data-testid="rides-board" />,
+vi.mock("@/components/rides/RidesBoard", () => ({
+  RidesBoard: () => <div data-testid="rides-board" />,
 }));
 
 vi.mock("./EditEventForm", () => ({
