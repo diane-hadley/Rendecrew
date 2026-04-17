@@ -24,6 +24,10 @@ vi.mock("./EventSettingsForm", () => ({
   EventSettingsForm: () => <div data-testid="settings-form" />,
 }));
 
+vi.mock("./rides/EventRidesBoard", () => ({
+  EventRidesBoard: () => <div data-testid="rides-board" />,
+}));
+
 vi.mock("./EditEventForm", () => ({
   EditEventForm: ({
     onCancel,
@@ -136,5 +140,59 @@ describe("EventDetailClient", () => {
     render(<EventDetailClient {...baseProps} editable />);
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByTestId("settings-form")).toBeInTheDocument();
+  });
+
+  it("shows rides tab when rides are enabled", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        settings={{
+          ...baseProps.settings,
+          ridesEnabled: true,
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Rides" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Rides" }));
+    expect(screen.getByTestId("rides-board")).toBeInTheDocument();
+  });
+
+  it("hides rides tab when rides are disabled", () => {
+    render(<EventDetailClient {...baseProps} editable={false} />);
+    expect(
+      screen.queryByRole("button", { name: "Rides" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("returns to overview when rides are turned off while on rides tab", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        settings={{
+          ...baseProps.settings,
+          ridesEnabled: true,
+        }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Rides" }));
+    expect(screen.getByTestId("rides-board")).toBeInTheDocument();
+
+    rerender(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        settings={{
+          ...baseProps.settings,
+          ridesEnabled: false,
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId("rides-board")).not.toBeInTheDocument();
+    expect(screen.getByText("Apr 2026")).toBeInTheDocument();
   });
 });
