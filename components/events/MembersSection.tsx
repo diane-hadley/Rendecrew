@@ -20,7 +20,7 @@ import {
 } from "@/lib/event-member-policy";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
 
-type EventMembersSectionProps = {
+type MembersSectionProps = {
   eventId: string;
   createdById: string;
   currentUserId: string;
@@ -41,14 +41,14 @@ function formatJoined(iso: string) {
   }
 }
 
-export function EventMembersSection({
+export function MembersSection({
   eventId,
   createdById,
   currentUserId,
   actorRole,
   memberManagementPolicy,
   initialMembers,
-}: EventMembersSectionProps) {
+}: MembersSectionProps) {
   const router = useRouter();
   const [members, setMembers] = useState(initialMembers);
   const [query, setQuery] = useState("");

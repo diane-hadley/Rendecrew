@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { EventGeneralInformationMarkdown } from "./EventGeneralInformationMarkdown";
+import { GeneralInformationMarkdown } from "./GeneralInformationMarkdown";
 
-describe("EventGeneralInformationMarkdown", () => {
+describe("GeneralInformationMarkdown", () => {
   it("renders rich markdown including GFM table and fenced code", () => {
     const md = [
       "# Title",
@@ -33,7 +33,7 @@ describe("EventGeneralInformationMarkdown", () => {
       "```",
     ].join("\n");
 
-    render(<EventGeneralInformationMarkdown markdown={md} />);
+    render(<GeneralInformationMarkdown markdown={md} />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Title" }),
@@ -59,9 +59,7 @@ describe("EventGeneralInformationMarkdown", () => {
   });
 
   it("renders nothing harmful for empty markdown", () => {
-    const { container } = render(
-      <EventGeneralInformationMarkdown markdown="" />,
-    );
+    const { container } = render(<GeneralInformationMarkdown markdown="" />);
     expect(container.querySelector(".max-w-none")).toBeInTheDocument();
   });
 });

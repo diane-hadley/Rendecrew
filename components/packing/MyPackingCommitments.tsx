@@ -12,7 +12,7 @@ function formatBrings(c: PackingCommitmentForUser): string {
   return "—";
 }
 
-export function MyEventPackingCommitments({
+export function MyPackingCommitments({
   eventId,
   commitments,
   packingListPath,

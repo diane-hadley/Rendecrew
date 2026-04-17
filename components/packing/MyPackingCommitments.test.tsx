@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MyEventPackingCommitments } from "./MyEventPackingCommitments";
+import { MyPackingCommitments } from "./MyPackingCommitments";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -14,7 +14,7 @@ vi.mock("@/app/actions/packing-list", () => ({
     setMyPackingSignUpPacked(...args),
 }));
 
-describe("MyEventPackingCommitments", () => {
+describe("MyPackingCommitments", () => {
   beforeEach(() => {
     refresh.mockClear();
     setMyPackingSignUpPacked.mockReset();
@@ -22,7 +22,7 @@ describe("MyEventPackingCommitments", () => {
 
   it("returns null without packingListPath", () => {
     const { container } = render(
-      <MyEventPackingCommitments
+      <MyPackingCommitments
         eventId="e1"
         commitments={[]}
         packingListPath={null}
@@ -33,7 +33,7 @@ describe("MyEventPackingCommitments", () => {
 
   it("lists commitments and quantity", () => {
     render(
-      <MyEventPackingCommitments
+      <MyPackingCommitments
         eventId="e1"
         packingListPath="/p"
         commitments={[
@@ -52,7 +52,7 @@ describe("MyEventPackingCommitments", () => {
 
   it("shows open list link by default", () => {
     render(
-      <MyEventPackingCommitments
+      <MyPackingCommitments
         eventId="e1"
         packingListPath="/packing/x"
         commitments={[]}
@@ -67,7 +67,7 @@ describe("MyEventPackingCommitments", () => {
 
   it("hides open list when showOpenListLink is false", () => {
     render(
-      <MyEventPackingCommitments
+      <MyPackingCommitments
         eventId="e1"
         packingListPath="/packing/x"
         commitments={[]}
@@ -83,7 +83,7 @@ describe("MyEventPackingCommitments", () => {
     const user = userEvent.setup();
     setMyPackingSignUpPacked.mockResolvedValue({ ok: true as const });
     render(
-      <MyEventPackingCommitments
+      <MyPackingCommitments
         eventId="e1"
         packingListPath="/p"
         commitments={[

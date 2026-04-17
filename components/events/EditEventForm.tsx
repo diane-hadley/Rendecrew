@@ -2,8 +2,8 @@
 
 import { updateEvent } from "@/app/actions/events";
 import { EventDateTimeFields } from "./EventDateTimeFields";
-import { EventGeneralInformationAiPanel } from "./EventGeneralInformationAiPanel";
-import { TimezoneSelect } from "@/components/TimezoneSelect";
+import { GeneralInformationAiPanel } from "./GeneralInformationAiPanel";
+import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import {
   rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
@@ -188,7 +188,7 @@ export function EditEventForm({
           />
         </div>
 
-        <EventGeneralInformationAiPanel
+        <GeneralInformationAiPanel
           eventId={eventId}
           getCurrentMarkdown={() => generalInformation}
           onApplyMarkdown={(markdown) => {

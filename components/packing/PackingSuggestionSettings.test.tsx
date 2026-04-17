@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { EventPackingSuggestionSettings } from "./EventPackingSuggestionSettings";
+import { PackingSuggestionSettings } from "./PackingSuggestionSettings";
 
 const { setSuggestionApprovalRequired } = vi.hoisted(() => ({
   setSuggestionApprovalRequired: vi.fn(),
@@ -15,12 +15,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-describe("EventPackingSuggestionSettings", () => {
+describe("PackingSuggestionSettings", () => {
   it("toggles approval and refreshes on success", async () => {
     const user = userEvent.setup();
     setSuggestionApprovalRequired.mockResolvedValue({ ok: true });
     render(
-      <EventPackingSuggestionSettings
+      <PackingSuggestionSettings
         eventId="ev1"
         approvalRequired={false}
         packingListPath="/packing/room"
@@ -38,7 +38,7 @@ describe("EventPackingSuggestionSettings", () => {
 
   it("shows review link when drafts pending", () => {
     render(
-      <EventPackingSuggestionSettings
+      <PackingSuggestionSettings
         eventId="ev1"
         approvalRequired
         packingListPath="/packing/room"

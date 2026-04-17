@@ -1,7 +1,7 @@
 "use client";
 
 import { updateUserTimezone } from "@/app/actions/user-settings";
-import { TimezoneSelect } from "@/components/TimezoneSelect";
+import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import { useState, useTransition } from "react";
 
 type UserTimezoneFormProps = {

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setSuggestionApprovalRequired } from "@/app/actions/packing-advanced";
 
-export function EventPackingSuggestionSettings({
+export function PackingSuggestionSettings({
   eventId,
   approvalRequired,
   packingListPath,

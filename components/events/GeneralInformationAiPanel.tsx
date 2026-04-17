@@ -3,7 +3,7 @@
 import { assistEventGeneralInformation } from "@/app/actions/event-general-information-ai";
 import { useState, useTransition } from "react";
 
-export function EventGeneralInformationAiPanel({
+export function GeneralInformationAiPanel({
   eventId,
   getCurrentMarkdown,
   onApplyMarkdown,

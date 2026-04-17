@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RideCarRow } from "@/app/actions/event-rides";
-import { EventRidesBoard } from "./EventRidesBoard";
+import { RidesBoard } from "./RidesBoard";
 
 const listEventRides = vi.fn();
 const upsertRideCar = vi.fn();
@@ -66,7 +66,7 @@ function sampleCar(overrides: Partial<RideCarRow> = {}): RideCarRow {
   };
 }
 
-describe("EventRidesBoard", () => {
+describe("RidesBoard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listEventRides.mockResolvedValue({
@@ -83,7 +83,7 @@ describe("EventRidesBoard", () => {
 
   it("loads rides on mount", async () => {
     render(
-      <EventRidesBoard
+      <RidesBoard
         eventId="e1"
         currentUserId="u1"
         defaultTimeZone="America/Los_Angeles"
@@ -101,7 +101,7 @@ describe("EventRidesBoard", () => {
       error: "Rides are offline",
     });
     render(
-      <EventRidesBoard
+      <RidesBoard
         eventId="e1"
         currentUserId="u1"
         defaultTimeZone="UTC"
@@ -120,7 +120,7 @@ describe("EventRidesBoard", () => {
       cars: [sampleCar({ funName: "The Shuttle" })],
     });
     render(
-      <EventRidesBoard
+      <RidesBoard
         eventId="e1"
         currentUserId="u1"
         defaultTimeZone="America/Los_Angeles"
@@ -141,7 +141,7 @@ describe("EventRidesBoard", () => {
   it("opens the add-car modal", async () => {
     const user = userEvent.setup();
     render(
-      <EventRidesBoard
+      <RidesBoard
         eventId="e1"
         currentUserId="u1"
         defaultTimeZone="UTC"
@@ -159,7 +159,7 @@ describe("EventRidesBoard", () => {
   it("submits a new car via Save", async () => {
     const user = userEvent.setup();
     render(
-      <EventRidesBoard
+      <RidesBoard
         eventId="e1"
         currentUserId="u1"
         defaultTimeZone="America/Los_Angeles"

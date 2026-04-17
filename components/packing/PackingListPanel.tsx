@@ -4,7 +4,7 @@ import { enablePackingListForEvent } from "@/app/actions/packing-list";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
-export function PackingListEventPanel({
+export function PackingListPanel({
   eventId,
   liveblocksRoomId,
   embedded = false,

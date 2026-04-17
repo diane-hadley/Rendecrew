@@ -5,17 +5,17 @@ import type {
   MemberManagementPolicy,
   PackingListVisibility,
 } from "@prisma/client";
-import { EventPackingSection } from "@/components/packing/EventPackingSection";
+import { PackingSection } from "@/components/packing/PackingSection";
 import { EditEventForm } from "./EditEventForm";
-import { EventChat } from "./EventChat";
+import { Chat } from "./Chat";
 import { EventDisplayCard } from "./EventDisplayCard";
-import { EventMembersSection } from "./EventMembersSection";
+import { MembersSection } from "./MembersSection";
 import { EventSettingsForm } from "./EventSettingsForm";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import { useEffect, useState } from "react";
-import { EventRidesBoard } from "./rides/EventRidesBoard";
+import { RidesBoard } from "@/components/rides/RidesBoard";
 
 const tabs = ["overview", "packing", "rides", "members", "settings"] as const;
 type TabId = (typeof tabs)[number];
@@ -170,7 +170,7 @@ export function EventDetailClient({
           )}
 
           {tab === "packing" && showPackingTab && (
-            <EventPackingSection
+            <PackingSection
               eventId={eventId}
               canManagePacking={packing.canManagePacking}
               liveblocksRoomId={packing.liveblocksRoomId}
@@ -182,7 +182,7 @@ export function EventDetailClient({
           )}
 
           {tab === "members" && (
-            <EventMembersSection
+            <MembersSection
               eventId={eventId}
               createdById={createdById}
               currentUserId={currentUserId}
@@ -193,7 +193,7 @@ export function EventDetailClient({
           )}
 
           {tab === "rides" && settings.ridesEnabled && (
-            <EventRidesBoard
+            <RidesBoard
               eventId={eventId}
               currentUserId={currentUserId}
               defaultTimeZone={ridesDefaultTimeZone}
@@ -218,7 +218,7 @@ export function EventDetailClient({
         </div>
       </div>
 
-      <EventChat eventId={eventId} />
+      <Chat eventId={eventId} />
     </div>
   );
 }
