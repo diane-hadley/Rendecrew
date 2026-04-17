@@ -55,6 +55,8 @@ export type EventDetailClientProps = {
     suggestionApprovalRequired: boolean;
     ridesEnabled: boolean;
   };
+  /** Event TZ when the event has start/end; otherwise the signed-in user's TZ. */
+  ridesDefaultTimeZone: string;
   membersInitial: EventMemberListItem[];
 };
 
@@ -69,6 +71,7 @@ export function EventDetailClient({
   editInitial,
   packing,
   settings,
+  ridesDefaultTimeZone,
   membersInitial,
 }: EventDetailClientProps) {
   const [tab, setTab] = useState<TabId>("overview");
@@ -182,7 +185,7 @@ export function EventDetailClient({
             <EventRidesBoard
               eventId={eventId}
               currentUserId={currentUserId}
-              eventTimeZone={editInitial.timezone}
+              defaultTimeZone={ridesDefaultTimeZone}
               members={membersInitial.map((m) => ({
                 membershipId: m.membershipId,
                 userId: m.userId,

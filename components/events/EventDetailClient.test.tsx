@@ -75,7 +75,9 @@ const baseProps = {
     memberManagementPolicy: MemberManagementPolicy.ANY_MEMBER_CAN_INVITE,
     packingListVisibility: PackingListVisibility.URL_PUBLIC,
     suggestionApprovalRequired: false,
+    ridesEnabled: false,
   },
+  ridesDefaultTimeZone: "UTC",
   membersInitial: [],
 };
 

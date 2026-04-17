@@ -1,7 +1,6 @@
 "use client";
 
 import type { RideCarDirection } from "@prisma/client";
-import { RidePassengerLeg } from "@prisma/client";
 import { DateTime } from "luxon";
 import {
   addRidePassenger,
@@ -17,14 +16,16 @@ import {
   getTimezoneSelectChoices,
   normalizeTimeZone,
   parseEventDateTime,
+  rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 
 type EventRidesBoardProps = {
   eventId: string;
   currentUserId: string;
-  eventTimeZone: string;
+  /** Event TZ when scheduled; otherwise viewer's TZ (from server). */
+  defaultTimeZone: string;
   members: RideMemberListItem[];
 };
 
@@ -56,12 +57,6 @@ function formatTime(iso: string | null, tz: string): string {
   const dt = DateTime.fromISO(iso, { zone: "utc" }).setZone(tz);
   if (!dt.isValid) return "";
   return dt.toLocaleString(DateTime.TIME_SIMPLE);
-}
-
-function rideLegFromDirection(d: DirectionId) {
-  return d === "TO_EVENT"
-    ? RidePassengerLeg.TO_EVENT
-    : RidePassengerLeg.FROM_EVENT;
 }
 
 function otherDirection(d: DirectionId): DirectionId {
@@ -165,12 +160,16 @@ type CarEditorState = {
   fromDepartsWall: string;
   fromArrivesWall: string;
   tab: DirectionId;
+  /** IANA zone used to interpret the datetime-local fields below. */
+  timesTimeZone: string;
 };
 
 function emptyEditor(
   members: RideMemberListItem[],
   tab: DirectionId,
+  defaultTimeZone: string,
 ): CarEditorState {
+  const tz = normalizeTimeZone(defaultTimeZone, defaultTimeZone);
   return {
     open: false,
     carId: null,
@@ -188,15 +187,17 @@ function emptyEditor(
     fromDepartsWall: "",
     fromArrivesWall: "",
     tab,
+    timesTimeZone: tz,
   };
 }
 
 function editorFromCar(
   car: RideCarRow,
-  tz: string,
+  displayTimeZone: string,
   members: RideMemberListItem[],
   tab: DirectionId,
 ): CarEditorState {
+  const tz = normalizeTimeZone(displayTimeZone, displayTimeZone);
   const toEnabled = car.direction === "BOTH" || car.direction === "TO_EVENT";
   const fromEnabled =
     car.direction === "BOTH" || car.direction === "FROM_EVENT";
@@ -221,6 +222,7 @@ function editorFromCar(
     fromDepartsWall: utcToWallDatetimeLocal(car.fromEvent.departsAt, tz),
     fromArrivesWall: utcToWallDatetimeLocal(car.fromEvent.arrivesAt, tz),
     tab,
+    timesTimeZone: tz,
   };
 }
 
@@ -237,7 +239,7 @@ function directionFromEnabled(
 export function EventRidesBoard({
   eventId,
   currentUserId,
-  eventTimeZone,
+  defaultTimeZone,
   members,
 }: EventRidesBoardProps) {
   const meMembershipId = useMemo(
@@ -245,8 +247,9 @@ export function EventRidesBoard({
     [members, currentUserId],
   );
 
-  const [tz, setTz] = useState(() =>
-    normalizeTimeZone(eventTimeZone, eventTimeZone),
+  const displayTimeZone = useMemo(
+    () => normalizeTimeZone(defaultTimeZone, defaultTimeZone),
+    [defaultTimeZone],
   );
   const [cars, setCars] = useState<RideCarRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,26 +257,8 @@ export function EventRidesBoard({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
   const [editor, setEditor] = useState<CarEditorState>(() =>
-    emptyEditor(members, "TO_EVENT"),
+    emptyEditor(members, "TO_EVENT", defaultTimeZone),
   );
-
-  useEffect(() => {
-    try {
-      const key = `rides_timezone_${eventId}`;
-      const saved = window.localStorage.getItem(key);
-      if (saved) setTz(normalizeTimeZone(saved, eventTimeZone));
-    } catch {
-      // ignore
-    }
-  }, [eventId, eventTimeZone]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(`rides_timezone_${eventId}`, tz);
-    } catch {
-      // ignore
-    }
-  }, [eventId, tz]);
 
   function refresh() {
     setLoading(true);
@@ -296,6 +281,11 @@ export function EventRidesBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
+  const editorTimezoneChoices = useMemo(
+    () => getTimezoneSelectChoices(editor.timesTimeZone),
+    [editor.timesTimeZone],
+  );
+
   const needsRide = useMemo(() => {
     return {
       TO_EVENT: members.filter(
@@ -307,11 +297,9 @@ export function EventRidesBoard({
     };
   }, [cars, members]);
 
-  const timezoneChoices = useMemo(() => getTimezoneSelectChoices(tz), [tz]);
-
   function openCreate(tab: DirectionId) {
     setEditor((prev) => {
-      const next = emptyEditor(members, tab);
+      const next = emptyEditor(members, tab, defaultTimeZone);
       next.open = true;
       return next;
     });
@@ -319,7 +307,7 @@ export function EventRidesBoard({
 
   function openEdit(car: RideCarRow, tab: DirectionId) {
     setEditor(() => {
-      const next = editorFromCar(car, tz, members, tab);
+      const next = editorFromCar(car, displayTimeZone, members, tab);
       next.open = true;
       return next;
     });
@@ -341,17 +329,22 @@ export function EventRidesBoard({
       return;
     }
 
+    const tzForSave = normalizeTimeZone(editor.timesTimeZone, displayTimeZone);
     const toDepartsAt = editor.toDepartsWall
-      ? (parseEventDateTime(editor.toDepartsWall, tz)?.toISOString() ?? null)
+      ? (parseEventDateTime(editor.toDepartsWall, tzForSave)?.toISOString() ??
+        null)
       : null;
     const toArrivesAt = editor.toArrivesWall
-      ? (parseEventDateTime(editor.toArrivesWall, tz)?.toISOString() ?? null)
+      ? (parseEventDateTime(editor.toArrivesWall, tzForSave)?.toISOString() ??
+        null)
       : null;
     const fromDepartsAt = editor.fromDepartsWall
-      ? (parseEventDateTime(editor.fromDepartsWall, tz)?.toISOString() ?? null)
+      ? (parseEventDateTime(editor.fromDepartsWall, tzForSave)?.toISOString() ??
+        null)
       : null;
     const fromArrivesAt = editor.fromArrivesWall
-      ? (parseEventDateTime(editor.fromArrivesWall, tz)?.toISOString() ?? null)
+      ? (parseEventDateTime(editor.fromArrivesWall, tzForSave)?.toISOString() ??
+        null)
       : null;
 
     startTransition(async () => {
@@ -537,9 +530,8 @@ export function EventRidesBoard({
                   });
 
                   return (
-                    <>
+                    <Fragment key={key}>
                       <tr
-                        key={key}
                         className="cursor-pointer border-t border-gray-100 hover:bg-gray-50/70 dark:border-gray-700 dark:hover:bg-gray-900/30"
                         onClick={() =>
                           setExpanded((e) => ({ ...e, [key]: !isOpen }))
@@ -552,6 +544,20 @@ export function EventRidesBoard({
                           <div className="text-xs text-gray-600 dark:text-gray-300">
                             {driverLabel(car.driver.name)}
                           </div>
+                          <button
+                            type="button"
+                            aria-expanded={isOpen}
+                            className="mt-1 text-left text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpanded((prev) => ({
+                                ...prev,
+                                [key]: !isOpen,
+                              }));
+                            }}
+                          >
+                            {isOpen ? "Show less" : "Show more"}
+                          </button>
                         </td>
                         <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
                           {sum.placeLabel || (
@@ -559,12 +565,12 @@ export function EventRidesBoard({
                           )}
                         </td>
                         <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                          {formatTime(sum.departs, tz) || (
+                          {formatTime(sum.departs, displayTimeZone) || (
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
                         <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                          {formatTime(sum.arrives, tz) || (
+                          {formatTime(sum.arrives, displayTimeZone) || (
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
@@ -614,10 +620,7 @@ export function EventRidesBoard({
                         </td>
                       </tr>
                       {isOpen && (
-                        <tr
-                          key={`${key}:expand`}
-                          className="border-t border-gray-100 dark:border-gray-700"
-                        >
+                        <tr className="border-t border-gray-100 dark:border-gray-700">
                           <td colSpan={6} className="px-5 py-4">
                             <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
                               <div className="space-y-3">
@@ -766,16 +769,12 @@ export function EventRidesBoard({
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })
               )}
             </tbody>
           </table>
-        </div>
-        <div className="border-t border-gray-200 px-5 py-3 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">
-          Avatars show filled/open seats at a glance · click row to see names +
-          details
         </div>
       </div>
     );
@@ -783,46 +782,23 @@ export function EventRidesBoard({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Rides
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300">
-            Coordinate drivers, cars, and passengers for To Event and From
-            Event.
+            Coordinate drivers, cars, and passengers to and from your event.
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-              Timezone
-            </label>
-            <select
-              value={tz}
-              onChange={(e) => setTz(e.target.value)}
-              className="mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-            >
-              {timezoneChoices.map((g) => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.choices.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={() => openCreate("TO_EVENT")}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            disabled={isPending}
-          >
-            Add car
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => openCreate("TO_EVENT")}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          disabled={isPending}
+        >
+          Add car
+        </button>
       </div>
 
       {error && (
@@ -980,6 +956,59 @@ export function EventRidesBoard({
                   />
                   From Event
                 </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                  Timezone for departure & arrival times
+                </label>
+                <select
+                  value={editor.timesTimeZone}
+                  onChange={(e) => {
+                    const next = normalizeTimeZone(
+                      e.target.value,
+                      displayTimeZone,
+                    );
+                    setEditor((s) => {
+                      const from = s.timesTimeZone;
+                      return {
+                        ...s,
+                        timesTimeZone: next,
+                        toDepartsWall: rezoneWallDatetimeLocal(
+                          s.toDepartsWall,
+                          from,
+                          next,
+                        ),
+                        toArrivesWall: rezoneWallDatetimeLocal(
+                          s.toArrivesWall,
+                          from,
+                          next,
+                        ),
+                        fromDepartsWall: rezoneWallDatetimeLocal(
+                          s.fromDepartsWall,
+                          from,
+                          next,
+                        ),
+                        fromArrivesWall: rezoneWallDatetimeLocal(
+                          s.fromArrivesWall,
+                          from,
+                          next,
+                        ),
+                      };
+                    });
+                  }}
+                  className="mt-1 w-full max-w-md rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                >
+                  {editorTimezoneChoices.map((g) => (
+                    <optgroup key={g.group} label={g.group}>
+                      {g.choices.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               <div className="flex gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">

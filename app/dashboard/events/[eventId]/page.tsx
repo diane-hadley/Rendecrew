@@ -9,7 +9,10 @@ import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
-import { formatEventDateRangeWithTimeZone } from "@/lib/event-datetime";
+import {
+  formatEventDateRangeWithTimeZone,
+  normalizeTimeZone,
+} from "@/lib/event-datetime";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -71,6 +74,12 @@ export default async function EventDetailPage({
 
   const isCreator = canDeleteEvent(dbUser.id, event);
 
+  const eventHasScheduledRange = event.startAt != null && event.endAt != null;
+  const ridesDefaultTimeZone = normalizeTimeZone(
+    eventHasScheduledRange ? event.timezone : dbUser.timezone,
+    dbUser.timezone,
+  );
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-8 flex flex-wrap items-center gap-4 lg:grid lg:grid-cols-[12rem_1fr] lg:items-center lg:gap-10">
@@ -118,6 +127,7 @@ export default async function EventDetailPage({
           suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
           ridesEnabled: event.ridesEnabled,
         }}
+        ridesDefaultTimeZone={ridesDefaultTimeZone}
         membersInitial={membersInitial}
       />
     </div>
