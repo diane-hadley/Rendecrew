@@ -166,8 +166,6 @@ export function EventDetailClient({
                   />
                 </>
               )}
-
-              <EventChat eventId={eventId} />
             </>
           )}
 
@@ -219,6 +217,8 @@ export function EventDetailClient({
           )}
         </div>
       </div>
+
+      <EventChat eventId={eventId} />
     </div>
   );
 }

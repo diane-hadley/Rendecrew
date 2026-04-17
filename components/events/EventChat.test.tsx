@@ -13,8 +13,12 @@ describe("EventChat", () => {
     sendEventChatMessage.mockReset();
   });
 
-  it("shows empty-state hint before messages", () => {
+  it("shows empty-state hint before messages", async () => {
+    const user = userEvent.setup();
     render(<EventChat eventId="evt-1" />);
+    await user.click(
+      screen.getByRole("button", { name: /Open event assistant chat/i }),
+    );
     expect(
       screen.getByText(/Which items aren't yet signed up/i),
     ).toBeInTheDocument();
@@ -27,6 +31,9 @@ describe("EventChat", () => {
       reply: "The event starts Saturday.",
     });
     render(<EventChat eventId="evt-1" />);
+    await user.click(
+      screen.getByRole("button", { name: /Open event assistant chat/i }),
+    );
     const input = screen.getByPlaceholderText(/Ask about this event/i);
     await user.type(input, "When does it start?");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -43,6 +50,9 @@ describe("EventChat", () => {
       error: "Rate limited",
     });
     render(<EventChat eventId="evt-1" />);
+    await user.click(
+      screen.getByRole("button", { name: /Open event assistant chat/i }),
+    );
     const input = screen.getByPlaceholderText(
       /Ask about this event/i,
     ) as HTMLTextAreaElement;
