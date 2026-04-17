@@ -24,11 +24,21 @@ vi.mock("@/lib/packing-list", () => ({
   persistPackingListItems: vi.fn(),
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+const prismaMock = vi.hoisted(() => {
+  const m = {
+    event: { update: vi.fn() },
     packingList: { findUnique: vi.fn() },
     packingItemSignUp: { findFirst: vi.fn(), update: vi.fn() },
-  },
+    $transaction: vi.fn(),
+  };
+  vi.mocked(m.$transaction).mockImplementation(
+    async (fn: (tx: typeof m) => Promise<unknown>) => fn(m),
+  );
+  return m;
+});
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: prismaMock,
 }));
 
 import { PackingListVisibility } from "@prisma/client";
@@ -61,6 +71,7 @@ describe("enablePackingListForEvent", () => {
     vi.mocked(createPackingListForEvent).mockResolvedValue({
       liveblocksRoomId: "room-1",
     } as Awaited<ReturnType<typeof createPackingListForEvent>>);
+    vi.mocked(prisma.event.update).mockResolvedValue({} as never);
   });
 
   it("fails without permission", async () => {
@@ -81,10 +92,15 @@ describe("enablePackingListForEvent", () => {
     });
   });
 
-  it("creates list and revalidates on success", async () => {
+  it("creates list, sets packingEnabled, and revalidates on success", async () => {
     const r = await enablePackingListForEvent("e1");
     expect(r).toEqual({ ok: true, liveblocksRoomId: "room-1" });
-    expect(createPackingListForEvent).toHaveBeenCalledWith("e1");
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(createPackingListForEvent).toHaveBeenCalledWith("e1", prisma);
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: "e1" },
+      data: { packingEnabled: true },
+    });
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
   });
@@ -95,6 +111,13 @@ describe("enablePackingListForEvent", () => {
     );
     const r = await enablePackingListForEvent("e1");
     expect(r).toEqual({ ok: false, error: "boom" });
+  });
+
+  it("returns error when event update throws after list is created", async () => {
+    vi.mocked(prisma.event.update).mockRejectedValueOnce(new Error("no row"));
+    const r = await enablePackingListForEvent("e1");
+    expect(r).toEqual({ ok: false, error: "no row" });
+    expect(createPackingListForEvent).toHaveBeenCalledWith("e1", prisma);
   });
 });
 
