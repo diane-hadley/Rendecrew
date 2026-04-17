@@ -17,7 +17,7 @@ import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import { useEffect, useState } from "react";
 import { EventRidesBoard } from "./rides/EventRidesBoard";
 
-const tabs = ["overview", "packing", "members", "rides", "settings"] as const;
+const tabs = ["overview", "packing", "rides", "members", "settings"] as const;
 type TabId = (typeof tabs)[number];
 
 export type EventDetailClientProps = {
