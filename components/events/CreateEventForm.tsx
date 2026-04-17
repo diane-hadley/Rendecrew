@@ -1,7 +1,7 @@
 "use client";
 
 import { createEvent } from "@/app/actions/events";
-import { TimezoneSelect } from "@/components/TimezoneSelect";
+import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import { APP_DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/event-datetime";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { shouldSyncEndToStart } from "@/lib/datetime-local";

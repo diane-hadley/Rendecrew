@@ -3,7 +3,7 @@
 import { updateEvent } from "@/app/actions/events";
 import { EventDateTimeFields } from "./EventDateTimeFields";
 import { GeneralInformationAiPanel } from "./GeneralInformationAiPanel";
-import { TimezoneSelect } from "@/components/TimezoneSelect";
+import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import {
   rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
