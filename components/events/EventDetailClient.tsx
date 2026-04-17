@@ -14,9 +14,10 @@ import { EventSettingsForm } from "./EventSettingsForm";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { EventRidesBoard } from "./rides/EventRidesBoard";
 
-const tabs = ["overview", "members", "settings"] as const;
+const tabs = ["overview", "members", "rides", "settings"] as const;
 type TabId = (typeof tabs)[number];
 
 export type EventDetailClientProps = {
@@ -52,7 +53,10 @@ export type EventDetailClientProps = {
     memberManagementPolicy: MemberManagementPolicy;
     packingListVisibility: PackingListVisibility;
     suggestionApprovalRequired: boolean;
+    ridesEnabled: boolean;
   };
+  /** Event TZ when the event has start/end; otherwise the signed-in user's TZ. */
+  ridesDefaultTimeZone: string;
   membersInitial: EventMemberListItem[];
 };
 
@@ -67,12 +71,22 @@ export function EventDetailClient({
   editInitial,
   packing,
   settings,
+  ridesDefaultTimeZone,
   membersInitial,
 }: EventDetailClientProps) {
   const [tab, setTab] = useState<TabId>("overview");
   const [isEditing, setIsEditing] = useState(false);
 
   const roleLabel = formatEventRoleLabel(actorRole);
+  const visibleTabs = tabs.filter((t) =>
+    t === "rides" ? settings.ridesEnabled : true,
+  );
+
+  useEffect(() => {
+    if (tab === "rides" && !settings.ridesEnabled) {
+      setTab("overview");
+    }
+  }, [tab, settings.ridesEnabled]);
 
   return (
     <div className="w-full space-y-6">
@@ -81,7 +95,7 @@ export function EventDetailClient({
           aria-label="Event sections"
           className="flex shrink-0 flex-wrap gap-2 lg:w-48 lg:flex-col"
         >
-          {tabs.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t}
               type="button"
@@ -96,7 +110,9 @@ export function EventDetailClient({
                 ? "Overview"
                 : t === "members"
                   ? "Members"
-                  : "Settings"}
+                  : t === "rides"
+                    ? "Rides"
+                    : "Settings"}
             </button>
           ))}
         </nav>
@@ -115,7 +131,7 @@ export function EventDetailClient({
               ) : (
                 <>
                   {editable ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-gray-700 dark:bg-gray-900/40">
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Update the event name, schedule, location, and the
                         information everyone sees on this tab.
@@ -162,6 +178,20 @@ export function EventDetailClient({
               actorRole={actorRole}
               memberManagementPolicy={settings.memberManagementPolicy}
               initialMembers={membersInitial}
+            />
+          )}
+
+          {tab === "rides" && settings.ridesEnabled && (
+            <EventRidesBoard
+              eventId={eventId}
+              currentUserId={currentUserId}
+              defaultTimeZone={ridesDefaultTimeZone}
+              members={membersInitial.map((m) => ({
+                membershipId: m.membershipId,
+                userId: m.userId,
+                name: m.name,
+                email: m.email,
+              }))}
             />
           )}
 

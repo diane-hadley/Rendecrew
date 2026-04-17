@@ -14,6 +14,7 @@ export type UpdateEventSettingsInput = {
   memberManagementPolicy: MemberManagementPolicy;
   packingListVisibility: PackingListVisibility;
   suggestionApprovalRequired: boolean;
+  ridesEnabled: boolean;
 };
 
 export type UpdateEventSettingsResult =
@@ -39,6 +40,7 @@ export async function updateEventSettings(
         memberManagementPolicy: input.memberManagementPolicy,
         packingListVisibility: input.packingListVisibility,
         suggestionApprovalRequired: input.suggestionApprovalRequired,
+        ridesEnabled: input.ridesEnabled,
       },
     });
   } catch (e) {
