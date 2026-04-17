@@ -13,6 +13,7 @@ export type UpdateEventSettingsInput = {
   eventId: string;
   memberManagementPolicy: MemberManagementPolicy;
   packingListVisibility: PackingListVisibility;
+  packingEnabled: boolean;
   suggestionApprovalRequired: boolean;
   ridesEnabled: boolean;
 };
@@ -39,6 +40,7 @@ export async function updateEventSettings(
       data: {
         memberManagementPolicy: input.memberManagementPolicy,
         packingListVisibility: input.packingListVisibility,
+        packingEnabled: input.packingEnabled,
         suggestionApprovalRequired: input.suggestionApprovalRequired,
         ridesEnabled: input.ridesEnabled,
       },

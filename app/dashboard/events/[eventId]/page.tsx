@@ -124,6 +124,7 @@ export default async function EventDetailPage({
         settings={{
           memberManagementPolicy: event.memberManagementPolicy,
           packingListVisibility: event.packingListVisibility,
+          packingEnabled: event.packingEnabled,
           suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
           ridesEnabled: event.ridesEnabled,
         }}

@@ -41,6 +41,7 @@ model Event {
   suggestionApprovalRequired          Boolean                               @default(false) @map("suggestion_approval_required")
   memberManagementPolicy              MemberManagementPolicy                @default(ANY_MEMBER_CAN_INVITE) @map("member_management_policy")
   packingListVisibility               PackingListVisibility                 @default(URL_PUBLIC) @map("packing_list_visibility")
+  packingEnabled                      Boolean                               @default(true) @map("packing_enabled")
   /// * IANA zone for interpreting start/end wall times and for display (default matches user default / app constant).
   timezone                            String                                @default("America/Los_Angeles")
   ridesEnabled                        Boolean                               @default(false) @map("rides_enabled")

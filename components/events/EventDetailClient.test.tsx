@@ -78,6 +78,7 @@ const baseProps = {
   settings: {
     memberManagementPolicy: MemberManagementPolicy.ANY_MEMBER_CAN_INVITE,
     packingListVisibility: PackingListVisibility.URL_PUBLIC,
+    packingEnabled: true,
     suggestionApprovalRequired: false,
     ridesEnabled: false,
   },
@@ -122,10 +123,42 @@ describe("EventDetailClient", () => {
     expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
   });
 
-  it("always renders packing and chat on overview", () => {
+  it("renders chat on overview", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
-    expect(screen.getByTestId("packing-section")).toBeInTheDocument();
     expect(screen.getByTestId("event-chat")).toBeInTheDocument();
+  });
+
+  it("shows packing list in its own tab when available", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        packing={{ ...baseProps.packing, canManagePacking: true }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Packing list" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("packing-section")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Packing list" }));
+    expect(screen.getByTestId("packing-section")).toBeInTheDocument();
+  });
+
+  it("hides packing list tab when packing is disabled", () => {
+    render(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        packing={{ ...baseProps.packing, canManagePacking: true }}
+        settings={{ ...baseProps.settings, packingEnabled: false }}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Packing list" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows members tab content", async () => {
