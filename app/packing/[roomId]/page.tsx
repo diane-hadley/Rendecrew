@@ -68,9 +68,26 @@ export default async function PublicPackingPage({
     eventRow?.suggestionApprovalRequired ?? false;
 
   let canManageTemplate = false;
+  let packingSignupMembers: Array<{
+    userId: string;
+    name: string;
+  }> = [];
   if (authUser) {
     const row = await getEventForUser(eventId, authUser.dbUserId);
     canManageTemplate = row != null && canManageEvent(row.role);
+    if (row) {
+      const memberRows = await prisma.eventMember.findMany({
+        where: { eventId },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { user: { name: "asc" } },
+      });
+      packingSignupMembers = memberRows.map((m) => ({
+        userId: m.user.id,
+        name: m.user.name,
+      }));
+    }
   }
 
   const published = await prisma.packingSuggestion.findMany({
@@ -225,6 +242,7 @@ export default async function PublicPackingPage({
           initialItems={initialItems}
           authUser={authUser}
           canManageTemplate={canManageTemplate}
+          packingSignupMembers={packingSignupMembers}
           suggestionApprovalRequired={suggestionApprovalRequired}
           publishedSuggestions={publishedSuggestions}
           draftSuggestions={draftSuggestions}
