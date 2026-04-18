@@ -18,8 +18,8 @@ vi.mock("@/lib/prisma", () => ({
     packingItemSignUp: {
       updateMany: vi.fn(),
     },
-    user: { findUnique: vi.fn() },
-    eventMember: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn(), findMany: vi.fn() },
+    eventMember: { findUnique: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -237,7 +237,7 @@ describe("persistPackingListItems", () => {
       ...baseList,
       items: [],
     } as never);
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.eventMember.findUnique).mockResolvedValue(null);
     const r = await persistPackingListItems(
       "room",
       [
@@ -260,6 +260,9 @@ describe("persistPackingListItems", () => {
       ],
       { kind: "organizer", userId: "u-org" },
     );
-    expect(r).toEqual({ ok: false, error: "Invalid user for sign-up" });
+    expect(r).toEqual({
+      ok: false,
+      error: "Sign-up user must be an event member",
+    });
   });
 });

@@ -30,6 +30,9 @@ vi.mock("@/lib/prisma", () => ({
         suggestionApprovalRequired: false,
       }),
     },
+    eventMember: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     packingSuggestion: {
       findMany: vi.fn().mockResolvedValue([]),
     },

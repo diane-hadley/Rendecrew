@@ -62,6 +62,11 @@ const MAX_SECTION_LEN = 120;
 
 type AuthUser = { dbUserId: string; name: string; email: string };
 
+type PackingSignupMemberOption = {
+  userId: string;
+  name: string;
+};
+
 type StorageSignUp = {
   id: string;
   quantity: number | null;
@@ -753,7 +758,9 @@ type PackingSortableItemRowProps = {
   updateQuantityMax: (a: { index: number; quantityMax: number | null }) => void;
   setItemOptionalMode: (a: { index: number; optional: boolean }) => void;
   addMySignUp: (index: number) => void;
-  removeMySignUp: (index: number) => void;
+  addMemberSignUp: (a: { index: number; forUserId: string }) => void;
+  removeSignUpIfAllowed: (a: { itemIndex: number; signUpId: string }) => void;
+  signupMembers: readonly PackingSignupMemberOption[];
   updateSignUpQuantity: (a: {
     itemIndex: number;
     signUpId: string;
@@ -786,7 +793,9 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
     updateQuantityMax,
     setItemOptionalMode,
     addMySignUp,
-    removeMySignUp,
+    addMemberSignUp,
+    removeSignUpIfAllowed,
+    signupMembers,
     updateSignUpQuantity,
     setSignUpEmail,
     setPendingRemoveIndex,
@@ -823,6 +832,15 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
     authUser || guestDisplayName
       ? cap == null || (remCap != null && remCap >= 1)
       : false;
+
+  const eligibleMembersToAdd = useMemo(() => {
+    if (!authUser || signupMembers.length === 0) return [];
+    return signupMembers.filter(
+      (m) =>
+        m.userId !== authUser.dbUserId &&
+        !signUps.some((s) => s.userId === m.userId),
+    );
+  }, [authUser, signupMembers, signUps]);
 
   const cellBorder = "border border-gray-300 dark:border-gray-600 align-middle";
 
@@ -1083,16 +1101,47 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
           )}
         </td>
         <td className={`${cellBorder} px-2 py-1.5`}>
-          <button
-            type="button"
-            onClick={() => (mySu ? removeMySignUp(index) : addMySignUp(index))}
-            disabled={
-              (!authUser && !guestDisplayName) || (!mySu && !canSignUpMore)
-            }
-            className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-          >
-            {mySu ? "Cancel sign-up" : "Sign up to bring"}
-          </button>
+          <div className="flex flex-col gap-1.5">
+            {!mySu ? (
+              <button
+                type="button"
+                onClick={() => addMySignUp(index)}
+                disabled={(!authUser && !guestDisplayName) || !canSignUpMore}
+                className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Sign up to bring
+              </button>
+            ) : null}
+            {eligibleMembersToAdd.length > 0 && canSignUpMore ? (
+              <label className="block text-[0.65rem] leading-tight text-gray-600 dark:text-gray-400">
+                <span className="sr-only">
+                  Sign up an event member to bring this
+                </span>
+                <span className="mb-0.5 block font-medium text-gray-700 dark:text-gray-300">
+                  Sign up a member
+                </span>
+                <select
+                  key={`member-pick-${item.id}-${signUps.length}`}
+                  defaultValue=""
+                  className="mt-0.5 w-full max-w-full rounded border border-gray-300 bg-white px-1 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+                  aria-label="Choose an event member to sign up for this item"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) return;
+                    addMemberSignUp({ index, forUserId: v });
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">Choose…</option>
+                  {eligibleMembersToAdd.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
         </td>
         <td className={`${cellBorder} p-2 text-gray-600 dark:text-gray-400`}>
           {signUps.length === 0 ? (
@@ -1101,49 +1150,89 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
             <ul className="space-y-2 text-xs">
               {signUps.map((su) => {
                 const mine = isMineSignUp(su, authUser, guestDisplayName);
+                const linkedMember =
+                  authUser &&
+                  su.userId &&
+                  signupMembers.some((m) => m.userId === su.userId);
+                const showRemoveOtherMemberSignUp =
+                  linkedMember &&
+                  su.userId &&
+                  authUser &&
+                  su.userId !== authUser.dbUserId;
+                const showRemoveSignUp = mine || showRemoveOtherMemberSignUp;
+                const canEditQuantity =
+                  mine ||
+                  (Boolean(authUser) &&
+                    Boolean(su.userId) &&
+                    signupMembers.some((m) => m.userId === su.userId));
                 return (
-                  <li key={su.id} className="flex flex-wrap items-center gap-2">
+                  <li
+                    key={su.id}
+                    className="grid grid-cols-[minmax(0,1fr)_4rem_4rem] items-center gap-x-2"
+                  >
                     <span
-                      className={
+                      className={`min-w-0 truncate ${
                         mine
                           ? "font-medium text-blue-800 dark:text-blue-300"
                           : ""
-                      }
+                      }`}
+                      title={`${su.displayName}${mine ? " (you)" : ""}`.trim()}
                     >
                       {su.displayName}
                       {mine ? " (you)" : ""}
                     </span>
-                    <span className="text-gray-500">·</span>
-                    {mine ? (
-                      <input
-                        type="number"
-                        min={1}
-                        max={cap ?? undefined}
-                        value={su.quantity ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value.trim();
-                          if (v === "") {
+                    <div className="flex justify-end tabular-nums">
+                      {canEditQuantity ? (
+                        <input
+                          type="number"
+                          min={1}
+                          max={cap ?? undefined}
+                          value={su.quantity ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value.trim();
+                            if (v === "") {
+                              updateSignUpQuantity({
+                                itemIndex: index,
+                                signUpId: su.id,
+                                quantity: null,
+                              });
+                              return;
+                            }
+                            const n = parseInt(v, 10);
+                            if (!Number.isFinite(n)) return;
                             updateSignUpQuantity({
                               itemIndex: index,
                               signUpId: su.id,
-                              quantity: null,
+                              quantity: n,
                             });
-                            return;
+                          }}
+                          className="w-full max-w-[4rem] rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
+                          aria-label={
+                            mine ? "How many you bring" : "How many they bring"
                           }
-                          const n = parseInt(v, 10);
-                          if (!Number.isFinite(n)) return;
-                          updateSignUpQuantity({
-                            itemIndex: index,
-                            signUpId: su.id,
-                            quantity: n,
-                          });
-                        }}
-                        className="w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
-                        aria-label="How many you bring"
-                      />
-                    ) : (
-                      <span>{su.quantity ?? "—"}</span>
-                    )}
+                        />
+                      ) : (
+                        <span className="block w-full max-w-[4rem] text-right">
+                          {su.quantity ?? "—"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
+                      {showRemoveSignUp ? (
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                          onClick={() =>
+                            removeSignUpIfAllowed({
+                              itemIndex: index,
+                              signUpId: su.id,
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
@@ -1216,6 +1305,7 @@ export function PackingListEditor({
   authUser,
   guestDisplayName,
   canManageTemplate,
+  packingSignupMembers = [],
   persistToDatabase = true,
 }: {
   roomId: string;
@@ -1223,14 +1313,24 @@ export function PackingListEditor({
   guestDisplayName: string | null;
   /** Event organizers may edit shared rows; everyone else only manages their own sign-ups. */
   canManageTemplate: boolean;
+  /** When non-empty, signed-in viewers may sign up or remove other event members for items. */
+  packingSignupMembers?: readonly PackingSignupMemberOption[];
   /**
    * When false, storage updates are not synced to Postgres (e.g. while another tab is visible).
    * Avoids repeated persist while Liveblocks still streams updates in the background.
    */
   persistToDatabase?: boolean;
 }) {
-  const ctxRef = useRef({ authUser, guestDisplayName });
-  ctxRef.current = { authUser, guestDisplayName };
+  const ctxRef = useRef({
+    authUser,
+    guestDisplayName,
+    signupMembers: packingSignupMembers,
+  });
+  ctxRef.current = {
+    authUser,
+    guestDisplayName,
+    signupMembers: packingSignupMembers,
+  };
 
   const room = useRoom();
   const storageSnap = useStorage((root) => ({
@@ -1725,27 +1825,93 @@ export function PackingListEditor({
     );
   }, []);
 
-  const removeMySignUp = useMutation(({ storage }, index: number) => {
-    const { authUser: au, guestDisplayName: gn } = ctxRef.current;
-    const items = storage.get("items");
-    const row = items.get(index);
-    if (!row) return;
-    const signUps = row.get("signUps");
-    if (!signUps) return;
-    const g = gn?.trim() ?? null;
-    for (let i = signUps.length - 1; i >= 0; i--) {
-      const s = signUps.get(i);
-      if (!s) continue;
-      if (au && s.get("userId") === au.dbUserId) {
+  const addMemberSignUp = useMutation(
+    (
+      { storage },
+      { index, forUserId }: { index: number; forUserId: string },
+    ) => {
+      const { authUser: au, signupMembers: members } = ctxRef.current;
+      if (!au) return;
+      const member = members.find((m) => m.userId === forUserId);
+      if (!member || member.userId === au.dbUserId) return;
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      let signUps = row.get("signUps");
+      if (!signUps) {
+        const list = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+        row.set("signUps", list as never);
+        signUps = list as never;
+      }
+      for (let i = 0; i < signUps.length; i++) {
+        const s = signUps.get(i);
+        if (!s) continue;
+        if (s.get("userId") === forUserId) return;
+      }
+      const itemQty = row.get("quantity") as number | null;
+      const itemMax = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(itemQty, itemMax ?? null);
+      let sum = 0;
+      for (let i = 0; i < signUps.length; i++) {
+        const s = signUps.get(i);
+        if (!s) continue;
+        sum += (s.get("quantity") as number | null) ?? 0;
+      }
+      const rem = cap != null ? Math.max(0, cap - sum) : null;
+      if (cap != null && rem != null && rem < 1) return;
+
+      const newQuantity = rem != null ? Math.min(1, rem) : 1;
+
+      signUps.push(
+        new LiveObject({
+          id: crypto.randomUUID(),
+          quantity: newQuantity,
+          displayName: member.name,
+          email: null,
+          userId: member.userId,
+          packed: false,
+        }),
+      );
+    },
+    [],
+  );
+
+  const removeSignUpIfAllowed = useMutation(
+    (
+      { storage },
+      { itemIndex, signUpId }: { itemIndex: number; signUpId: string },
+    ) => {
+      const {
+        authUser: au,
+        guestDisplayName: gn,
+        signupMembers: members,
+      } = ctxRef.current;
+      const items = storage.get("items");
+      const row = items.get(itemIndex);
+      if (!row) return;
+      const signUps = row.get("signUps");
+      if (!signUps) return;
+      const g = gn?.trim() ?? null;
+      for (let i = signUps.length - 1; i >= 0; i--) {
+        const s = signUps.get(i);
+        if (!s) continue;
+        if (s.get("id") !== signUpId) continue;
+        const uid = (s.get("userId") as string | null) ?? null;
+        if (au) {
+          const roster = new Set(members.map((m) => m.userId));
+          const mine = uid === au.dbUserId;
+          const removable = mine || (!!uid && roster.has(uid));
+          if (!removable) return;
+        } else {
+          if (!g || uid) return;
+          if (String(s.get("displayName") ?? "") !== g) return;
+        }
         signUps.delete(i);
         return;
       }
-      if (!au && g && !s.get("userId") && s.get("displayName") === g) {
-        signUps.delete(i);
-        return;
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   const updateSignUpQuantity = useMutation(
     (
@@ -1775,20 +1941,24 @@ export function PackingListEditor({
       }
       if (!target) return;
 
-      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
-      const mine = isMineSignUp(
-        {
-          id: String(target.get("id")),
-          quantity: (target.get("quantity") as number | null) ?? null,
-          displayName: String(target.get("displayName") ?? ""),
-          email: (target.get("email") as string | null) ?? null,
-          userId: (target.get("userId") as string | null) ?? null,
-          packed: Boolean(target.get("packed")),
-        },
-        au,
-        gn,
-      );
-      if (!mine) return;
+      const {
+        authUser: au,
+        guestDisplayName: gn,
+        signupMembers: members,
+      } = ctxRef.current;
+      const rowSignUp: StorageSignUp = {
+        id: String(target.get("id")),
+        quantity: (target.get("quantity") as number | null) ?? null,
+        displayName: String(target.get("displayName") ?? ""),
+        email: (target.get("email") as string | null) ?? null,
+        userId: (target.get("userId") as string | null) ?? null,
+        packed: Boolean(target.get("packed")),
+      };
+      const mine = isMineSignUp(rowSignUp, au, gn);
+      const uid = rowSignUp.userId?.trim() ?? null;
+      const canEditOtherMemberQty =
+        Boolean(au) && Boolean(uid) && members.some((m) => m.userId === uid);
+      if (!mine && !canEditOtherMemberQty) return;
 
       let otherSum = 0;
       for (let i = 0; i < signUps.length; i++) {
@@ -2228,7 +2398,9 @@ export function PackingListEditor({
                           updateQuantityMax={updateQuantityMax}
                           setItemOptionalMode={setItemOptionalMode}
                           addMySignUp={addMySignUp}
-                          removeMySignUp={removeMySignUp}
+                          addMemberSignUp={addMemberSignUp}
+                          removeSignUpIfAllowed={removeSignUpIfAllowed}
+                          signupMembers={packingSignupMembers}
                           updateSignUpQuantity={updateSignUpQuantity}
                           setSignUpEmail={setSignUpEmail}
                           setPendingRemoveIndex={setPendingRemoveIndex}
@@ -2323,7 +2495,9 @@ export function PackingListEditor({
                           updateQuantityMax={updateQuantityMax}
                           setItemOptionalMode={setItemOptionalMode}
                           addMySignUp={addMySignUp}
-                          removeMySignUp={removeMySignUp}
+                          addMemberSignUp={addMemberSignUp}
+                          removeSignUpIfAllowed={removeSignUpIfAllowed}
+                          signupMembers={packingSignupMembers}
                           updateSignUpQuantity={updateSignUpQuantity}
                           setSignUpEmail={setSignUpEmail}
                           setPendingRemoveIndex={setPendingRemoveIndex}

@@ -154,11 +154,50 @@ function ownsSignUpDb(
   return false;
 }
 
+/** Participant may remove their own sign-up or any linked event member’s row. */
+function participantMayRemoveDbSignUp(
+  dbRow: PackingSignUpPayload,
+  actor: Extract<PackingPersistActor, { kind: "participant" }>,
+  eventMemberUserIds: ReadonlySet<string>,
+): boolean {
+  if (ownsSignUpDb(dbRow, actor)) return true;
+  const uid = dbRow.userId?.trim();
+  if (!uid) return false;
+  return eventMemberUserIds.has(uid);
+}
+
+/** Participant may add their own sign-up or a new row for another event member. */
+function participantMayAddNewSignUp(
+  inc: PackingSignUpPayload,
+  actor: Extract<PackingPersistActor, { kind: "participant" }>,
+  eventMemberUserIds: ReadonlySet<string>,
+): boolean {
+  if (ownsSignUpDb(inc, actor)) return true;
+  const uid = inc.userId?.trim();
+  if (!uid) return false;
+  return eventMemberUserIds.has(uid);
+}
+
+/** Participant may change quantity on another member’s linked sign-up (identity + packed stay server-truth). */
+function participantMayAdjustOtherMemberSignUpQuantity(
+  dbRow: PackingSignUpPayload,
+  actor: Extract<PackingPersistActor, { kind: "participant" }>,
+  eventMemberUserIds: ReadonlySet<string>,
+): boolean {
+  if (ownsSignUpDb(dbRow, actor)) return false;
+  const uid = dbRow.userId?.trim();
+  if (!uid) return false;
+  return eventMemberUserIds.has(uid);
+}
+
 function mergeSignUpsForActor(
   dbSignUps: PackingSignUpPayload[],
   incSignUps: PackingSignUpPayload[],
   actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
+  eventMemberUserIds: ReadonlySet<string>,
 ): PackingSignUpPayload[] {
+  const memberIdsForParticipant =
+    actor.kind === "participant" ? eventMemberUserIds : new Set<string>();
   const dbById = new Map(dbSignUps.map((s) => [s.id, s]));
   const incById = new Map(incSignUps.map((s) => [s.id, s]));
   const merged: PackingSignUpPayload[] = [];
@@ -167,35 +206,70 @@ function mergeSignUpsForActor(
   for (const dbRow of dbSignUps) {
     const inc = incById.get(dbRow.id);
     if (!inc) {
-      if (ownsSignUpDb(dbRow, actor)) continue;
+      if (
+        actor.kind === "participant" &&
+        participantMayRemoveDbSignUp(dbRow, actor, memberIdsForParticipant)
+      ) {
+        continue;
+      }
+      if (actor.kind === "guest" && ownsSignUpDb(dbRow, actor)) continue;
       merged.push(dbRow);
       continue;
     }
     usedInc.add(dbRow.id);
-    if (ownsSignUpDb(dbRow, actor)) merged.push(inc);
-    else merged.push(dbRow);
+    if (ownsSignUpDb(dbRow, actor)) {
+      merged.push(inc);
+    } else if (
+      actor.kind === "participant" &&
+      participantMayAdjustOtherMemberSignUpQuantity(
+        dbRow,
+        actor,
+        memberIdsForParticipant,
+      )
+    ) {
+      merged.push({
+        ...dbRow,
+        quantity: inc.quantity,
+      });
+    } else {
+      merged.push(dbRow);
+    }
   }
 
   for (const inc of incSignUps) {
     if (usedInc.has(inc.id)) continue;
     if (dbById.has(inc.id)) continue;
-    if (ownsSignUpDb(inc, actor)) merged.push(inc);
+    if (actor.kind === "guest") {
+      if (ownsSignUpDb(inc, actor)) merged.push(inc);
+    } else if (
+      participantMayAddNewSignUp(inc, actor, memberIdsForParticipant)
+    ) {
+      merged.push(inc);
+    }
   }
 
   return merged;
 }
 
+export type MergeParticipantPackingOptions = {
+  /** Event member user ids (packing list’s event). Used so participants can add/remove other members’ sign-ups. */
+  eventMemberUserIds?: ReadonlySet<string>;
+};
+
 /**
- * Non-organizers may only change their own sign-ups; shared template must match the database row-for-row.
+ * Non-organizers may change their own sign-ups and (when `eventMemberUserIds` is provided) add, remove,
+ * or change quantity on sign-ups linked to other event members; shared template must match the database row-for-row.
  */
 export function mergeParticipantPackingPayload(
   dbSectionsOrdered: DbSectionForMerge[],
   dbItemsOrdered: DbItemForMerge[],
   incoming: PackingListSyncPayload,
   actor: Extract<PackingPersistActor, { kind: "participant" | "guest" }>,
+  options: MergeParticipantPackingOptions = {},
 ):
   | { ok: true; sections: PackingSectionPayload[]; items: PackingItemPayload[] }
   | { ok: false; error: string } {
+  const eventMemberUserIds = options.eventMemberUserIds ?? new Set<string>();
   const incSections = incoming.sections ?? [];
   const incItems = incoming.items ?? [];
   if (!sectionsStructureEqual(dbSectionsOrdered, incSections)) {
@@ -229,7 +303,12 @@ export function mergeParticipantPackingPayload(
       };
     }
     const dbS = dbRow.signUps.map(dbSignUpToPayload);
-    const merged = mergeSignUpsForActor(dbS, inc.signUps, actor);
+    const merged = mergeSignUpsForActor(
+      dbS,
+      inc.signUps,
+      actor,
+      eventMemberUserIds,
+    );
     out.push({
       id: dbRow.id,
       sectionId: dbRow.sectionId,
@@ -485,11 +564,17 @@ export async function persistPackingListItems(
   let sectionsToPersist = sectionsIn;
   let itemsToPersist = itemsIn;
   if (actor.kind !== "organizer") {
+    const memberRows = await prisma.eventMember.findMany({
+      where: { eventId: list.eventId },
+      select: { userId: true },
+    });
+    const eventMemberUserIds = new Set(memberRows.map((m) => m.userId));
     const merged = mergeParticipantPackingPayload(
       list.sections as DbSectionForMerge[],
       list.items as DbItemForMerge[],
       { sections: sectionsIn, items: itemsIn },
       actor,
+      { eventMemberUserIds },
     );
     if (!merged.ok) return merged;
     sectionsToPersist = merged.sections;
@@ -624,12 +709,15 @@ export async function persistPackingListItems(
     ),
   );
   for (const uid of userIds) {
-    const u = await prisma.user.findUnique({
-      where: { id: uid },
-      select: { id: true },
+    const member = await prisma.eventMember.findUnique({
+      where: { eventId_userId: { eventId: list.eventId, userId: uid } },
+      select: { userId: true },
     });
-    if (!u) {
-      return { ok: false, error: "Invalid user for sign-up" };
+    if (!member) {
+      return {
+        ok: false,
+        error: "Sign-up user must be an event member",
+      };
     }
   }
 
@@ -692,6 +780,16 @@ export async function persistPackingListItems(
         });
       }
 
+      const signUpUserIdList = [...userIds];
+      const signUpUsers =
+        signUpUserIdList.length > 0
+          ? await tx.user.findMany({
+              where: { id: { in: signUpUserIdList } },
+              select: { id: true, name: true, email: true },
+            })
+          : [];
+      const signUpUserById = new Map(signUpUsers.map((u) => [u.id, u]));
+
       for (let i = 0; i < itemsToPersist.length; i++) {
         const it = itemsToPersist[i];
 
@@ -738,19 +836,31 @@ export async function persistPackingListItems(
 
         if (it.signUps.length) {
           await tx.packingItemSignUp.createMany({
-            data: it.signUps.map((su, j) => ({
-              id: su.id,
-              packingItemId: it.id,
-              quantity: su.quantity,
-              packed: packedBySignUpId.get(su.id) ?? su.packed,
-              displayName: su.displayName.trim(),
-              email:
-                su.email?.trim() != null && su.email.trim() !== ""
-                  ? normalizeEmailForSignUp(su.email)
-                  : null,
-              userId: su.userId?.trim() || null,
-              sortOrder: j,
-            })),
+            data: it.signUps.map((su, j) => {
+              const uidTrim = su.userId?.trim() || null;
+              const fromUser = uidTrim
+                ? signUpUserById.get(uidTrim)
+                : undefined;
+              const dnFromUser = fromUser?.name?.trim() ?? "";
+              const displayName =
+                uidTrim && dnFromUser ? dnFromUser : su.displayName.trim();
+              const emailResolved =
+                uidTrim && fromUser?.email?.trim()
+                  ? normalizeEmailForSignUp(fromUser.email)
+                  : su.email?.trim() != null && su.email.trim() !== ""
+                    ? normalizeEmailForSignUp(su.email)
+                    : null;
+              return {
+                id: su.id,
+                packingItemId: it.id,
+                quantity: su.quantity,
+                packed: packedBySignUpId.get(su.id) ?? su.packed,
+                displayName,
+                email: emailResolved,
+                userId: uidTrim,
+                sortOrder: j,
+              };
+            }),
           });
         }
       }

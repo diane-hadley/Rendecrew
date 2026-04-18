@@ -27,6 +27,11 @@ import { PackingListEditor, buildInitialStorage } from "./PackingListEditor";
 
 type AuthUser = { dbUserId: string; name: string; email: string };
 
+export type PackingSignupMemberOption = {
+  userId: string;
+  name: string;
+};
+
 /** Shape Liveblocks expects from `authEndpoint` (success or structured failure). */
 type LiveblocksAuthResponse =
   | { token: string }
@@ -71,6 +76,7 @@ export function PackingCollabPage({
   initialItems,
   authUser,
   canManageTemplate,
+  packingSignupMembers = [],
   suggestionApprovalRequired,
   publishedSuggestions,
   draftSuggestions,
@@ -84,6 +90,8 @@ export function PackingCollabPage({
   initialItems: PackingItemPayload[];
   authUser: AuthUser | null;
   canManageTemplate: boolean;
+  /** Event members (current user included); empty when the viewer is not an event member. */
+  packingSignupMembers?: readonly PackingSignupMemberOption[];
   suggestionApprovalRequired: boolean;
   publishedSuggestions: PublishedSuggestionVM[];
   draftSuggestions: DraftSuggestionVM[];
@@ -258,7 +266,8 @@ export function PackingCollabPage({
             {canManageTemplate && (
               <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
                 You can edit the shared template (items, sections, quantities,
-                remove rows). Others only manage their own sign-ups.
+                remove rows). Others manage sign-ups, including signing up
+                fellow members.
               </p>
             )}
           </div>
@@ -271,6 +280,7 @@ export function PackingCollabPage({
               authUser={authUser}
               guestDisplayName={authUser ? null : resolvedGuestName}
               canManageTemplate={canManageTemplate}
+              packingSignupMembers={packingSignupMembers}
               persistToDatabase={mainTab === "shared"}
             />
           </div>
