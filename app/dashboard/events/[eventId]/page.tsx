@@ -127,6 +127,7 @@ export default async function EventDetailPage({
           packingEnabled: event.packingEnabled,
           suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
           ridesEnabled: event.ridesEnabled,
+          taskBoardEnabled: event.taskBoardEnabled,
         }}
         ridesDefaultTimeZone={ridesDefaultTimeZone}
         membersInitial={membersInitial}

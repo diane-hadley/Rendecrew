@@ -28,6 +28,7 @@ vi.mock("@/lib/prisma", () => ({
     userSuggestionState: { deleteMany: vi.fn() },
     eventRideCar: { deleteMany: vi.fn() },
     event_ride_custom_field_definitions: { deleteMany: vi.fn() },
+    eventTask: { deleteMany: vi.fn() },
     $transaction: transaction,
   },
 }));
@@ -38,7 +39,9 @@ import { getOrCreateUser } from "@/lib/user";
 import {
   disableEventPackingFeature,
   disableEventRidesFeature,
+  disableEventTaskBoardFeature,
   enableEventRidesFeature,
+  enableEventTaskBoardFeature,
 } from "./event-optional-features";
 
 describe("event-optional-features", () => {
@@ -94,11 +97,33 @@ describe("event-optional-features", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
   });
 
+  it("enableEventTaskBoardFeature updates event and revalidates", async () => {
+    const r = await enableEventTaskBoardFeature("e1");
+    expect(r).toEqual({ ok: true });
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: "e1" },
+      data: { taskBoardEnabled: true },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
+  });
+
   it("disableEventPackingFeature runs delete transaction and revalidates packing path", async () => {
     const r = await disableEventPackingFeature("e1");
     expect(r).toEqual({ ok: true });
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(revalidatePath).toHaveBeenCalledWith("/packing/room-1");
+  });
+
+  it("disableEventTaskBoardFeature runs delete transaction", async () => {
+    const r = await disableEventTaskBoardFeature("e1");
+    expect(r).toEqual({ ok: true });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.eventTask.deleteMany).toHaveBeenCalledWith({
+      where: { eventId: "e1" },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
   });
 
   it("disableEventPackingFeature rejects without permission", async () => {

@@ -34,6 +34,34 @@ export async function enableEventRidesFeature(
   return { ok: true };
 }
 
+export async function enableEventTaskBoardFeature(
+  eventId: string,
+): Promise<OptionalFeatureResult> {
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(eventId, user.id);
+  if (!row || !canManageEvent(row.role)) {
+    return {
+      ok: false,
+      error: "You do not have permission to change this event",
+    };
+  }
+
+  try {
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { taskBoardEnabled: true },
+    });
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Failed to enable task board";
+    return { ok: false, error: message };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/events/${eventId}`);
+  return { ok: true };
+}
+
 export async function disableEventPackingFeature(
   eventId: string,
 ): Promise<OptionalFeatureResult> {
@@ -73,6 +101,37 @@ export async function disableEventPackingFeature(
   if (list?.liveblocksRoomId) {
     revalidatePath(`/packing/${list.liveblocksRoomId}`);
   }
+  return { ok: true };
+}
+
+export async function disableEventTaskBoardFeature(
+  eventId: string,
+): Promise<OptionalFeatureResult> {
+  const user = await getOrCreateUser();
+  const row = await getEventForUser(eventId, user.id);
+  if (!row || !canManageEvent(row.role)) {
+    return {
+      ok: false,
+      error: "You do not have permission to change this event",
+    };
+  }
+
+  try {
+    await prisma.$transaction([
+      prisma.eventTask.deleteMany({ where: { eventId } }),
+      prisma.event.update({
+        where: { id: eventId },
+        data: { taskBoardEnabled: false },
+      }),
+    ]);
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Failed to disable task board";
+    return { ok: false, error: message };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true };
 }
 

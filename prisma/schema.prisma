@@ -45,11 +45,13 @@ model Event {
   /// * IANA zone for interpreting start/end wall times and for display (default matches user default / app constant).
   timezone                            String                                @default("America/Los_Angeles")
   ridesEnabled                        Boolean                               @default(false) @map("rides_enabled")
+  taskBoardEnabled                    Boolean                               @default(false) @map("task_board_enabled")
   rides_mode                          RidesMode                             @default(RIDES_UNIFIED)
   rides_hidden_built_in_field_keys    String[]                              @default([])
   eventMembers                        EventMember[]
   rideCars                            EventRideCar[]
   event_ride_custom_field_definitions event_ride_custom_field_definitions[]
+  eventTasks                          EventTask[]
   createdBy                           User                                  @relation("EventCreatedBy", fields: [createdById], references: [id])
   packingList                         PackingList?
   packingSuggestions                  PackingSuggestion[]
@@ -57,6 +59,43 @@ model Event {
   userSuggestionStates                UserSuggestionState[]
 
   @@map("events")
+}
+
+model EventTask {
+  id              String            @id @default(uuid())
+  eventId         String            @map("event_id")
+  title           String
+  notes           String?
+  status          EventTaskStatus   @default(TO_DO)
+  dueDate         DateTime?         @db.Date @map("due_date")
+  sortOrder       Int               @default(0) @map("sort_order")
+  createdByUserId String?           @map("created_by_user_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  event       Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  assignments EventTaskAssignment[]
+
+  @@index([eventId, status])
+  @@index([eventId, dueDate])
+  @@map("event_tasks")
+}
+
+model EventTaskAssignment {
+  id            String      @id @default(uuid())
+  taskId        String      @map("task_id")
+  eventMemberId String      @map("event_member_id")
+  doneAt        DateTime?   @map("done_at")
+  doneByUserId  String?     @map("done_by_user_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  task        EventTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  eventMember EventMember  @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, eventMemberId])
+  @@index([eventMemberId, doneAt])
+  @@map("event_task_assignments")
 }
 
 model PackingList {
@@ -142,6 +181,7 @@ model EventMember {
   user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   drivenRideCars        EventRideCar[]          @relation("RideCarDriver")
   event_ride_passengers event_ride_passengers[]
+  eventTaskAssignments  EventTaskAssignment[]
 
   @@unique([eventId, userId])
   @@map("event_members")
@@ -318,4 +358,10 @@ enum RidePassengerLeg {
 enum RidesMode {
   RIDES_UNIFIED
   RIDES_SPLIT
+}
+
+enum EventTaskStatus {
+  TO_DO
+  IN_PROGRESS
+  DONE
 }

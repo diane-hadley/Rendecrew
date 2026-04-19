@@ -28,6 +28,10 @@ vi.mock("@/components/rides/RidesBoard", () => ({
   RidesBoard: () => <div data-testid="rides-board" />,
 }));
 
+vi.mock("@/components/tasks/TaskBoard", () => ({
+  TaskBoard: () => <div data-testid="task-board" />,
+}));
+
 vi.mock("./EditEventForm", () => ({
   EditEventForm: ({
     onCancel,
@@ -81,6 +85,7 @@ const baseProps = {
     packingEnabled: true,
     suggestionApprovalRequired: false,
     ridesEnabled: false,
+    taskBoardEnabled: false,
   },
   ridesDefaultTimeZone: "UTC",
   membersInitial: [],
@@ -190,6 +195,27 @@ describe("EventDetailClient", () => {
     expect(screen.getByRole("button", { name: "Rides" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Rides" }));
     expect(screen.getByTestId("rides-board")).toBeInTheDocument();
+  });
+
+  it("shows tasks tab when task board is enabled", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventDetailClient
+        {...baseProps}
+        editable={false}
+        settings={{ ...baseProps.settings, taskBoardEnabled: true }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Tasks" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(screen.getByTestId("task-board")).toBeInTheDocument();
+  });
+
+  it("hides tasks tab when task board is disabled", () => {
+    render(<EventDetailClient {...baseProps} editable={false} />);
+    expect(
+      screen.queryByRole("button", { name: "Tasks" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides rides tab when rides are disabled", () => {

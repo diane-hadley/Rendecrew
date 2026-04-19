@@ -20,6 +20,7 @@ export type DashboardEventRow = {
     packingListVisibility: PackingListVisibility;
     packingEnabled: boolean;
     ridesEnabled: boolean;
+    taskBoardEnabled: boolean;
     rides_mode: import("@prisma/client").RidesMode;
     rides_hidden_built_in_field_keys: string[];
     createdAt: Date;
