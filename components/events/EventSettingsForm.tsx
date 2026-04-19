@@ -11,7 +11,9 @@ import { useEffect, useState, useTransition } from "react";
 import {
   disableEventPackingFeature,
   disableEventRidesFeature,
+  disableEventTaskBoardFeature,
   enableEventRidesFeature,
+  enableEventTaskBoardFeature,
 } from "@/app/actions/event-optional-features";
 import { enablePackingListForEvent } from "@/app/actions/packing-list";
 import { updateEventSettings } from "@/app/actions/event-settings";
@@ -28,6 +30,7 @@ type EventSettingsFormProps = {
     packingEnabled: boolean;
     suggestionApprovalRequired: boolean;
     ridesEnabled: boolean;
+    taskBoardEnabled: boolean;
   };
 };
 
@@ -48,21 +51,31 @@ export function EventSettingsForm({
   );
   const [packingEnabled, setPackingEnabled] = useState(initial.packingEnabled);
   const [ridesEnabled, setRidesEnabled] = useState(initial.ridesEnabled);
+  const [taskBoardEnabled, setTaskBoardEnabled] = useState(
+    initial.taskBoardEnabled,
+  );
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showConfirmDisablePacking, setShowConfirmDisablePacking] =
     useState(false);
   const [showConfirmDisableRides, setShowConfirmDisableRides] = useState(false);
+  const [showConfirmDisableTaskBoard, setShowConfirmDisableTaskBoard] =
+    useState(false);
   const [packingDisableError, setPackingDisableError] = useState<string | null>(
     null,
   );
   const [ridesDisableError, setRidesDisableError] = useState<string | null>(
     null,
   );
+  const [taskBoardDisableError, setTaskBoardDisableError] = useState<
+    string | null
+  >(null);
   const [isSavePending, startSaveTransition] = useTransition();
   const [isPackingFeaturePending, startPackingFeatureTransition] =
     useTransition();
   const [isRidesFeaturePending, startRidesFeatureTransition] = useTransition();
+  const [isTaskBoardFeaturePending, startTaskBoardFeatureTransition] =
+    useTransition();
 
   useEffect(() => {
     setMemberPolicy(initial.memberManagementPolicy);
@@ -70,6 +83,7 @@ export function EventSettingsForm({
     setSuggestionApproval(initial.suggestionApprovalRequired);
     setPackingEnabled(initial.packingEnabled);
     setRidesEnabled(initial.ridesEnabled);
+    setTaskBoardEnabled(initial.taskBoardEnabled);
     if (!initial.packingEnabled) {
       setShowConfirmDisablePacking(false);
       setPackingDisableError(null);
@@ -78,12 +92,17 @@ export function EventSettingsForm({
       setShowConfirmDisableRides(false);
       setRidesDisableError(null);
     }
+    if (!initial.taskBoardEnabled) {
+      setShowConfirmDisableTaskBoard(false);
+      setTaskBoardDisableError(null);
+    }
   }, [
     initial.memberManagementPolicy,
     initial.packingListVisibility,
     initial.suggestionApprovalRequired,
     initial.packingEnabled,
     initial.ridesEnabled,
+    initial.taskBoardEnabled,
   ]);
 
   function save() {
@@ -106,7 +125,10 @@ export function EventSettingsForm({
     });
   }
 
-  const isFeaturePending = isPackingFeaturePending || isRidesFeaturePending;
+  const isFeaturePending =
+    isPackingFeaturePending ||
+    isRidesFeaturePending ||
+    isTaskBoardFeaturePending;
   const disabled = !canEdit || isSavePending || isFeaturePending;
 
   return (
@@ -434,6 +456,118 @@ export function EventSettingsForm({
                     className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-900"
                   >
                     {isRidesFeaturePending
+                      ? "Disabling…"
+                      : "Disable permanently"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </li>
+          <li className="space-y-3 pt-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <div className="min-w-0 space-y-1">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  Task board
+                </h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Tasks tab for group to-dos with multi-assignee completion.
+                </p>
+              </div>
+              <div className="shrink-0">
+                {taskBoardEnabled ? (
+                  !showConfirmDisableTaskBoard ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setError(null);
+                        setTaskBoardDisableError(null);
+                        setShowConfirmDisablePacking(false);
+                        setPackingDisableError(null);
+                        setShowConfirmDisableRides(false);
+                        setRidesDisableError(null);
+                        setShowConfirmDisableTaskBoard(true);
+                      }}
+                      className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 dark:border-red-800 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950/40 dark:focus:ring-offset-gray-800"
+                    >
+                      Disable
+                    </button>
+                  ) : null
+                ) : (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => {
+                      setError(null);
+                      startTaskBoardFeatureTransition(async () => {
+                        const r = await enableEventTaskBoardFeature(eventId);
+                        if (!r.ok) {
+                          setError(r.error);
+                          return;
+                        }
+                        setTaskBoardEnabled(true);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  >
+                    {isTaskBoardFeaturePending ? "Enabling…" : "Enable"}
+                  </button>
+                )}
+              </div>
+            </div>
+            {taskBoardEnabled && showConfirmDisableTaskBoard ? (
+              <div
+                className="space-y-3 rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/30"
+                role="region"
+                aria-label="Confirm disable task board"
+              >
+                <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                  Disable task board?
+                </p>
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  This permanently deletes all tasks, assignments, and
+                  completion history for this event. This cannot be undone.
+                </p>
+                {taskBoardDisableError && (
+                  <p
+                    className="rounded-md border border-red-200 bg-white/80 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-gray-900/80 dark:text-red-400"
+                    role="alert"
+                  >
+                    {taskBoardDisableError}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={isTaskBoardFeaturePending}
+                    onClick={() => {
+                      setTaskBoardDisableError(null);
+                      setShowConfirmDisableTaskBoard(false);
+                    }}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isTaskBoardFeaturePending}
+                    onClick={() => {
+                      setTaskBoardDisableError(null);
+                      startTaskBoardFeatureTransition(async () => {
+                        const r = await disableEventTaskBoardFeature(eventId);
+                        if (!r.ok) {
+                          setTaskBoardDisableError(r.error);
+                          return;
+                        }
+                        setShowConfirmDisableTaskBoard(false);
+                        setTaskBoardEnabled(false);
+                        router.refresh();
+                      });
+                    }}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-900"
+                  >
+                    {isTaskBoardFeaturePending
                       ? "Disabling…"
                       : "Disable permanently"}
                   </button>

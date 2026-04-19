@@ -16,8 +16,16 @@ import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import { useEffect, useState } from "react";
 import { RidesBoard } from "@/components/rides/RidesBoard";
+import { TaskBoard } from "@/components/tasks/TaskBoard";
 
-const tabs = ["overview", "packing", "rides", "members", "settings"] as const;
+const tabs = [
+  "overview",
+  "tasks",
+  "packing",
+  "rides",
+  "members",
+  "settings",
+] as const;
 type TabId = (typeof tabs)[number];
 
 export type EventDetailClientProps = {
@@ -55,6 +63,7 @@ export type EventDetailClientProps = {
     packingEnabled: boolean;
     suggestionApprovalRequired: boolean;
     ridesEnabled: boolean;
+    taskBoardEnabled: boolean;
   };
   /** Event TZ when the event has start/end; otherwise the signed-in user's TZ. */
   ridesDefaultTimeZone: string;
@@ -87,7 +96,9 @@ export function EventDetailClient({
       ? settings.ridesEnabled
       : t === "packing"
         ? showPackingTab
-        : true,
+        : t === "tasks"
+          ? settings.taskBoardEnabled
+          : true,
   );
 
   useEffect(() => {
@@ -97,7 +108,10 @@ export function EventDetailClient({
     if (tab === "packing" && !showPackingTab) {
       setTab("overview");
     }
-  }, [tab, settings.ridesEnabled, showPackingTab]);
+    if (tab === "tasks" && !settings.taskBoardEnabled) {
+      setTab("overview");
+    }
+  }, [tab, settings.ridesEnabled, settings.taskBoardEnabled, showPackingTab]);
 
   return (
     <div className="w-full space-y-6">
@@ -119,13 +133,15 @@ export function EventDetailClient({
             >
               {t === "overview"
                 ? "Overview"
-                : t === "packing"
-                  ? "Packing list"
-                  : t === "members"
-                    ? "Members"
-                    : t === "rides"
-                      ? "Rides"
-                      : "Settings"}
+                : t === "tasks"
+                  ? "Tasks"
+                  : t === "packing"
+                    ? "Packing list"
+                    : t === "members"
+                      ? "Members"
+                      : t === "rides"
+                        ? "Rides"
+                        : "Settings"}
             </button>
           ))}
         </nav>
@@ -178,6 +194,19 @@ export function EventDetailClient({
               packingListPath={packing.packingListPath}
               suggestionApprovalRequired={packing.suggestionApprovalRequired}
               pendingSuggestionDraftCount={packing.pendingSuggestionDraftCount}
+            />
+          )}
+
+          {tab === "tasks" && settings.taskBoardEnabled && (
+            <TaskBoard
+              eventId={eventId}
+              currentUserId={currentUserId}
+              members={membersInitial.map((m) => ({
+                membershipId: m.membershipId,
+                userId: m.userId,
+                name: m.name,
+                email: m.email,
+              }))}
             />
           )}
 
