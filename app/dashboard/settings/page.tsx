@@ -1,7 +1,9 @@
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { NotificationPreferencesForm } from "@/components/user-settings/NotificationPreferencesForm";
 import { UserTimezoneForm } from "@/components/user-settings/UserTimezoneForm";
+import { getUserNotificationPreferences } from "@/app/actions/notifications";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function DashboardSettingsPage() {
@@ -11,6 +13,7 @@ export default async function DashboardSettingsPage() {
   }
 
   const dbUser = await getOrCreateUser();
+  const notifPrefs = await getUserNotificationPreferences();
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -33,6 +36,17 @@ export default async function DashboardSettingsPage() {
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
         <h2 className="mb-4 text-lg font-semibold">Timezone</h2>
         <UserTimezoneForm initialTimeZone={dbUser.timezone} />
+      </div>
+
+      <div className="mt-8 rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
+        <h2 className="mb-2 text-lg font-semibold">Notifications</h2>
+        <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+          Choose which notification types you want. You can override some of
+          these per event from each event&apos;s Settings tab.
+        </p>
+        <NotificationPreferencesForm
+          initialDisabledKinds={notifPrefs.disabledKinds}
+        />
       </div>
     </div>
   );

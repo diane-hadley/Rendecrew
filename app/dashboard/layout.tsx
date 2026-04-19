@@ -1,5 +1,37 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
+import { countUnreadNotifications } from "@/lib/notifications";
+import { getOrCreateUser } from "@/lib/user";
+
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+      />
+      <path
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.3 21a1.94 1.94 0 0 0 3.4 0"
+      />
+    </svg>
+  );
+}
 
 function SettingsIcon({ className }: { className?: string }) {
   return (
@@ -30,15 +62,34 @@ function SettingsIcon({ className }: { className?: string }) {
   );
 }
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const clerkUser = await currentUser();
+  let unreadCount = 0;
+  if (clerkUser) {
+    const dbUser = await getOrCreateUser();
+    unreadCount = await countUnreadNotifications(dbUser.id);
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-8 dark:border-gray-700 dark:bg-gray-900/95">
         <div className="mx-auto flex max-w-7xl items-center justify-end gap-3">
+          <Link
+            href="/dashboard/notifications"
+            aria-label="Notifications"
+            className="group relative inline-flex size-10 items-center justify-center rounded-full border border-gray-200/90 bg-white/90 text-gray-700 shadow-sm ring-1 ring-gray-900/5 transition hover:border-indigo-200/90 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-blue-50/90 hover:text-indigo-900 hover:shadow-md hover:ring-indigo-900/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-200 dark:ring-white/10 dark:hover:border-indigo-500/35 dark:hover:from-indigo-950/50 dark:hover:to-blue-950/40 dark:hover:text-indigo-100 dark:hover:shadow-indigo-950/20 dark:focus-visible:ring-indigo-400 dark:focus-visible:ring-offset-gray-950"
+          >
+            <BellIcon className="text-gray-600 transition group-hover:text-indigo-700 dark:text-gray-300 dark:group-hover:text-indigo-300" />
+            {unreadCount > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-white dark:bg-indigo-500 dark:ring-gray-900">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            ) : null}
+          </Link>
           <Link
             href="/dashboard/settings"
             aria-label="User settings"

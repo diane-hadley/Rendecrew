@@ -3,6 +3,10 @@
 import { EventMemberRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import {
+  insertNotificationIgnoringPreferences,
+  isNotificationEnabledForUserEvent,
+} from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
@@ -220,12 +224,51 @@ export async function deleteEvent(eventId: string): Promise<DeleteEventResult> {
     };
   }
 
+  const snapshot = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      title: true,
+      eventMembers: { select: { userId: true } },
+    },
+  });
+  if (!snapshot) {
+    return { ok: false, error: "Event not found" };
+  }
+
+  const prefResults = await Promise.all(
+    snapshot.eventMembers.map((m) =>
+      isNotificationEnabledForUserEvent({
+        recipientUserId: m.userId,
+        eventId,
+        kind: "event.member_removed",
+      }).then((on) => ({ userId: m.userId, on })),
+    ),
+  );
+  const allowByUserId = new Map(
+    prefResults.map(({ userId, on }) => [userId, on] as const),
+  );
+
   try {
     await prisma.event.delete({ where: { id: eventId } });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to delete event";
     return { ok: false, error: message };
   }
+
+  const inserts = snapshot.eventMembers
+    .filter((m) => m.userId !== user.id && allowByUserId.get(m.userId))
+    .map((m) =>
+      insertNotificationIgnoringPreferences({
+        recipientUserId: m.userId,
+        actorUserId: user.id,
+        kind: "event.member_removed",
+        metadata: {
+          eventId,
+          eventTitle: snapshot.title,
+        },
+      }),
+    );
+  await Promise.all(inserts);
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/events/${eventId}`);

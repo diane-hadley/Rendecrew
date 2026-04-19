@@ -9,6 +9,11 @@ import {
   authorizeRemoveOrLeaveMember,
 } from "@/lib/event-member-policy";
 import { getEventForUser, normalizeEventRole } from "@/lib/events";
+import {
+  enqueueNotification,
+  insertNotificationIgnoringPreferences,
+  isNotificationEnabledForUserEvent,
+} from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -119,14 +124,30 @@ export async function addEventMember(
     return { ok: false, error: "That user is already a member." };
   }
 
+  let eventTitle: string | null = null;
   try {
-    await prisma.eventMember.create({
-      data: { eventId, userId: trimmed, role: EventMemberRole.member },
-    });
+    const [, ev] = await Promise.all([
+      prisma.eventMember.create({
+        data: { eventId, userId: trimmed, role: EventMemberRole.member },
+      }),
+      prisma.event.findUnique({
+        where: { id: eventId },
+        select: { title: true },
+      }),
+    ]);
+    eventTitle = ev?.title ?? null;
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to add member";
     return { ok: false, error: message };
   }
+
+  await enqueueNotification({
+    recipientUserId: trimmed,
+    actorUserId: user.id,
+    kind: "event.member_added",
+    eventId,
+    metadata: { eventId, eventTitle },
+  });
 
   revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true };
@@ -157,6 +178,17 @@ export async function removeEventMember(
   });
   if (!auth.ok) return auth;
 
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true },
+  });
+
+  const allowRemovedNotif = await isNotificationEnabledForUserEvent({
+    recipientUserId: targetUserId,
+    eventId,
+    kind: "event.member_removed",
+  });
+
   try {
     await prisma.eventMember.delete({
       where: { eventId_userId: { eventId, userId: targetUserId } },
@@ -164,6 +196,15 @@ export async function removeEventMember(
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to remove member";
     return { ok: false, error: message };
+  }
+
+  if (allowRemovedNotif) {
+    await insertNotificationIgnoringPreferences({
+      recipientUserId: targetUserId,
+      actorUserId: user.id,
+      kind: "event.member_removed",
+      metadata: { eventId, eventTitle: ev?.title ?? null },
+    });
   }
 
   revalidatePath(`/dashboard/events/${eventId}`);

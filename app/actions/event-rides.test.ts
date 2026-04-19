@@ -10,6 +10,7 @@ const eventRideCarCreate = vi.hoisted(() => vi.fn());
 const eventRideCarDelete = vi.hoisted(() => vi.fn());
 const eventMemberFindFirst = vi.hoisted(() => vi.fn());
 const ridePassengersFindFirst = vi.hoisted(() => vi.fn());
+const ridePassengersFindMany = vi.hoisted(() => vi.fn());
 const ridePassengersCreate = vi.hoisted(() => vi.fn());
 const ridePassengersDeleteMany = vi.hoisted(() => vi.fn());
 const prismaTransaction = vi.hoisted(() => vi.fn());
@@ -37,6 +38,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     event_ride_passengers: {
       findFirst: ridePassengersFindFirst,
+      findMany: ridePassengersFindMany,
       create: ridePassengersCreate,
       deleteMany: ridePassengersDeleteMany,
     },
@@ -49,6 +51,10 @@ vi.mock("@/lib/events", () => ({
 
 vi.mock("@/lib/user", () => ({
   getOrCreateUser: vi.fn(),
+}));
+
+vi.mock("@/lib/notifications", () => ({
+  enqueueNotification: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { getEventForUser } from "@/lib/events";
@@ -178,7 +184,10 @@ describe("upsertRideCar", () => {
     vi.clearAllMocks();
     prismaTransaction.mockReset();
     mockRidesContext();
-    eventMemberFindFirst.mockResolvedValue({ id: "mem-driver" });
+    eventMemberFindFirst.mockResolvedValue({
+      id: "mem-driver",
+      userId: "u-driver",
+    });
     ridePassengersFindFirst.mockResolvedValue(null);
   });
 
@@ -227,6 +236,7 @@ describe("upsertRideCar", () => {
     eventRideCarFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
       id: "car1",
       event_ride_passengers: [{ leg: RidePassengerLeg.TO_EVENT }],
+      driver: { userId: "u-driver" },
     });
     const r = await upsertRideCar({
       eventId: "e1",
@@ -261,6 +271,7 @@ describe("upsertRideCar", () => {
     eventRideCarFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
       id: "car1",
       event_ride_passengers: [],
+      driver: { userId: "u-driver" },
     });
     eventRideCarUpdate.mockResolvedValue({ id: "car1" });
     const r = await upsertRideCar({
@@ -288,7 +299,11 @@ describe("deleteRideCar", () => {
   });
 
   it("deletes an existing car", async () => {
-    eventRideCarFindFirst.mockResolvedValue({ id: "car1" });
+    eventRideCarFindFirst.mockResolvedValue({
+      id: "car1",
+      driver: { userId: "u-driver" },
+      event_ride_passengers: [],
+    });
     const r = await deleteRideCar("e1", "car1");
     expect(r).toEqual({ ok: true });
     expect(eventRideCarDelete).toHaveBeenCalledWith({ where: { id: "car1" } });
@@ -299,6 +314,7 @@ describe("disableRideCarLeg", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRidesContext();
+    ridePassengersFindMany.mockResolvedValue([]);
     txRidePassengersDeleteMany.mockResolvedValue({ count: 1 });
     txEventRideCarUpdate.mockResolvedValue({});
     txEventRideCarDelete.mockResolvedValue({});
@@ -344,7 +360,7 @@ describe("disableRideCarLeg", () => {
   });
 
   it("for BOTH, narrows to the remaining leg", async () => {
-    eventRideCarFindFirst.mockResolvedValue({
+    eventRideCarFindFirst.mockResolvedValueOnce({
       id: "c1",
       direction: RideCarDirection.BOTH,
     });
@@ -367,10 +383,16 @@ describe("disableRideCarLeg", () => {
   });
 
   it("for single-direction car, deletes the car", async () => {
-    eventRideCarFindFirst.mockResolvedValue({
-      id: "c1",
-      direction: RideCarDirection.TO_EVENT,
-    });
+    eventRideCarFindFirst
+      .mockResolvedValueOnce({
+        id: "c1",
+        direction: RideCarDirection.TO_EVENT,
+      })
+      .mockResolvedValueOnce({
+        id: "c1",
+        driver: { userId: "u-d" },
+        event_ride_passengers: [],
+      });
     const r = await disableRideCarLeg({
       eventId: "e1",
       carId: "c1",
@@ -411,8 +433,17 @@ describe("addRidePassenger", () => {
         driverEventMemberId: "driver",
         event_ride_passengers: [],
       })
-      .mockResolvedValueOnce(null);
-    eventMemberFindFirst.mockResolvedValue({ id: "mem1" });
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "c1",
+        driver: { userId: "u-dom" },
+      });
+    eventMemberFindFirst
+      .mockResolvedValueOnce({ id: "mem1", userId: "u-p" })
+      .mockResolvedValueOnce({
+        id: "mem1",
+        user: { id: "u-p", name: "Pat" },
+      });
     ridePassengersCreate.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("dup", {
         code: "P2002",
@@ -441,8 +472,20 @@ describe("addRidePassenger", () => {
         driverEventMemberId: "driver",
         event_ride_passengers: [{ id: "x" }],
       })
-      .mockResolvedValueOnce(null);
-    eventMemberFindFirst.mockResolvedValue({ id: "mem1" });
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "c1",
+        driver: { userId: "u-dom" },
+      });
+    eventMemberFindFirst
+      .mockResolvedValueOnce({
+        id: "mem1",
+        userId: "u-pass",
+      })
+      .mockResolvedValueOnce({
+        id: "mem1",
+        user: { id: "u-pass", name: "Pat" },
+      });
 
     const r = await addRidePassenger({
       eventId: "e1",
@@ -464,6 +507,10 @@ describe("removeRidePassenger", () => {
   });
 
   it("removes passenger rows", async () => {
+    eventMemberFindFirst.mockResolvedValue({
+      id: "mem1",
+      userId: "u-pass-off",
+    });
     const r = await removeRidePassenger({
       eventId: "e1",
       carId: "c1",

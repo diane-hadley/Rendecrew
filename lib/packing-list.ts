@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { PackingListVisibility } from "@prisma/client";
+import { emitPackingPersistNotifications } from "@/lib/packing-notifications";
 import { prisma } from "@/lib/prisma";
 import { itemQuantityCap } from "@/lib/packing-quantity";
 
@@ -870,6 +871,23 @@ export async function persistPackingListItems(
       e instanceof Error ? e.message : "Failed to save packing list";
     return { ok: false, error: message };
   }
+
+  const actorUserId = actor.kind === "guest" ? null : (actor.userId as string);
+  await emitPackingPersistNotifications({
+    eventId: list.eventId,
+    packingListId: list.id,
+    dbItemsBefore: list.items as Array<{
+      id: string;
+      name: string;
+      signUps: Array<{
+        id: string;
+        quantity: number | null;
+        userId: string | null;
+      }>;
+    }>,
+    itemsAfter: itemsToPersist,
+    actorUserId,
+  });
 
   return { ok: true };
 }

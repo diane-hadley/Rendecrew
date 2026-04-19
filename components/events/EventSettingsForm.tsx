@@ -18,6 +18,7 @@ import {
 import { enablePackingListForEvent } from "@/app/actions/packing-list";
 import { updateEventSettings } from "@/app/actions/event-settings";
 import { DeleteEventPanel } from "./DeleteEventPanel";
+import { EventNotificationPreferencesForm } from "./EventNotificationPreferencesForm";
 
 type EventSettingsFormProps = {
   eventId: string;
@@ -604,6 +605,19 @@ export function EventSettingsForm({
           {error}
         </p>
       )}
+
+      <section className="border-t border-gray-200 pt-8 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Notifications for this event
+        </h3>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Optional overrides to your account defaults. “Account default” follows
+          what you set under Dashboard → Settings.
+        </p>
+        <div className="mt-4">
+          <EventNotificationPreferencesForm eventId={eventId} />
+        </div>
+      </section>
 
       {isCreator && (
         <div className="border-t border-gray-200 pt-8 dark:border-gray-700">
