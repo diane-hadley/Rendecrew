@@ -3,6 +3,7 @@
 import { Prisma, RideCarDirection, RidePassengerLeg } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getEventForUser } from "@/lib/events";
+import { enqueueNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -275,7 +276,7 @@ export async function upsertRideCar(
 
   const driverMember = await prisma.eventMember.findFirst({
     where: { id: input.driverEventMemberId, eventId: input.eventId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!driverMember)
     return { ok: false, error: "Driver must be a member of this event" };
@@ -291,7 +292,10 @@ export async function upsertRideCar(
   if (input.carId) {
     const existing = await prisma.eventRideCar.findFirst({
       where: { id: input.carId, eventId: input.eventId },
-      include: { event_ride_passengers: true },
+      include: {
+        event_ride_passengers: true,
+        driver: { select: { userId: true } },
+      },
     });
     if (!existing) return { ok: false, error: "Car not found" };
 
@@ -313,6 +317,9 @@ export async function upsertRideCar(
         };
       }
     }
+
+    const prevDriverUserId = existing.driver.userId;
+    const nextDriverUserId = driverMember.userId;
 
     const updated = await prisma.eventRideCar.update({
       where: { id: input.carId },
@@ -340,6 +347,31 @@ export async function upsertRideCar(
       },
       select: { id: true },
     });
+
+    if (prevDriverUserId !== nextDriverUserId) {
+      await enqueueNotification({
+        recipientUserId: prevDriverUserId,
+        actorUserId: r.user.id,
+        kind: "rides.driver_assignment_changed",
+        eventId: input.eventId,
+        metadata: {
+          eventId: input.eventId,
+          rideCarId: updated.id,
+          change: "removed",
+        },
+      });
+      await enqueueNotification({
+        recipientUserId: nextDriverUserId,
+        actorUserId: r.user.id,
+        kind: "rides.driver_assignment_changed",
+        eventId: input.eventId,
+        metadata: {
+          eventId: input.eventId,
+          rideCarId: updated.id,
+          change: "assigned",
+        },
+      });
+    }
 
     revalidatePath(`/dashboard/events/${input.eventId}`);
     return { ok: true, carId: updated.id };
@@ -372,6 +404,18 @@ export async function upsertRideCar(
     select: { id: true },
   });
 
+  await enqueueNotification({
+    recipientUserId: driverMember.userId,
+    actorUserId: r.user.id,
+    kind: "rides.driver_assignment_changed",
+    eventId: input.eventId,
+    metadata: {
+      eventId: input.eventId,
+      rideCarId: created.id,
+      change: "assigned",
+    },
+  });
+
   revalidatePath(`/dashboard/events/${input.eventId}`);
   return { ok: true, carId: created.id };
 }
@@ -387,11 +431,36 @@ export async function deleteRideCar(
 
   const car = await prisma.eventRideCar.findFirst({
     where: { id: carId, eventId },
-    select: { id: true },
+    include: {
+      driver: { select: { userId: true } },
+      event_ride_passengers: {
+        include: {
+          event_members: { select: { userId: true } },
+        },
+      },
+    },
   });
   if (!car) return { ok: false, error: "Car not found" };
 
   await prisma.eventRideCar.delete({ where: { id: carId } });
+
+  await enqueueNotification({
+    recipientUserId: car.driver.userId,
+    actorUserId: r.user.id,
+    kind: "rides.driver_assignment_changed",
+    eventId,
+    metadata: { eventId, rideCarId: carId, change: "removed" },
+  });
+  for (const p of car.event_ride_passengers) {
+    await enqueueNotification({
+      recipientUserId: p.event_members.userId,
+      actorUserId: r.user.id,
+      kind: "rides.car_assignment_changed",
+      eventId,
+      metadata: { eventId, rideCarId: carId, change: "removed" },
+    });
+  }
+
   revalidatePath(`/dashboard/events/${eventId}`);
   return { ok: true };
 }
@@ -416,6 +485,24 @@ export async function disableRideCarLeg(params: {
   if (!car) return { ok: false, error: "Car not found" };
   if (!directionCoversLeg(car.direction, leg))
     return { ok: false, error: "That car does not drive this direction" };
+
+  const passengersThisLeg = await prisma.event_ride_passengers.findMany({
+    where: { car_id: params.carId, leg },
+    include: { event_members: { select: { userId: true } } },
+  });
+
+  const willDeleteCar = car.direction !== RideCarDirection.BOTH;
+  const carBeforeDelete = willDeleteCar
+    ? await prisma.eventRideCar.findFirst({
+        where: { id: params.carId, eventId: params.eventId },
+        include: {
+          driver: { select: { userId: true } },
+          event_ride_passengers: {
+            include: { event_members: { select: { userId: true } } },
+          },
+        },
+      })
+    : null;
 
   await prisma.$transaction(async (tx) => {
     await tx.event_ride_passengers.deleteMany({
@@ -450,6 +537,47 @@ export async function disableRideCarLeg(params: {
     // Only one direction existed; deleting that direction deletes the car.
     await tx.eventRideCar.delete({ where: { id: params.carId } });
   });
+
+  if (willDeleteCar && carBeforeDelete) {
+    await enqueueNotification({
+      recipientUserId: carBeforeDelete.driver.userId,
+      actorUserId: r.user.id,
+      kind: "rides.driver_assignment_changed",
+      eventId: params.eventId,
+      metadata: {
+        eventId: params.eventId,
+        rideCarId: params.carId,
+        change: "removed",
+      },
+    });
+    for (const p of carBeforeDelete.event_ride_passengers) {
+      await enqueueNotification({
+        recipientUserId: p.event_members.userId,
+        actorUserId: r.user.id,
+        kind: "rides.car_assignment_changed",
+        eventId: params.eventId,
+        metadata: {
+          eventId: params.eventId,
+          rideCarId: params.carId,
+          change: "removed",
+        },
+      });
+    }
+  } else {
+    for (const p of passengersThisLeg) {
+      await enqueueNotification({
+        recipientUserId: p.event_members.userId,
+        actorUserId: r.user.id,
+        kind: "rides.car_assignment_changed",
+        eventId: params.eventId,
+        metadata: {
+          eventId: params.eventId,
+          rideCarId: params.carId,
+          change: "removed",
+        },
+      });
+    }
+  }
 
   revalidatePath(`/dashboard/events/${params.eventId}`);
   return { ok: true };
@@ -542,6 +670,17 @@ export async function addRidePassenger(params: {
   });
   if (err) return { ok: false, error: err };
 
+  const carWithDriver = await prisma.eventRideCar.findFirst({
+    where: { id: params.carId, eventId: params.eventId },
+    include: {
+      driver: { select: { userId: true } },
+    },
+  });
+  const passengerMember = await prisma.eventMember.findFirst({
+    where: { id: params.eventMemberId, eventId: params.eventId },
+    include: { user: { select: { id: true, name: true } } },
+  });
+
   try {
     await prisma.event_ride_passengers.create({
       data: {
@@ -565,6 +704,34 @@ export async function addRidePassenger(params: {
     return { ok: false, error: msg };
   }
 
+  if (carWithDriver && passengerMember) {
+    await enqueueNotification({
+      recipientUserId: carWithDriver.driver.userId,
+      actorUserId: r.user.id,
+      kind: "rides.passenger_joined_my_car",
+      eventId: params.eventId,
+      metadata: {
+        eventId: params.eventId,
+        rideCarId: params.carId,
+        passengerUserId: passengerMember.user.id,
+        passengerName: passengerMember.user.name,
+        leg: params.leg,
+      },
+    });
+    await enqueueNotification({
+      recipientUserId: passengerMember.user.id,
+      actorUserId: r.user.id,
+      kind: "rides.car_assignment_changed",
+      eventId: params.eventId,
+      metadata: {
+        eventId: params.eventId,
+        rideCarId: params.carId,
+        change: "added",
+        leg: params.leg,
+      },
+    });
+  }
+
   revalidatePath(`/dashboard/events/${params.eventId}`);
   return { ok: true };
 }
@@ -583,9 +750,30 @@ export async function removeRidePassenger(params: {
       ? RidePassengerLeg.TO_EVENT
       : RidePassengerLeg.FROM_EVENT;
 
+  const memberRow = await prisma.eventMember.findFirst({
+    where: { id: params.eventMemberId, eventId: params.eventId },
+    select: { userId: true },
+  });
+
   await prisma.event_ride_passengers.deleteMany({
     where: { car_id: params.carId, event_member_id: params.eventMemberId, leg },
   });
+
+  if (memberRow) {
+    await enqueueNotification({
+      recipientUserId: memberRow.userId,
+      actorUserId: r.user.id,
+      kind: "rides.car_assignment_changed",
+      eventId: params.eventId,
+      metadata: {
+        eventId: params.eventId,
+        rideCarId: params.carId,
+        change: "removed",
+        leg: params.leg,
+      },
+    });
+  }
+
   revalidatePath(`/dashboard/events/${params.eventId}`);
   return { ok: true };
 }

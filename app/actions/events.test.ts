@@ -18,12 +18,18 @@ vi.mock("next/navigation", () => ({
   redirect,
 }));
 
+vi.mock("@/lib/notifications", () => ({
+  isNotificationEnabledForUserEvent: vi.fn().mockResolvedValue(true),
+  insertNotificationIgnoringPreferences: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: transaction,
     event: {
       update: vi.fn(),
       delete: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -42,6 +48,7 @@ vi.mock("@/lib/user", () => ({
   getOrCreateUser: vi.fn(),
 }));
 
+import { insertNotificationIgnoringPreferences } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import { parseEventFromNaturalLanguage } from "@/lib/parse-event-natural-language";
@@ -206,12 +213,32 @@ describe("deleteEvent", () => {
   });
 
   it("deletes and revalidates on success", async () => {
+    vi.mocked(prisma.event.findUnique).mockResolvedValueOnce({
+      title: "Camp",
+      eventMembers: [{ userId: "u1" }, { userId: "u2" }],
+    } as never);
     vi.mocked(prisma.event.delete).mockResolvedValueOnce({} as never);
     const r = await deleteEvent("e1");
     expect(r).toEqual({ ok: true });
+    expect(prisma.event.findUnique).toHaveBeenCalled();
     expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: "e1" } });
+    expect(insertNotificationIgnoringPreferences).toHaveBeenCalledTimes(1);
+    expect(insertNotificationIgnoringPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: "u2",
+        actorUserId: "u1",
+        kind: "event.member_removed",
+      }),
+    );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
+  });
+
+  it("returns error when event snapshot missing", async () => {
+    vi.mocked(prisma.event.findUnique).mockResolvedValueOnce(null);
+    const r = await deleteEvent("e1");
+    expect(r).toEqual({ ok: false, error: "Event not found" });
+    expect(prisma.event.delete).not.toHaveBeenCalled();
   });
 });
 

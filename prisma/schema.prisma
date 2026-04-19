@@ -7,21 +7,24 @@ datasource db {
 }
 
 model User {
-  id                         String                @id @default(uuid())
-  clerkId                    String                @unique @map("clerk_id")
-  email                      String                @unique
+  id                         String                       @id @default(uuid())
+  clerkId                    String                       @unique @map("clerk_id")
+  email                      String                       @unique
   name                       String
-  createdAt                  DateTime              @default(now()) @map("created_at")
-  updatedAt                  DateTime              @default(now()) @updatedAt @map("updated_at")
+  createdAt                  DateTime                     @default(now()) @map("created_at")
+  updatedAt                  DateTime                     @default(now()) @updatedAt @map("updated_at")
   /// * IANA timezone used as the default for new events (default: US Pacific).
-  timezone                   String                @default("America/Los_Angeles")
+  timezone                   String                       @default("America/Los_Angeles")
   eventMembers               EventMember[]
-  createdEvents              Event[]               @relation("EventCreatedBy")
+  createdEvents              Event[]                      @relation("EventCreatedBy")
   packingItemSignUps         PackingItemSignUp[]
-  packingSuggestionsCreated  PackingSuggestion[]   @relation("PackingSuggestionCreatedBy")
-  packingSuggestionsReviewed PackingSuggestion[]   @relation("PackingSuggestionReviewedBy")
+  packingSuggestionsCreated  PackingSuggestion[]          @relation("PackingSuggestionCreatedBy")
+  packingSuggestionsReviewed PackingSuggestion[]          @relation("PackingSuggestionReviewedBy")
   personalPackingItems       PersonalPackingItem[]
   userSuggestionStates       UserSuggestionState[]
+  notificationsReceived      Notification[]               @relation("NotificationRecipient")
+  notificationsActed         Notification[]               @relation("NotificationActor")
+  notificationPreferences    UserNotificationPreferences?
 
   @@map("users")
 }
@@ -171,20 +174,54 @@ model PackingItemSignUp {
 }
 
 model EventMember {
-  id                    String                  @id @default(uuid())
-  userId                String                  @map("user_id")
-  eventId               String                  @map("event_id")
-  role                  EventMemberRole
-  createdAt             DateTime                @default(now()) @map("created_at")
-  updatedAt             DateTime                @default(now()) @updatedAt @map("updated_at")
-  event                 Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drivenRideCars        EventRideCar[]          @relation("RideCarDriver")
-  event_ride_passengers event_ride_passengers[]
-  eventTaskAssignments  EventTaskAssignment[]
+  id                         String                             @id @default(uuid())
+  userId                     String                             @map("user_id")
+  eventId                    String                             @map("event_id")
+  role                       EventMemberRole
+  createdAt                  DateTime                           @default(now()) @map("created_at")
+  updatedAt                  DateTime                           @default(now()) @updatedAt @map("updated_at")
+  event                      Event                              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user                       User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drivenRideCars             EventRideCar[]                     @relation("RideCarDriver")
+  event_ride_passengers      event_ride_passengers[]
+  eventTaskAssignments       EventTaskAssignment[]
+  notificationPreferences    EventMemberNotificationPreferences?
 
   @@unique([eventId, userId])
   @@map("event_members")
+}
+
+model Notification {
+  id                String    @id @default(uuid())
+  recipientUserId   String    @map("recipient_user_id")
+  actorUserId       String?   @map("actor_user_id")
+  kind              String
+  createdAt         DateTime  @default(now()) @map("created_at")
+  readAt            DateTime? @map("read_at")
+  dedupeKey         String?   @unique @map("dedupe_key")
+  metadata          Json      @default("{}")
+  recipient         User      @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  actor             User?     @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([recipientUserId, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model UserNotificationPreferences {
+  userId         String   @id @map("user_id")
+  disabledKinds  String[] @default([]) @map("disabled_kinds")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notification_preferences")
+}
+
+model EventMemberNotificationPreferences {
+  eventMemberId      String      @id @map("event_member_id")
+  perKindOverrides   Json        @default("{}") @map("per_kind_overrides")
+  eventMember        EventMember @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
+
+  @@map("event_member_notification_preferences")
 }
 
 model EventRideCar {

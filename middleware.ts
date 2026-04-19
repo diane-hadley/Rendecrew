@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/packing(.*)",
   "/api/liveblocks-auth",
+  "/api/cron/purge-notifications",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

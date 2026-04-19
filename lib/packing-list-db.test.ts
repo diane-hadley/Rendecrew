@@ -9,6 +9,10 @@ import {
   persistPackingListItems,
 } from "./packing-list";
 
+vi.mock("@/lib/packing-notifications", () => ({
+  emitPackingPersistNotifications: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     packingList: {

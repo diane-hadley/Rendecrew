@@ -3,6 +3,7 @@
 import { EventTaskStatus, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getEventForUser } from "@/lib/events";
+import { enqueueNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -308,6 +309,29 @@ export async function createEventTask(params: {
       return task;
     });
 
+    const taskRow = await prisma.eventTask.findUnique({
+      where: { id: created.id },
+      select: {
+        title: true,
+        assignments: { include: { eventMember: { select: { userId: true } } } },
+      },
+    });
+    if (taskRow) {
+      for (const a of taskRow.assignments) {
+        await enqueueNotification({
+          recipientUserId: a.eventMember.userId,
+          actorUserId: r.user.id,
+          kind: "tasks.assignment_changed",
+          eventId: params.eventId,
+          metadata: {
+            eventId: params.eventId,
+            taskId: created.id,
+            taskTitle: taskRow.title,
+          },
+        });
+      }
+    }
+
     revalidatePath(`/dashboard/events/${params.eventId}`);
     return { ok: true, taskId: created.id };
   } catch (e) {
@@ -342,6 +366,16 @@ export async function updateEventTask(params: {
   const nextDue =
     params.dueDate === undefined ? undefined : normalizeDueDate(params.dueDate);
 
+  const before = await prisma.eventTask.findUnique({
+    where: { id: params.taskId },
+    select: {
+      dueDate: true,
+      assignments: {
+        include: { eventMember: { select: { userId: true } } },
+      },
+    },
+  });
+
   try {
     await prisma.$transaction(async (tx) => {
       if (params.status === EventTaskStatus.DONE) {
@@ -374,6 +408,33 @@ export async function updateEventTask(params: {
     return { ok: false, error: msg };
   }
 
+  if (before && params.dueDate !== undefined && before.assignments.length > 0) {
+    const newDue = normalizeDueDate(params.dueDate);
+    const oldKey = before.dueDate
+      ? before.dueDate.toISOString().slice(0, 10)
+      : null;
+    const newKey = newDue ? newDue.toISOString().slice(0, 10) : null;
+    if (oldKey !== newKey) {
+      const taskMeta = await prisma.eventTask.findUnique({
+        where: { id: params.taskId },
+        select: { title: true },
+      });
+      for (const a of before.assignments) {
+        await enqueueNotification({
+          recipientUserId: a.eventMember.userId,
+          actorUserId: r.user.id,
+          kind: "tasks.due_date_changed",
+          eventId: existing.eventId,
+          metadata: {
+            eventId: existing.eventId,
+            taskId: params.taskId,
+            taskTitle: taskMeta?.title ?? null,
+          },
+        });
+      }
+    }
+  }
+
   revalidatePath(`/dashboard/events/${existing.eventId}`);
   return { ok: true };
 }
@@ -381,7 +442,14 @@ export async function updateEventTask(params: {
 export async function deleteEventTask(taskId: string): Promise<Ok | Err> {
   const existing = await prisma.eventTask.findUnique({
     where: { id: taskId },
-    select: { id: true, eventId: true },
+    select: {
+      id: true,
+      eventId: true,
+      title: true,
+      assignments: {
+        include: { eventMember: { select: { userId: true } } },
+      },
+    },
   });
   if (!existing) return { ok: false, error: "Task not found" };
 
@@ -389,6 +457,22 @@ export async function deleteEventTask(taskId: string): Promise<Ok | Err> {
   if (!r.ok) return r;
 
   await prisma.eventTask.delete({ where: { id: taskId } });
+
+  for (const a of existing.assignments) {
+    await enqueueNotification({
+      recipientUserId: a.eventMember.userId,
+      actorUserId: r.user.id,
+      kind: "tasks.assignment_changed",
+      eventId: existing.eventId,
+      metadata: {
+        eventId: existing.eventId,
+        taskId: existing.id,
+        taskTitle: existing.title,
+        change: "task_deleted",
+      },
+    });
+  }
+
   revalidatePath(`/dashboard/events/${existing.eventId}`);
   return { ok: true };
 }
@@ -409,6 +493,12 @@ export async function assignMembersToTask(params: {
   const memberIds = params.eventMemberIds.filter(Boolean);
   if (memberIds.length === 0) return { ok: true };
 
+  const priorAssignments = await prisma.eventTaskAssignment.findMany({
+    where: { taskId: task.id },
+    select: { eventMemberId: true },
+  });
+  const priorMemberIds = new Set(priorAssignments.map((p) => p.eventMemberId));
+
   try {
     await prisma.$transaction(async (tx) => {
       const members = await tx.eventMember.findMany({
@@ -424,6 +514,31 @@ export async function assignMembersToTask(params: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to assign members";
     return { ok: false, error: msg };
+  }
+
+  const addedMemberIds = memberIds.filter((id) => !priorMemberIds.has(id));
+  if (addedMemberIds.length) {
+    const taskMeta = await prisma.eventTask.findUnique({
+      where: { id: task.id },
+      select: { title: true },
+    });
+    const newMembers = await prisma.eventMember.findMany({
+      where: { eventId: task.eventId, id: { in: addedMemberIds } },
+      select: { userId: true },
+    });
+    for (const m of newMembers) {
+      await enqueueNotification({
+        recipientUserId: m.userId,
+        actorUserId: r.user.id,
+        kind: "tasks.assignment_changed",
+        eventId: task.eventId,
+        metadata: {
+          eventId: task.eventId,
+          taskId: task.id,
+          taskTitle: taskMeta?.title ?? null,
+        },
+      });
+    }
   }
 
   revalidatePath(`/dashboard/events/${task.eventId}`);
@@ -446,12 +561,36 @@ export async function unassignMembersFromTask(params: {
   const memberIds = params.eventMemberIds.filter(Boolean);
   if (memberIds.length === 0) return { ok: true };
 
+  const taskMeta = await prisma.eventTask.findUnique({
+    where: { id: task.id },
+    select: { title: true },
+  });
+  const removedMembers = await prisma.eventMember.findMany({
+    where: { eventId: task.eventId, id: { in: memberIds } },
+    select: { userId: true },
+  });
+
   await prisma.$transaction(async (tx) => {
     await tx.eventTaskAssignment.deleteMany({
       where: { taskId: task.id, eventMemberId: { in: memberIds } },
     });
     await recomputeOverallStatus(tx, task.id);
   });
+
+  for (const m of removedMembers) {
+    await enqueueNotification({
+      recipientUserId: m.userId,
+      actorUserId: r.user.id,
+      kind: "tasks.assignment_changed",
+      eventId: task.eventId,
+      metadata: {
+        eventId: task.eventId,
+        taskId: task.id,
+        taskTitle: taskMeta?.title ?? null,
+        change: "unassigned",
+      },
+    });
+  }
 
   revalidatePath(`/dashboard/events/${task.eventId}`);
   return { ok: true };
@@ -467,6 +606,12 @@ export async function assignEveryoneToTask(taskId: string): Promise<Ok | Err> {
   const r = await requireTaskBoardEnabled(task.eventId);
   if (!r.ok) return r;
 
+  const prior = await prisma.eventTaskAssignment.findMany({
+    where: { taskId: task.id },
+    select: { eventMemberId: true },
+  });
+  const priorSet = new Set(prior.map((p) => p.eventMemberId));
+
   await prisma.$transaction(async (tx) => {
     const members = await tx.eventMember.findMany({
       where: { eventId: task.eventId },
@@ -479,6 +624,29 @@ export async function assignEveryoneToTask(taskId: string): Promise<Ok | Err> {
     });
     await recomputeOverallStatus(tx, task.id);
   });
+
+  const allMembers = await prisma.eventMember.findMany({
+    where: { eventId: task.eventId },
+    select: { id: true, userId: true },
+  });
+  const taskMeta = await prisma.eventTask.findUnique({
+    where: { id: task.id },
+    select: { title: true },
+  });
+  for (const m of allMembers) {
+    if (priorSet.has(m.id)) continue;
+    await enqueueNotification({
+      recipientUserId: m.userId,
+      actorUserId: r.user.id,
+      kind: "tasks.assignment_changed",
+      eventId: task.eventId,
+      metadata: {
+        eventId: task.eventId,
+        taskId: task.id,
+        taskTitle: taskMeta?.title ?? null,
+      },
+    });
+  }
 
   revalidatePath(`/dashboard/events/${task.eventId}`);
   return { ok: true };
