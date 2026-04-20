@@ -180,58 +180,68 @@ export function EventSettingsForm({
         </fieldset>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Packing list visibility
-        </h3>
-        <fieldset disabled={disabled} className="mt-4 space-y-3">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="plv"
-              checked={packingVis === PLVis.URL_PUBLIC}
-              onChange={() => setPackingVis(PLVis.URL_PUBLIC)}
-              className="mt-1"
-            />
-            <span className="text-sm text-gray-800 dark:text-gray-200">
-              Anyone with the share link can open the list (current default).
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="plv"
-              checked={packingVis === PLVis.MEMBERS_ONLY}
-              onChange={() => setPackingVis(PLVis.MEMBERS_ONLY)}
-              className="mt-1"
-            />
-            <span className="text-sm text-gray-800 dark:text-gray-200">
-              <strong>Members only</strong> — others are sent to sign-in or
-              blocked. Previously shared public links will stop working for
-              non-members.
-            </span>
-          </label>
-        </fieldset>
-      </section>
+      {packingEnabled && (
+        <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Packing settings
+          </h3>
+          <div className="mt-4 space-y-6">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Packing list visibility
+              </p>
+              <fieldset disabled={disabled} className="mt-3 space-y-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="radio"
+                    name="plv"
+                    checked={packingVis === PLVis.URL_PUBLIC}
+                    onChange={() => setPackingVis(PLVis.URL_PUBLIC)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">
+                    Anyone with the share link can open the list (current
+                    default).
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="radio"
+                    name="plv"
+                    checked={packingVis === PLVis.MEMBERS_ONLY}
+                    onChange={() => setPackingVis(PLVis.MEMBERS_ONLY)}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-800 dark:text-gray-200">
+                    <strong>Members only</strong> — others are sent to sign-in
+                    or blocked. Previously shared public links will stop working
+                    for non-members.
+                  </span>
+                </label>
+              </fieldset>
+            </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Suggestions
-        </h3>
-        <label className="mt-4 flex cursor-pointer items-start gap-3">
-          <input
-            type="checkbox"
-            disabled={disabled}
-            checked={suggestionApproval}
-            onChange={(e) => setSuggestionApproval(e.target.checked)}
-            className="mt-1"
-          />
-          <span className="text-sm text-gray-800 dark:text-gray-200">
-            Require admin approval before catalog ideas from participants go
-            live on the shared list.
-          </span>
-        </label>
-      </section>
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Catalog admin approval
+              </p>
+              <label className="mt-3 flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  disabled={disabled}
+                  checked={suggestionApproval}
+                  onChange={(e) => setSuggestionApproval(e.target.checked)}
+                  className="mt-1"
+                />
+                <span className="text-sm text-gray-800 dark:text-gray-200">
+                  Require admin approval before catalog ideas from participants
+                  go live on the shared list.
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
