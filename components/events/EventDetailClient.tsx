@@ -192,8 +192,6 @@ export function EventDetailClient({
               liveblocksRoomId={packing.liveblocksRoomId}
               commitments={packing.commitments}
               packingListPath={packing.packingListPath}
-              suggestionApprovalRequired={packing.suggestionApprovalRequired}
-              pendingSuggestionDraftCount={packing.pendingSuggestionDraftCount}
             />
           )}
 
