@@ -63,6 +63,10 @@ function otherDirection(d: DirectionId): DirectionId {
   return d === "TO_EVENT" ? "FROM_EVENT" : "TO_EVENT";
 }
 
+function directionLabel(d: DirectionId): string {
+  return d === "TO_EVENT" ? "To Event" : "From Event";
+}
+
 function isMemberDrivingForDirection(
   cars: RideCarRow[],
   membershipId: string,
@@ -398,6 +402,16 @@ export function RidesBoard({
     car: RideCarRow | null;
     leg: DirectionId;
   }>({ open: false, car: null, leg: "TO_EVENT" });
+  const [otherLegPrompt, setOtherLegPrompt] = useState<
+    | { open: false }
+    | {
+        open: true;
+        mode: "add" | "remove";
+        carId: string;
+        otherLeg: DirectionId;
+        membershipId: string;
+      }
+  >({ open: false });
 
   function refresh() {
     setLoading(true);
@@ -590,21 +604,18 @@ export function RidesBoard({
         setError(r.error);
         return;
       }
+      const lr = await listEventRides(eventId);
+      if (lr.ok) setCars(lr.cars);
+
       if (car.direction === "BOTH") {
-        const other = otherDirection(d);
-        const ok = confirm(
-          `Also add them for ${other === "TO_EVENT" ? "To Event" : "From Event"}?`,
-        );
-        if (ok) {
-          await addRidePassenger({
-            eventId,
-            carId: car.id,
-            leg: other,
-            eventMemberId: membershipId,
-          });
-        }
+        setOtherLegPrompt({
+          open: true,
+          mode: "add",
+          carId: car.id,
+          otherLeg: otherDirection(d),
+          membershipId,
+        });
       }
-      refresh();
     });
   }
 
@@ -625,24 +636,26 @@ export function RidesBoard({
         setError(r.error);
         return;
       }
+      let nextCars = cars;
+      const lr = await listEventRides(eventId);
+      if (lr.ok) {
+        setCars(lr.cars);
+        nextCars = lr.cars;
+      }
+
       if (car.direction === "BOTH") {
         const other = otherDirection(d);
-        const otherHas = memberHasRide([car], membershipId, other);
+        const otherHas = memberHasRide(nextCars, membershipId, other);
         if (otherHas) {
-          const ok = confirm(
-            `Also remove them for ${other === "TO_EVENT" ? "To Event" : "From Event"}?`,
-          );
-          if (ok) {
-            await removeRidePassenger({
-              eventId,
-              carId: car.id,
-              leg: other,
-              eventMemberId: membershipId,
-            });
-          }
+          setOtherLegPrompt({
+            open: true,
+            mode: "remove",
+            carId: car.id,
+            otherLeg: other,
+            membershipId,
+          });
         }
       }
-      refresh();
     });
   }
 
@@ -1346,6 +1359,94 @@ export function RidesBoard({
                   }}
                 >
                   Both legs
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {otherLegPrompt.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                {otherLegPrompt.mode === "add"
+                  ? "Add to other direction?"
+                  : "Remove from other direction?"}
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                disabled={isPending}
+                onClick={() => setOtherLegPrompt({ open: false })}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <div className="text-sm text-gray-800 dark:text-gray-200">
+                {otherLegPrompt.mode === "add" ? (
+                  <>
+                    This car covers both directions. Also add them for{" "}
+                    <strong>{directionLabel(otherLegPrompt.otherLeg)}</strong>?
+                  </>
+                ) : (
+                  <>
+                    They&apos;re still in this car for{" "}
+                    <strong>{directionLabel(otherLegPrompt.otherLeg)}</strong>.
+                    Remove them from that direction too?
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={() => setOtherLegPrompt({ open: false })}
+                >
+                  {otherLegPrompt.mode === "add"
+                    ? "Skip"
+                    : "Keep other direction"}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (!otherLegPrompt.open) return;
+                    const { mode, carId, otherLeg, membershipId } =
+                      otherLegPrompt;
+                    setOtherLegPrompt({ open: false });
+                    startTransition(async () => {
+                      if (mode === "add") {
+                        const ar = await addRidePassenger({
+                          eventId,
+                          carId,
+                          leg: otherLeg,
+                          eventMemberId: membershipId,
+                        });
+                        if (!ar.ok) setError(ar.error);
+                      } else {
+                        const rr = await removeRidePassenger({
+                          eventId,
+                          carId,
+                          leg: otherLeg,
+                          eventMemberId: membershipId,
+                        });
+                        if (!rr.ok) setError(rr.error);
+                      }
+                      const lr = await listEventRides(eventId);
+                      if (lr.ok) setCars(lr.cars);
+                    });
+                  }}
+                >
+                  {otherLegPrompt.mode === "add"
+                    ? `Add for ${directionLabel(otherLegPrompt.otherLeg)}`
+                    : "Remove from other direction"}
                 </button>
               </div>
             </div>
