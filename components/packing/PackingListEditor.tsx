@@ -1123,7 +1123,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                 <select
                   key={`member-pick-${item.id}-${signUps.length}`}
                   defaultValue=""
-                  className="mt-0.5 w-full max-w-full rounded border border-gray-300 bg-white px-1 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+                  className="mt-0.5 w-full max-w-full rounded border border-gray-300 bg-white p-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
                   aria-label="Choose an event member to sign up for this item"
                   onChange={(e) => {
                     const v = e.target.value;
@@ -1206,13 +1206,13 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                               quantity: n,
                             });
                           }}
-                          className="w-full max-w-[4rem] rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
+                          className="w-full max-w-16 rounded border border-gray-300 bg-white px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
                           aria-label={
                             mine ? "How many you bring" : "How many they bring"
                           }
                         />
                       ) : (
-                        <span className="block w-full max-w-[4rem] text-right">
+                        <span className="block w-full max-w-16 text-right">
                           {su.quantity ?? "—"}
                         </span>
                       )}

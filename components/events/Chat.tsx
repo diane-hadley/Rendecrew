@@ -22,7 +22,7 @@ export function Chat({ eventId }: { eventId: string }) {
     } else {
       el.scrollTop = top;
     }
-  }, [messages]);
+  }, [messages, isOpen]);
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
@@ -31,12 +31,12 @@ export function Chat({ eventId }: { eventId: string }) {
           type="button"
           aria-label="Open event assistant chat"
           onClick={() => setIsOpen(true)}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+          className="inline-flex size-12 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
         >
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
-            className="h-6 w-6"
+            className="size-6"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
@@ -59,12 +59,12 @@ export function Chat({ eventId }: { eventId: string }) {
               type="button"
               aria-label="Close event assistant chat"
               onClick={() => setIsOpen(false)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-800"
             >
               <svg
                 aria-hidden="true"
                 viewBox="0 0 24 24"
-                className="h-5 w-5"
+                className="size-5"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
