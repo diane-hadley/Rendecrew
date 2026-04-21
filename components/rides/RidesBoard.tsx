@@ -123,26 +123,6 @@ function directionSummary(car: RideCarRow, d: DirectionId) {
       };
 }
 
-function canCurrentUserSignup(params: {
-  cars: RideCarRow[];
-  car: RideCarRow;
-  d: DirectionId;
-  meMembershipId: string | null;
-}): { ok: boolean; reason?: string } {
-  const { cars, car, d, meMembershipId } = params;
-  if (!meMembershipId)
-    return { ok: false, reason: "You are not a member of this event." };
-  if (!carCoversDirection(car, d))
-    return { ok: false, reason: "This car does not drive that direction." };
-  if (car.driver.membershipId === meMembershipId)
-    return { ok: false, reason: "You are the driver." };
-  if (memberHasRide(cars, meMembershipId, d))
-    return { ok: false, reason: "You’re already assigned for that direction." };
-  if (seatCount(car, d) >= car.passengerCapacity)
-    return { ok: false, reason: "Full" };
-  return { ok: true };
-}
-
 type CarEditorState = {
   open: boolean;
   carId: string | null;
@@ -163,6 +143,10 @@ type CarEditorState = {
   /** IANA zone used to interpret the datetime-local fields below. */
   timesTimeZone: string;
 };
+
+type PassengerPickerState =
+  | { open: false }
+  | { open: true; carId: string; leg: DirectionId };
 
 function emptyEditor(
   members: RideMemberListItem[],
@@ -236,17 +220,33 @@ function directionFromEnabled(
   return null;
 }
 
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
 export function RidesBoard({
   eventId,
   currentUserId,
   defaultTimeZone,
   members,
 }: RidesBoardProps) {
-  const meMembershipId = useMemo(
-    () => members.find((m) => m.userId === currentUserId)?.membershipId ?? null,
-    [members, currentUserId],
-  );
-
   const displayTimeZone = useMemo(
     () => normalizeTimeZone(defaultTimeZone, defaultTimeZone),
     [defaultTimeZone],
@@ -259,6 +259,14 @@ export function RidesBoard({
   const [editor, setEditor] = useState<CarEditorState>(() =>
     emptyEditor(members, "TO_EVENT", defaultTimeZone),
   );
+  const [passengerPicker, setPassengerPicker] = useState<PassengerPickerState>({
+    open: false,
+  });
+  const [deletePrompt, setDeletePrompt] = useState<{
+    open: boolean;
+    car: RideCarRow | null;
+    leg: DirectionId;
+  }>({ open: false, car: null, leg: "TO_EVENT" });
 
   function refresh() {
     setLoading(true);
@@ -296,6 +304,140 @@ export function RidesBoard({
       ),
     };
   }, [cars, members]);
+
+  function NeedsRidePanel({ d }: { d: DirectionId }) {
+    const list = d === "TO_EVENT" ? needsRide.TO_EVENT : needsRide.FROM_EVENT;
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="space-y-1 text-sm text-gray-800 dark:text-gray-200">
+          {list.length === 0 ? (
+            <div className="text-gray-500">Everyone has a ride!</div>
+          ) : (
+            <>
+              <div className="flex items-baseline justify-between gap-3 pb-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                  Needs a Ride: <strong>{list.length}</strong>
+                </div>
+              </div>
+              {list.slice(0, 12).map((m) => (
+                <div key={`${d}:need:${m.membershipId}`}>{m.name}</div>
+              ))}
+              {list.length > 12 && (
+                <div className="text-gray-500">+ {list.length - 12} more</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function PassengerPickerModal() {
+    const open = passengerPicker.open;
+    const leg: DirectionId = open ? passengerPicker.leg : "TO_EVENT";
+    const carId = open ? passengerPicker.carId : null;
+
+    const { car, list, legLabel } = useMemo(() => {
+      if (!open || !carId) {
+        return {
+          car: null as RideCarRow | null,
+          list: [] as RideMemberListItem[],
+          legLabel: "To Event" as const,
+        };
+      }
+
+      const car = cars.find((c) => c.id === carId) ?? null;
+      const legLabel = leg === "TO_EVENT" ? "To Event" : "From Event";
+      const list = car
+        ? (leg === "TO_EVENT" ? needsRide.TO_EVENT : needsRide.FROM_EVENT)
+            .slice()
+            .sort((a, b) => {
+              const aIsMe = a.userId === currentUserId;
+              const bIsMe = b.userId === currentUserId;
+              if (aIsMe && !bIsMe) return -1;
+              if (bIsMe && !aIsMe) return 1;
+              return a.name.localeCompare(b.name);
+            })
+        : [];
+
+      return { car, list, legLabel };
+    }, [open, carId, cars, leg, needsRide, currentUserId]);
+
+    if (!open) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+            <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Add passenger • {legLabel}
+            </div>
+            <button
+              type="button"
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+              onClick={() => setPassengerPicker({ open: false })}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="space-y-4 px-5 py-4">
+            {car ? (
+              <div className="text-sm text-gray-700 dark:text-gray-200">
+                Choose someone who still needs a ride for this direction.
+              </div>
+            ) : (
+              <div
+                className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-900/60 dark:bg-yellow-950/30 dark:text-yellow-200"
+                role="alert"
+              >
+                Ride data is still loading. Please try again in a moment.
+              </div>
+            )}
+
+            {car && list.length === 0 ? (
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-200">
+                Everyone is already assigned.
+              </div>
+            ) : car ? (
+              <div className="max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+                {list.map((m) => {
+                  const isMe = m.userId === currentUserId;
+                  return (
+                    <button
+                      key={`pick:${leg}:${car.id}:${m.membershipId}`}
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        setPassengerPicker({ open: false });
+                        doAddPassenger(car, leg, m.membershipId);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900/30"
+                    >
+                      <span className="font-medium">
+                        {isMe ? `${m.name} (Me)` : m.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end border-t border-gray-200 pt-4 dark:border-gray-700">
+              <button
+                type="button"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                disabled={isPending}
+                onClick={() => setPassengerPicker({ open: false })}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function openCreate(tab: DirectionId) {
     setEditor(() => {
@@ -379,6 +521,10 @@ export function RidesBoard({
 
   async function doDeleteCar(carId: string) {
     if (!confirm("Delete this car? This removes all sign-ups.")) return;
+    await deleteCarConfirmed(carId);
+  }
+
+  async function deleteCarConfirmed(carId: string) {
     startTransition(async () => {
       const r = await deleteRideCar(eventId, carId);
       if (!r.ok) setError(r.error);
@@ -388,30 +534,30 @@ export function RidesBoard({
 
   async function doDisableLeg(car: RideCarRow, d: DirectionId) {
     const label = d === "TO_EVENT" ? "To Event" : "From Event";
-    const alsoOther =
-      car.direction === "BOTH"
-        ? confirm(
-            `Remove ${label} for this car? Click OK to remove it.\n\nAlso remove the other direction too? Click Cancel to keep it.`,
-          )
-        : false;
-
-    if (car.direction === "BOTH" && alsoOther) {
-      await doDeleteCar(car.id);
-      return;
-    }
-
     if (
       !confirm(
-        `Remove ${label} for this car? This will remove sign-ups for that direction.`,
+        `Delete ${label} leg for this car? This will remove sign-ups for that direction.`,
       )
     )
       return;
+    await disableLegConfirmed(car, d);
+  }
 
+  async function disableLegConfirmed(car: RideCarRow, d: DirectionId) {
     startTransition(async () => {
       const r = await disableRideCarLeg({ eventId, carId: car.id, leg: d });
       if (!r.ok) setError(r.error);
       refresh();
     });
+  }
+
+  function requestDelete(car: RideCarRow, leg: DirectionId) {
+    if (car.direction === "BOTH") {
+      setDeletePrompt({ open: true, car, leg });
+      return;
+    }
+    // Single-leg cars: deleting the "leg" is the same as deleting the car.
+    doDeleteCar(car.id);
   }
 
   async function doAddPassenger(
@@ -522,12 +668,8 @@ export function RidesBoard({
                   const sum = directionSummary(car, d);
                   const filled = seatCount(car, d);
                   const open = Math.max(0, car.passengerCapacity - filled);
-                  const signup = canCurrentUserSignup({
-                    cars,
-                    car,
-                    d,
-                    meMembershipId,
-                  });
+                  const canAddPassenger = open > 0;
+                  const actionLabel = open <= 0 ? "Full" : "Add Passenger";
 
                   return (
                     <Fragment key={key}>
@@ -589,182 +731,141 @@ export function RidesBoard({
                               </span>
                             ))}
                             {Array.from({ length: open }).map((_, i) => (
-                              <span
+                              <button
                                 key={`open:${i}`}
-                                className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 dark:border-gray-600"
-                                title="Open seat"
+                                type="button"
+                                disabled={!canAddPassenger}
+                                aria-label="Add passenger"
+                                className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 hover:border-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:text-gray-200"
+                                title="Add passenger"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!canAddPassenger) return;
+                                  setPassengerPicker({
+                                    open: true,
+                                    carId: car.id,
+                                    leg: d,
+                                  });
+                                }}
                               >
                                 +
-                              </span>
+                              </button>
                             ))}
                           </div>
                         </td>
                         <td className="px-5 py-4 text-right">
                           <button
                             type="button"
-                            disabled={!signup.ok || isPending}
+                            disabled={!canAddPassenger}
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
-                              if (!meMembershipId) return;
-                              doAddPassenger(car, d, meMembershipId);
+                              if (!canAddPassenger) return;
+                              setPassengerPicker({
+                                open: true,
+                                carId: car.id,
+                                leg: d,
+                              });
                             }}
                             className={
-                              signup.ok
-                                ? "rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                                : "rounded-md border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400 dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-500"
+                              canAddPassenger
+                                ? "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                                : "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-500"
                             }
-                            title={signup.ok ? "Sign up" : signup.reason}
+                            title={
+                              canAddPassenger
+                                ? "Add a passenger who needs a ride"
+                                : "Full"
+                            }
                           >
-                            {signup.ok ? "Sign up" : "Full"}
+                            {actionLabel}
                           </button>
                         </td>
                       </tr>
                       {isOpen && (
                         <tr className="border-t border-gray-100 dark:border-gray-700">
                           <td colSpan={6} className="px-5 py-4">
-                            <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
-                              <div className="space-y-3">
-                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                  Passengers
-                                </div>
-                                <div className="space-y-2">
-                                  {(d === "TO_EVENT"
+                            <div className="space-y-3">
+                              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                Passengers
+                              </div>
+                              <div className="space-y-2">
+                                {(d === "TO_EVENT"
+                                  ? car.passengers.TO_EVENT
+                                  : car.passengers.FROM_EVENT
+                                ).length === 0 ? (
+                                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                                    No passengers yet.
+                                  </div>
+                                ) : (
+                                  (d === "TO_EVENT"
                                     ? car.passengers.TO_EVENT
                                     : car.passengers.FROM_EVENT
-                                  ).length === 0 ? (
-                                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                                      No passengers yet.
-                                    </div>
-                                  ) : (
-                                    (d === "TO_EVENT"
-                                      ? car.passengers.TO_EVENT
-                                      : car.passengers.FROM_EVENT
-                                    ).map((p) => (
-                                      <div
-                                        key={`${key}:p:${p.membershipId}`}
-                                        className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900/30"
+                                  ).map((p) => (
+                                    <div
+                                      key={`${key}:p:${p.membershipId}`}
+                                      className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900/30"
+                                    >
+                                      <span className="text-gray-900 dark:text-gray-100">
+                                        {p.name}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="text-sm font-medium text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                          doRemovePassenger(
+                                            car,
+                                            d,
+                                            p.membershipId,
+                                          )
+                                        }
                                       >
-                                        <span className="text-gray-900 dark:text-gray-100">
-                                          {p.name}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="text-sm font-medium text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
-                                          disabled={isPending}
-                                          onClick={() =>
-                                            doRemovePassenger(
-                                              car,
-                                              d,
-                                              p.membershipId,
-                                            )
-                                          }
-                                        >
-                                          Remove
-                                        </button>
-                                      </div>
-                                    ))
-                                  )}
-                                </div>
-
-                                <div className="flex flex-wrap items-end gap-3 pt-2">
-                                  <div className="min-w-64">
-                                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                      Add passenger
-                                    </label>
-                                    <select
-                                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                                      defaultValue=""
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        if (!v) return;
-                                        e.currentTarget.value = "";
-                                        doAddPassenger(car, d, v);
-                                      }}
-                                      disabled={isPending}
-                                    >
-                                      <option value="">Choose a member…</option>
-                                      {members.map((m) => (
-                                        <option
-                                          key={m.membershipId}
-                                          value={m.membershipId}
-                                        >
-                                          {m.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                                      disabled={isPending}
-                                      onClick={() => openEdit(car, d)}
-                                    >
-                                      Edit car
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                                      disabled={isPending}
-                                      onClick={() => doDisableLeg(car, d)}
-                                    >
-                                      Remove {d === "TO_EVENT" ? "To" : "From"}{" "}
-                                      leg
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 shadow-sm hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
-                                      disabled={isPending}
-                                      onClick={() => doDeleteCar(car.id)}
-                                    >
-                                      Delete car
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {car.notes?.trim() && (
-                                  <div className="pt-2 text-sm text-gray-700 dark:text-gray-200">
-                                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                      Notes
+                                        Remove
+                                      </button>
                                     </div>
-                                    <div className="mt-1 whitespace-pre-wrap">
-                                      {car.notes}
-                                    </div>
-                                  </div>
+                                  ))
                                 )}
                               </div>
 
-                              <div className="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/30">
-                                <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                  Needs a ride
-                                </div>
-                                <div className="mt-2 space-y-1 text-sm text-gray-800 dark:text-gray-200">
-                                  {(d === "TO_EVENT"
-                                    ? needsRide.TO_EVENT
-                                    : needsRide.FROM_EVENT
-                                  )
-                                    .slice(0, 8)
-                                    .map((m) => (
-                                      <div
-                                        key={`${key}:need:${m.membershipId}`}
-                                      >
-                                        {m.name}
-                                      </div>
-                                    ))}
-                                  {(d === "TO_EVENT"
-                                    ? needsRide.TO_EVENT.length
-                                    : needsRide.FROM_EVENT.length) > 8 && (
-                                    <div className="text-gray-500">
-                                      +{" "}
-                                      {(d === "TO_EVENT"
-                                        ? needsRide.TO_EVENT.length
-                                        : needsRide.FROM_EVENT.length) - 8}{" "}
-                                      more
-                                    </div>
-                                  )}
+                              <div className="flex flex-wrap items-end gap-3 pt-2">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                                    disabled={isPending}
+                                    onClick={() => openEdit(car, d)}
+                                  >
+                                    Edit car
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="Delete"
+                                    title={
+                                      car.direction === "BOTH"
+                                        ? "Delete (choose leg or both)"
+                                        : "Delete"
+                                    }
+                                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-200 dark:hover:bg-gray-900/50"
+                                    disabled={isPending}
+                                    onClick={() => requestDelete(car, d)}
+                                  >
+                                    <TrashIcon className="size-5" />
+                                  </button>
                                 </div>
                               </div>
+
+                              {car.notes?.trim() && (
+                                <div className="pt-2 text-sm text-gray-700 dark:text-gray-200">
+                                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                                    Notes
+                                  </div>
+                                  <div className="mt-1 whitespace-pre-wrap">
+                                    {car.notes}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -821,11 +922,11 @@ export function RidesBoard({
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                 To Event
               </h3>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                Needs a ride: <strong>{needsRide.TO_EVENT.length}</strong>
-              </div>
             </div>
-            <CarsTable d="TO_EVENT" />
+            <div className="space-y-4">
+              <NeedsRidePanel d="TO_EVENT" />
+              <CarsTable d="TO_EVENT" />
+            </div>
           </section>
 
           <section className="space-y-3">
@@ -833,11 +934,11 @@ export function RidesBoard({
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                 From Event
               </h3>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                Needs a ride: <strong>{needsRide.FROM_EVENT.length}</strong>
-              </div>
             </div>
-            <CarsTable d="FROM_EVENT" />
+            <div className="space-y-4">
+              <NeedsRidePanel d="FROM_EVENT" />
+              <CarsTable d="FROM_EVENT" />
+            </div>
           </section>
         </div>
       )}
@@ -1163,6 +1264,83 @@ export function RidesBoard({
           </div>
         </div>
       )}
+
+      {deletePrompt.open && deletePrompt.car && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Delete car
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                onClick={() =>
+                  setDeletePrompt({ open: false, car: null, leg: "TO_EVENT" })
+                }
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <div className="text-sm text-gray-800 dark:text-gray-200">
+                This car has rides for <strong>To</strong> and{" "}
+                <strong>From</strong> legs. What do you want to delete?
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={() =>
+                    setDeletePrompt({ open: false, car: null, leg: "TO_EVENT" })
+                  }
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={async () => {
+                    const car = deletePrompt.car;
+                    if (!car) return;
+                    const leg = deletePrompt.leg;
+                    setDeletePrompt({
+                      open: false,
+                      car: null,
+                      leg: "TO_EVENT",
+                    });
+                    await disableLegConfirmed(car, leg);
+                  }}
+                >
+                  Just this leg
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-800 shadow-sm hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+                  disabled={isPending}
+                  onClick={async () => {
+                    const carId = deletePrompt.car?.id;
+                    setDeletePrompt({
+                      open: false,
+                      car: null,
+                      leg: "TO_EVENT",
+                    });
+                    if (carId) await deleteCarConfirmed(carId);
+                  }}
+                >
+                  Both legs
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PassengerPickerModal />
     </div>
   );
 }
