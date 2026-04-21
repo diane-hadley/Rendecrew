@@ -241,6 +241,137 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+type NeedsRideByLeg = {
+  TO_EVENT: RideMemberListItem[];
+  FROM_EVENT: RideMemberListItem[];
+};
+
+function PassengerPickerModal({
+  open,
+  carId,
+  leg,
+  cars,
+  needsRide,
+  currentUserId,
+  isPending,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  carId: string | null;
+  leg: DirectionId;
+  cars: RideCarRow[];
+  needsRide: NeedsRideByLeg;
+  currentUserId: string;
+  isPending: boolean;
+  onClose: () => void;
+  onPick: (params: {
+    car: RideCarRow;
+    leg: DirectionId;
+    membershipId: string;
+  }) => void;
+}) {
+  const { car, list, legLabel } = useMemo(() => {
+    if (!open || !carId) {
+      return {
+        car: null as RideCarRow | null,
+        list: [] as RideMemberListItem[],
+        legLabel: "To Event" as const,
+      };
+    }
+
+    const car = cars.find((c) => c.id === carId) ?? null;
+    const legLabel = leg === "TO_EVENT" ? "To Event" : "From Event";
+    const list = car
+      ? (leg === "TO_EVENT" ? needsRide.TO_EVENT : needsRide.FROM_EVENT)
+          .slice()
+          .sort((a, b) => {
+            const aIsMe = a.userId === currentUserId;
+            const bIsMe = b.userId === currentUserId;
+            if (aIsMe && !bIsMe) return -1;
+            if (bIsMe && !aIsMe) return 1;
+            return a.name.localeCompare(b.name);
+          })
+      : [];
+
+    return { car, list, legLabel };
+  }, [open, carId, cars, leg, needsRide, currentUserId]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            Add passenger • {legLabel}
+          </div>
+          <button
+            type="button"
+            className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-4">
+          {car ? (
+            <div className="text-sm text-gray-700 dark:text-gray-200">
+              Choose someone who still needs a ride for this direction.
+            </div>
+          ) : (
+            <div
+              className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-900/60 dark:bg-yellow-950/30 dark:text-yellow-200"
+              role="alert"
+            >
+              Ride data is still loading. Please try again in a moment.
+            </div>
+          )}
+
+          {car && list.length === 0 ? (
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-200">
+              Everyone is already assigned.
+            </div>
+          ) : car ? (
+            <div className="max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+              {list.map((m) => {
+                const isMe = m.userId === currentUserId;
+                return (
+                  <button
+                    key={`pick:${leg}:${car.id}:${m.membershipId}`}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() =>
+                      onPick({ car, leg, membershipId: m.membershipId })
+                    }
+                    className="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900/30"
+                  >
+                    <span className="font-medium">
+                      {isMe ? `${m.name} (Me)` : m.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end border-t border-gray-200 pt-4 dark:border-gray-700">
+            <button
+              type="button"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+              disabled={isPending}
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RidesBoard({
   eventId,
   currentUserId,
@@ -327,113 +458,6 @@ export function RidesBoard({
               )}
             </>
           )}
-        </div>
-      </div>
-    );
-  }
-
-  function PassengerPickerModal() {
-    const open = passengerPicker.open;
-    const leg: DirectionId = open ? passengerPicker.leg : "TO_EVENT";
-    const carId = open ? passengerPicker.carId : null;
-
-    const { car, list, legLabel } = useMemo(() => {
-      if (!open || !carId) {
-        return {
-          car: null as RideCarRow | null,
-          list: [] as RideMemberListItem[],
-          legLabel: "To Event" as const,
-        };
-      }
-
-      const car = cars.find((c) => c.id === carId) ?? null;
-      const legLabel = leg === "TO_EVENT" ? "To Event" : "From Event";
-      const list = car
-        ? (leg === "TO_EVENT" ? needsRide.TO_EVENT : needsRide.FROM_EVENT)
-            .slice()
-            .sort((a, b) => {
-              const aIsMe = a.userId === currentUserId;
-              const bIsMe = b.userId === currentUserId;
-              if (aIsMe && !bIsMe) return -1;
-              if (bIsMe && !aIsMe) return 1;
-              return a.name.localeCompare(b.name);
-            })
-        : [];
-
-      return { car, list, legLabel };
-    }, [open, carId, cars, leg, needsRide, currentUserId]);
-
-    if (!open) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-            <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Add passenger • {legLabel}
-            </div>
-            <button
-              type="button"
-              className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-              onClick={() => setPassengerPicker({ open: false })}
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="space-y-4 px-5 py-4">
-            {car ? (
-              <div className="text-sm text-gray-700 dark:text-gray-200">
-                Choose someone who still needs a ride for this direction.
-              </div>
-            ) : (
-              <div
-                className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 dark:border-yellow-900/60 dark:bg-yellow-950/30 dark:text-yellow-200"
-                role="alert"
-              >
-                Ride data is still loading. Please try again in a moment.
-              </div>
-            )}
-
-            {car && list.length === 0 ? (
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-200">
-                Everyone is already assigned.
-              </div>
-            ) : car ? (
-              <div className="max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
-                {list.map((m) => {
-                  const isMe = m.userId === currentUserId;
-                  return (
-                    <button
-                      key={`pick:${leg}:${car.id}:${m.membershipId}`}
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => {
-                        setPassengerPicker({ open: false });
-                        doAddPassenger(car, leg, m.membershipId);
-                      }}
-                      className="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900/30"
-                    >
-                      <span className="font-medium">
-                        {isMe ? `${m.name} (Me)` : m.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            <div className="flex justify-end border-t border-gray-200 pt-4 dark:border-gray-700">
-              <button
-                type="button"
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                disabled={isPending}
-                onClick={() => setPassengerPicker({ open: false })}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -530,17 +554,6 @@ export function RidesBoard({
       if (!r.ok) setError(r.error);
       refresh();
     });
-  }
-
-  async function doDisableLeg(car: RideCarRow, d: DirectionId) {
-    const label = d === "TO_EVENT" ? "To Event" : "From Event";
-    if (
-      !confirm(
-        `Delete ${label} leg for this car? This will remove sign-ups for that direction.`,
-      )
-    )
-      return;
-    await disableLegConfirmed(car, d);
   }
 
   async function disableLegConfirmed(car: RideCarRow, d: DirectionId) {
@@ -1340,7 +1353,20 @@ export function RidesBoard({
         </div>
       )}
 
-      <PassengerPickerModal />
+      <PassengerPickerModal
+        open={passengerPicker.open}
+        carId={passengerPicker.open ? passengerPicker.carId : null}
+        leg={passengerPicker.open ? passengerPicker.leg : "TO_EVENT"}
+        cars={cars}
+        needsRide={needsRide}
+        currentUserId={currentUserId}
+        isPending={isPending}
+        onClose={() => setPassengerPicker({ open: false })}
+        onPick={({ car, leg, membershipId }) => {
+          setPassengerPicker({ open: false });
+          doAddPassenger(car, leg, membershipId);
+        }}
+      />
     </div>
   );
 }
