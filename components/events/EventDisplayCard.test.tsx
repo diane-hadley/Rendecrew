@@ -16,7 +16,7 @@ describe("EventDisplayCard", () => {
     expect(screen.getByText("Jun 1 – Jun 3, 2026")).toBeInTheDocument();
   });
 
-  it("omits the general information block when none is provided", () => {
+  it("shows empty general information message when none is provided", () => {
     render(
       <EventDisplayCard
         role="guest"
@@ -26,8 +26,9 @@ describe("EventDisplayCard", () => {
       />,
     );
     expect(
-      screen.queryByRole("region", { name: "Event information" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("region", { name: "General information" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No general information yet.")).toBeInTheDocument();
   });
 
   it("shows location and renders markdown general information", () => {
@@ -40,7 +41,7 @@ describe("EventDisplayCard", () => {
       />,
     );
     expect(
-      screen.getByRole("region", { name: "Event information" }),
+      screen.getByRole("region", { name: "General information" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Park")).toBeInTheDocument();
     expect(

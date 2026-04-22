@@ -32,15 +32,34 @@ vi.mock("@/components/tasks/TaskBoard", () => ({
   TaskBoard: () => <div data-testid="task-board" />,
 }));
 
-vi.mock("./EditEventForm", () => ({
-  EditEventForm: ({
+vi.mock("./EditEventDetailsForm", () => ({
+  EditEventDetailsForm: ({
     onCancel,
     onSaved,
   }: {
     onCancel?: () => void;
     onSaved?: () => void;
   }) => (
-    <div data-testid="edit-form">
+    <div data-testid="edit-details-form">
+      <button type="button" onClick={onCancel}>
+        Cancel edit
+      </button>
+      <button type="button" onClick={onSaved}>
+        Saved stub
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("./EditGeneralInformationForm", () => ({
+  EditGeneralInformationForm: ({
+    onCancel,
+    onSaved,
+  }: {
+    onCancel?: () => void;
+    onSaved?: () => void;
+  }) => (
+    <div data-testid="edit-gi-form">
       <button type="button" onClick={onCancel}>
         Cancel edit
       </button>
@@ -96,36 +115,39 @@ describe("EventDetailClient", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(screen.getByText("Creator")).toBeInTheDocument();
     expect(screen.getByText("Apr 2026")).toBeInTheDocument();
-    expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("edit-gi-form")).not.toBeInTheDocument();
   });
 
   it("does not show edit when not editable", () => {
     render(<EventDetailClient {...baseProps} editable={false} />);
     expect(
-      screen.queryByRole("button", { name: "Edit event information" }),
+      screen.queryByRole("button", { name: "Edit general info" }),
     ).not.toBeInTheDocument();
   });
 
   it("opens edit form when edit is clicked", async () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
-    await user.click(
-      screen.getByRole("button", { name: "Edit event information" }),
-    );
-    expect(screen.getByTestId("edit-form")).toBeInTheDocument();
-    expect(screen.queryByText("Apr 2026")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Edit general info" }));
+    expect(screen.getByTestId("edit-gi-form")).toBeInTheDocument();
+    expect(screen.getByText("Apr 2026")).toBeInTheDocument();
+  });
+
+  it("opens full event edit when Edit event is clicked", async () => {
+    const user = userEvent.setup();
+    render(<EventDetailClient {...baseProps} editable />);
+    await user.click(screen.getByRole("button", { name: "Edit event" }));
+    expect(screen.getByTestId("edit-details-form")).toBeInTheDocument();
   });
 
   it("closes edit mode when cancel runs", async () => {
     const user = userEvent.setup();
     render(<EventDetailClient {...baseProps} editable />);
-    await user.click(
-      screen.getByRole("button", { name: "Edit event information" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Edit general info" }));
     await user.click(screen.getByRole("button", { name: "Cancel edit" }));
     expect(screen.getByText("Creator")).toBeInTheDocument();
     expect(screen.getByText("Apr 2026")).toBeInTheDocument();
-    expect(screen.queryByTestId("edit-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("edit-details-form")).not.toBeInTheDocument();
   });
 
   it("renders chat on overview", () => {

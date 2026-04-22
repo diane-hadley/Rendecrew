@@ -27,6 +27,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { PencilIcon } from "@/components/common/icons/PencilIcon";
 
 type RidesBoardProps = {
   eventId: string;
@@ -229,23 +230,6 @@ function directionFromEnabled(
   if (toEnabled) return "TO_EVENT";
   if (fromEnabled) return "FROM_EVENT";
   return null;
-}
-
-function PencilIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-    </svg>
-  );
 }
 
 function TrashIcon({ className }: { className?: string }) {
@@ -631,14 +615,14 @@ export function RidesBoard({
       }
   >({ open: false });
 
-  function showToast(message: string) {
+  const showToast = useCallback((message: string) => {
     setToast(message);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => {
       setToast(null);
       toastTimerRef.current = null;
     }, 15_000);
-  }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -646,19 +630,22 @@ export function RidesBoard({
     };
   }, []);
 
-  function setErrorOrToast(next: string) {
-    const msg = next.trim();
-    const lower = msg.toLowerCase();
-    const isAlreadyInAnotherCar =
-      lower.includes("already in another car") ||
-      lower.includes("already driving another car");
-    if (isAlreadyInAnotherCar) {
-      setError(null);
-      showToast(msg);
-      return;
-    }
-    setError(msg);
-  }
+  const setErrorOrToast = useCallback(
+    (next: string) => {
+      const msg = next.trim();
+      const lower = msg.toLowerCase();
+      const isAlreadyInAnotherCar =
+        lower.includes("already in another car") ||
+        lower.includes("already driving another car");
+      if (isAlreadyInAnotherCar) {
+        setError(null);
+        showToast(msg);
+        return;
+      }
+      setError(msg);
+    },
+    [showToast],
+  );
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -674,7 +661,7 @@ export function RidesBoard({
       setCars(r.cars);
       setLoading(false);
     });
-  }, [eventId]);
+  }, [eventId, setErrorOrToast]);
 
   useEffect(() => {
     refresh();

@@ -6,9 +6,11 @@ import type {
   PackingListVisibility,
 } from "@prisma/client";
 import { PackingSection } from "@/components/packing/PackingSection";
-import { EditEventForm } from "./EditEventForm";
+import { EditGeneralInformationForm } from "./EditGeneralInformationForm";
+import { EditEventDetailsForm } from "./EditEventDetailsForm";
 import { Chat } from "./Chat";
 import { EventDisplayCard } from "./EventDisplayCard";
+import { GeneralInformationMarkdown } from "./GeneralInformationMarkdown";
 import { MembersSection } from "./MembersSection";
 import { EventSettingsForm } from "./EventSettingsForm";
 import type { EventMemberListItem } from "@/app/actions/event-members";
@@ -17,6 +19,28 @@ import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import { useEffect, useState } from "react";
 import { RidesBoard } from "@/components/rides/RidesBoard";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
+
+function splitGeneralInformationMarkdown(markdown: string): {
+  publicMarkdown: string;
+  editingMarkdown: string | null;
+} {
+  const md = markdown.trim();
+  if (!md) return { publicMarkdown: "", editingMarkdown: null };
+
+  const heading =
+    /^#{1,6}\s*(editing event info|editing event information|admin notes|organizer notes)\s*$/im;
+  const match = md.match(heading);
+  if (!match || match.index == null) {
+    return { publicMarkdown: md, editingMarkdown: null };
+  }
+
+  const publicMarkdown = md.slice(0, match.index).trim();
+  const editingMarkdown = md.slice(match.index).trim();
+  return {
+    publicMarkdown,
+    editingMarkdown: editingMarkdown ? editingMarkdown : null,
+  };
+}
 
 const tabs = [
   "overview",
@@ -85,7 +109,9 @@ export function EventDetailClient({
   membersInitial,
 }: EventDetailClientProps) {
   const [tab, setTab] = useState<TabId>("overview");
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingGeneralInformation, setIsEditingGeneralInformation] =
+    useState(false);
+  const [isEditingEventDetails, setIsEditingEventDetails] = useState(false);
 
   const roleLabel = formatEventRoleLabel(actorRole);
   const showPackingTab =
@@ -99,6 +125,10 @@ export function EventDetailClient({
         : t === "tasks"
           ? settings.taskBoardEnabled
           : true,
+  );
+
+  const splitGeneral = splitGeneralInformationMarkdown(
+    display.generalInformation ?? "",
   );
 
   useEffect(() => {
@@ -120,18 +150,9 @@ export function EventDetailClient({
           aria-label="Event sections"
           className="flex shrink-0 flex-wrap gap-2 lg:w-48 lg:flex-col"
         >
-          {visibleTabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={
-                tab === t
-                  ? "rounded-md bg-blue-600 px-4 py-2 text-left text-sm font-medium text-white"
-                  : "rounded-md bg-gray-100 px-4 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              }
-            >
-              {t === "overview"
+          {visibleTabs.map((t) => {
+            const label =
+              t === "overview"
                 ? "Overview"
                 : t === "tasks"
                   ? "Tasks"
@@ -141,45 +162,102 @@ export function EventDetailClient({
                       ? "Members"
                       : t === "rides"
                         ? "Rides"
-                        : "Settings"}
-            </button>
-          ))}
+                        : "Settings";
+
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setTab(t);
+                  setIsEditingGeneralInformation(false);
+                  setIsEditingEventDetails(false);
+                }}
+                className={
+                  tab === t
+                    ? "rounded-md bg-blue-600 px-4 py-2 text-left text-sm font-medium text-white"
+                    : "rounded-md bg-gray-100 px-4 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="min-w-0 flex-1 space-y-6">
           {tab === "overview" && (
             <>
-              {editable && isEditing ? (
-                <EditEventForm
-                  key={eventId}
-                  eventId={eventId}
-                  initial={editInitial}
-                  onCancel={() => setIsEditing(false)}
-                  onSaved={() => setIsEditing(false)}
-                />
-              ) : (
+              {editable && isEditingEventDetails ? (
                 <>
-                  {editable ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-gray-700 dark:bg-gray-900/40">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Update the event name, schedule, location, and the
-                        information everyone sees on this tab.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(true)}
-                        className="inline-flex shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-blue-400"
-                      >
-                        Edit event information
-                      </button>
-                    </div>
-                  ) : null}
+                  <EditEventDetailsForm
+                    key={eventId}
+                    eventId={eventId}
+                    initial={editInitial}
+                    onCancel={() => setIsEditingEventDetails(false)}
+                    onSaved={() => setIsEditingEventDetails(false)}
+                  />
                   <EventDisplayCard
                     role={roleLabel}
                     dateRangeLabel={display.dateRangeLabel}
                     location={display.location}
-                    generalInformation={display.generalInformation}
+                    generalInformation={splitGeneral.publicMarkdown || null}
+                    showDetailsPanel={false}
+                    showGeneralInformationPanel
                   />
+                </>
+              ) : editable && isEditingGeneralInformation ? (
+                <>
+                  <EventDisplayCard
+                    role={roleLabel}
+                    dateRangeLabel={display.dateRangeLabel}
+                    location={display.location}
+                    generalInformation={splitGeneral.publicMarkdown || null}
+                    onEditEventDetails={() => {
+                      setIsEditingGeneralInformation(false);
+                      setIsEditingEventDetails(true);
+                    }}
+                    showGeneralInformationPanel={false}
+                  />
+                  <EditGeneralInformationForm
+                    key={eventId}
+                    eventId={eventId}
+                    initialMarkdown={display.generalInformation ?? null}
+                    onCancel={() => setIsEditingGeneralInformation(false)}
+                    onSaved={() => setIsEditingGeneralInformation(false)}
+                  />
+                </>
+              ) : (
+                <>
+                  <EventDisplayCard
+                    role={roleLabel}
+                    dateRangeLabel={display.dateRangeLabel}
+                    location={display.location}
+                    generalInformation={splitGeneral.publicMarkdown || null}
+                    onEditEventDetails={
+                      editable
+                        ? () => setIsEditingEventDetails(true)
+                        : undefined
+                    }
+                    onEditGeneralInformation={
+                      editable
+                        ? () => setIsEditingGeneralInformation(true)
+                        : undefined
+                    }
+                  />
+                  {editable && splitGeneral.editingMarkdown ? (
+                    <section
+                      aria-label="Editing event info"
+                      className="w-full rounded-lg border border-amber-200 bg-amber-50/70 p-6 shadow dark:border-amber-900/60 dark:bg-amber-950/20"
+                    >
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+                        Editing event info
+                      </p>
+                      <GeneralInformationMarkdown
+                        markdown={splitGeneral.editingMarkdown}
+                      />
+                    </section>
+                  ) : null}
                 </>
               )}
             </>
