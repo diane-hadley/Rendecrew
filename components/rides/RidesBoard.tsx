@@ -19,7 +19,14 @@ import {
   rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 type RidesBoardProps = {
   eventId: string;
@@ -61,6 +68,10 @@ function formatTime(iso: string | null, tz: string): string {
 
 function otherDirection(d: DirectionId): DirectionId {
   return d === "TO_EVENT" ? "FROM_EVENT" : "TO_EVENT";
+}
+
+function directionLabel(d: DirectionId): string {
+  return d === "TO_EVENT" ? "To Event" : "From Event";
 }
 
 function isMemberDrivingForDirection(
@@ -220,6 +231,23 @@ function directionFromEnabled(
   return null;
 }
 
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+    </svg>
+  );
+}
+
 function TrashIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -372,6 +400,196 @@ function PassengerPickerModal({
   );
 }
 
+function CarDetailsModal({
+  open,
+  car,
+  leg,
+  displayTimeZone,
+  isPending,
+  onClose,
+  onEditCar,
+  onDeleteCar,
+  onRemovePassenger,
+}: {
+  open: boolean;
+  car: RideCarRow | null;
+  leg: DirectionId;
+  displayTimeZone: string;
+  isPending: boolean;
+  onClose: () => void;
+  onEditCar: () => void;
+  onDeleteCar: () => void;
+  onRemovePassenger: (membershipId: string) => void;
+}) {
+  if (!open) return null;
+
+  const legLabel = directionLabel(leg);
+  const key = car ? `${car.id}:${leg}` : "";
+  const summary = car ? directionSummary(car, leg) : null;
+  const placeLabel = leg === "TO_EVENT" ? "From" : "To";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rides-car-details-title"
+        className="max-h-[min(90vh,720px)] w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="min-w-0">
+            <div
+              id="rides-car-details-title"
+              className="text-base font-semibold text-gray-900 dark:text-gray-100"
+            >
+              {car ? carDisplayName(car) : "Car details"}
+            </div>
+            <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+              {legLabel}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {car && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Edit car"
+                  title="Edit car"
+                  className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-200 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={onEditCar}
+                >
+                  <PencilIcon className="size-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete"
+                  title={
+                    car.direction === "BOTH"
+                      ? "Delete (choose leg or both)"
+                      : "Delete"
+                  }
+                  className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-200 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={onDeleteCar}
+                >
+                  <TrashIcon className="size-5" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="shrink-0 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-[min(70vh,560px)] overflow-y-auto px-5 py-4">
+          {!car ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              This car is no longer available.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/30">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                      {placeLabel}
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {summary?.placeLabel || (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                      Departs
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {formatTime(
+                        summary?.departs ?? null,
+                        displayTimeZone,
+                      ) || <span className="text-gray-400">—</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                      Arrives
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {formatTime(
+                        summary?.arrives ?? null,
+                        displayTimeZone,
+                      ) || <span className="text-gray-400">—</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Passengers
+                </div>
+                <div className="space-y-2">
+                  {(leg === "TO_EVENT"
+                    ? car.passengers.TO_EVENT
+                    : car.passengers.FROM_EVENT
+                  ).length === 0 ? (
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                      No passengers yet.
+                    </div>
+                  ) : (
+                    (leg === "TO_EVENT"
+                      ? car.passengers.TO_EVENT
+                      : car.passengers.FROM_EVENT
+                    ).map((p) => (
+                      <div
+                        key={`${key}:p:${p.membershipId}`}
+                        className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900/30"
+                      >
+                        <span className="text-gray-900 dark:text-gray-100">
+                          {p.name}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
+                          disabled={isPending}
+                          onClick={() => onRemovePassenger(p.membershipId)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {car.notes?.trim() && (
+                <div className="pt-1 text-sm text-gray-700 dark:text-gray-200">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Notes
+                  </div>
+                  <div className="mt-1 whitespace-pre-wrap">{car.notes}</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RidesBoard({
   eventId,
   currentUserId,
@@ -385,7 +603,11 @@ export function RidesBoard({
   const [cars, setCars] = useState<RideCarRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const [carDetails, setCarDetails] = useState<
+    { open: false } | { open: true; carId: string; leg: DirectionId }
+  >({ open: false });
   const [isPending, startTransition] = useTransition();
   const [editor, setEditor] = useState<CarEditorState>(() =>
     emptyEditor(members, "TO_EVENT", defaultTimeZone),
@@ -398,14 +620,53 @@ export function RidesBoard({
     car: RideCarRow | null;
     leg: DirectionId;
   }>({ open: false, car: null, leg: "TO_EVENT" });
+  const [otherLegPrompt, setOtherLegPrompt] = useState<
+    | { open: false }
+    | {
+        open: true;
+        mode: "add" | "remove";
+        carId: string;
+        otherLeg: DirectionId;
+        membershipId: string;
+      }
+  >({ open: false });
 
-  function refresh() {
+  function showToast(message: string) {
+    setToast(message);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 15_000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  function setErrorOrToast(next: string) {
+    const msg = next.trim();
+    const lower = msg.toLowerCase();
+    const isAlreadyInAnotherCar =
+      lower.includes("already in another car") ||
+      lower.includes("already driving another car");
+    if (isAlreadyInAnotherCar) {
+      setError(null);
+      showToast(msg);
+      return;
+    }
+    setError(msg);
+  }
+
+  const refresh = useCallback(() => {
     setLoading(true);
     setError(null);
     startTransition(async () => {
       const r = await listEventRides(eventId);
       if (!r.ok) {
-        setError(r.error);
+        setErrorOrToast(r.error);
         setCars([]);
         setLoading(false);
         return;
@@ -413,12 +674,23 @@ export function RidesBoard({
       setCars(r.cars);
       setLoading(false);
     });
-  }
+  }, [eventId]);
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId]);
+  }, [refresh]);
+
+  const carDetailsCar = useMemo(() => {
+    if (!carDetails.open) return null;
+    return cars.find((c) => c.id === carDetails.carId) ?? null;
+  }, [cars, carDetails]);
+
+  useEffect(() => {
+    if (!carDetails.open) return;
+    if (!cars.some((c) => c.id === carDetails.carId)) {
+      setCarDetails({ open: false });
+    }
+  }, [cars, carDetails]);
 
   const editorTimezoneChoices = useMemo(
     () => getTimezoneSelectChoices(editor.timesTimeZone),
@@ -486,12 +758,12 @@ export function RidesBoard({
       editor.fromEnabled,
     );
     if (!direction) {
-      setError("Choose To Event and/or From Event for this car.");
+      setErrorOrToast("Choose To Event and/or From Event for this car.");
       return;
     }
     const cap = Number(editor.passengerCapacity);
     if (!Number.isInteger(cap) || cap < 0) {
-      setError("Passenger capacity must be an integer ≥ 0.");
+      setErrorOrToast("Passenger capacity must be an integer ≥ 0.");
       return;
     }
 
@@ -535,7 +807,7 @@ export function RidesBoard({
         },
       });
       if (!r.ok) {
-        setError(r.error);
+        setErrorOrToast(r.error);
         return;
       }
       setEditor((e) => ({ ...e, open: false }));
@@ -551,7 +823,7 @@ export function RidesBoard({
   async function deleteCarConfirmed(carId: string) {
     startTransition(async () => {
       const r = await deleteRideCar(eventId, carId);
-      if (!r.ok) setError(r.error);
+      if (!r.ok) setErrorOrToast(r.error);
       refresh();
     });
   }
@@ -559,7 +831,7 @@ export function RidesBoard({
   async function disableLegConfirmed(car: RideCarRow, d: DirectionId) {
     startTransition(async () => {
       const r = await disableRideCarLeg({ eventId, carId: car.id, leg: d });
-      if (!r.ok) setError(r.error);
+      if (!r.ok) setErrorOrToast(r.error);
       refresh();
     });
   }
@@ -587,24 +859,29 @@ export function RidesBoard({
         eventMemberId: membershipId,
       });
       if (!r.ok) {
-        setError(r.error);
+        setErrorOrToast(r.error);
         return;
       }
+      let nextCars = cars;
+      const lr = await listEventRides(eventId);
+      if (lr.ok) {
+        setCars(lr.cars);
+        nextCars = lr.cars;
+      }
+
       if (car.direction === "BOTH") {
-        const other = otherDirection(d);
-        const ok = confirm(
-          `Also add them for ${other === "TO_EVENT" ? "To Event" : "From Event"}?`,
-        );
-        if (ok) {
-          await addRidePassenger({
-            eventId,
+        const otherLeg = otherDirection(d);
+        const otherHas = memberHasRide(nextCars, membershipId, otherLeg);
+        if (!otherHas) {
+          setOtherLegPrompt({
+            open: true,
+            mode: "add",
             carId: car.id,
-            leg: other,
-            eventMemberId: membershipId,
+            otherLeg,
+            membershipId,
           });
         }
       }
-      refresh();
     });
   }
 
@@ -622,27 +899,29 @@ export function RidesBoard({
         eventMemberId: membershipId,
       });
       if (!r.ok) {
-        setError(r.error);
+        setErrorOrToast(r.error);
         return;
       }
+      let nextCars = cars;
+      const lr = await listEventRides(eventId);
+      if (lr.ok) {
+        setCars(lr.cars);
+        nextCars = lr.cars;
+      }
+
       if (car.direction === "BOTH") {
         const other = otherDirection(d);
-        const otherHas = memberHasRide([car], membershipId, other);
+        const otherHas = memberHasRide(nextCars, membershipId, other);
         if (otherHas) {
-          const ok = confirm(
-            `Also remove them for ${other === "TO_EVENT" ? "To Event" : "From Event"}?`,
-          );
-          if (ok) {
-            await removeRidePassenger({
-              eventId,
-              carId: car.id,
-              leg: other,
-              eventMemberId: membershipId,
-            });
-          }
+          setOtherLegPrompt({
+            open: true,
+            mode: "remove",
+            carId: car.id,
+            otherLeg: other,
+            membershipId,
+          });
         }
       }
-      refresh();
     });
   }
 
@@ -677,7 +956,6 @@ export function RidesBoard({
               ) : (
                 rows.map((car) => {
                   const key = `${car.id}:${d}`;
-                  const isOpen = expanded[key] ?? false;
                   const sum = directionSummary(car, d);
                   const filled = seatCount(car, d);
                   const open = Math.max(0, car.passengerCapacity - filled);
@@ -685,205 +963,122 @@ export function RidesBoard({
                   const actionLabel = open <= 0 ? "Full" : "Add Passenger";
 
                   return (
-                    <Fragment key={key}>
-                      <tr
-                        className="cursor-pointer border-t border-gray-100 hover:bg-gray-50/70 dark:border-gray-700 dark:hover:bg-gray-900/30"
-                        onClick={() =>
-                          setExpanded((e) => ({ ...e, [key]: !isOpen }))
-                        }
-                      >
-                        <td className="px-5 py-4">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                            {carDisplayName(car)}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-300">
-                            {driverLabel(car.driver.name)}
-                          </div>
-                          <button
-                            type="button"
-                            aria-expanded={isOpen}
-                            className="mt-1 text-left text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpanded((prev) => ({
-                                ...prev,
-                                [key]: !isOpen,
-                              }));
-                            }}
-                          >
-                            {isOpen ? "Show less" : "Show more"}
-                          </button>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                          {sum.placeLabel || (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                          {formatTime(sum.departs, displayTimeZone) || (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                          {formatTime(sum.arrives, displayTimeZone) || (
-                            <span className="text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {(d === "TO_EVENT"
-                              ? car.passengers.TO_EVENT
-                              : car.passengers.FROM_EVENT
-                            ).map((p) => (
-                              <span
-                                key={p.membershipId}
-                                className="inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
-                                title={p.name}
-                              >
-                                {initials(p.name)}
-                              </span>
-                            ))}
-                            {Array.from({ length: open }).map((_, i) => (
-                              <button
-                                key={`open:${i}`}
-                                type="button"
-                                disabled={!canAddPassenger}
-                                aria-label="Add passenger"
-                                className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 hover:border-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:text-gray-200"
-                                title="Add passenger"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (!canAddPassenger) return;
-                                  setPassengerPicker({
-                                    open: true,
-                                    carId: car.id,
-                                    leg: d,
-                                  });
-                                }}
-                              >
-                                +
-                              </button>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <button
-                            type="button"
-                            disabled={!canAddPassenger}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!canAddPassenger) return;
-                              setPassengerPicker({
-                                open: true,
-                                carId: car.id,
-                                leg: d,
-                              });
-                            }}
-                            className={
-                              canAddPassenger
-                                ? "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                                : "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-500"
-                            }
-                            title={
-                              canAddPassenger
-                                ? "Add a passenger who needs a ride"
-                                : "Full"
-                            }
-                          >
-                            {actionLabel}
-                          </button>
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr className="border-t border-gray-100 dark:border-gray-700">
-                          <td colSpan={6} className="px-5 py-4">
-                            <div className="space-y-3">
-                              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                Passengers
-                              </div>
-                              <div className="space-y-2">
-                                {(d === "TO_EVENT"
-                                  ? car.passengers.TO_EVENT
-                                  : car.passengers.FROM_EVENT
-                                ).length === 0 ? (
-                                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                                    No passengers yet.
-                                  </div>
-                                ) : (
-                                  (d === "TO_EVENT"
-                                    ? car.passengers.TO_EVENT
-                                    : car.passengers.FROM_EVENT
-                                  ).map((p) => (
-                                    <div
-                                      key={`${key}:p:${p.membershipId}`}
-                                      className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900/30"
-                                    >
-                                      <span className="text-gray-900 dark:text-gray-100">
-                                        {p.name}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="text-sm font-medium text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"
-                                        disabled={isPending}
-                                        onClick={() =>
-                                          doRemovePassenger(
-                                            car,
-                                            d,
-                                            p.membershipId,
-                                          )
-                                        }
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-
-                              <div className="flex flex-wrap items-end gap-3 pt-2">
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
-                                    disabled={isPending}
-                                    onClick={() => openEdit(car, d)}
-                                  >
-                                    Edit car
-                                  </button>
-                                  <button
-                                    type="button"
-                                    aria-label="Delete"
-                                    title={
-                                      car.direction === "BOTH"
-                                        ? "Delete (choose leg or both)"
-                                        : "Delete"
-                                    }
-                                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-200 dark:hover:bg-gray-900/50"
-                                    disabled={isPending}
-                                    onClick={() => requestDelete(car, d)}
-                                  >
-                                    <TrashIcon className="size-5" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {car.notes?.trim() && (
-                                <div className="pt-2 text-sm text-gray-700 dark:text-gray-200">
-                                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                    Notes
-                                  </div>
-                                  <div className="mt-1 whitespace-pre-wrap">
-                                    {car.notes}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    <tr
+                      key={key}
+                      className="cursor-pointer border-t border-gray-100 hover:bg-gray-50/70 dark:border-gray-700 dark:hover:bg-gray-900/30"
+                      onClick={() =>
+                        setCarDetails({
+                          open: true,
+                          carId: car.id,
+                          leg: d,
+                        })
+                      }
+                    >
+                      <td className="px-5 py-4">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {carDisplayName(car)}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300">
+                          {driverLabel(car.driver.name)}
+                        </div>
+                        <button
+                          type="button"
+                          aria-haspopup="dialog"
+                          className="relative z-10 mt-1 text-left text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCarDetails({
+                              open: true,
+                              carId: car.id,
+                              leg: d,
+                            });
+                          }}
+                        >
+                          Details
+                        </button>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
+                        {sum.placeLabel || (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
+                        {formatTime(sum.departs, displayTimeZone) || (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
+                        {formatTime(sum.arrives, displayTimeZone) || (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {(d === "TO_EVENT"
+                            ? car.passengers.TO_EVENT
+                            : car.passengers.FROM_EVENT
+                          ).map((p) => (
+                            <span
+                              key={p.membershipId}
+                              className="inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+                              title={p.name}
+                            >
+                              {initials(p.name)}
+                            </span>
+                          ))}
+                          {Array.from({ length: open }).map((_, i) => (
+                            <button
+                              key={`open:${i}`}
+                              type="button"
+                              disabled={!canAddPassenger}
+                              aria-label="Add passenger"
+                              className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-gray-300 text-xs font-semibold text-gray-400 hover:border-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:text-gray-200"
+                              title="Add passenger"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!canAddPassenger) return;
+                                setPassengerPicker({
+                                  open: true,
+                                  carId: car.id,
+                                  leg: d,
+                                });
+                              }}
+                            >
+                              +
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          disabled={!canAddPassenger}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!canAddPassenger) return;
+                            setPassengerPicker({
+                              open: true,
+                              carId: car.id,
+                              leg: d,
+                            });
+                          }}
+                          className={
+                            canAddPassenger
+                              ? "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                              : "relative z-10 inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-medium text-gray-400 disabled:cursor-not-allowed dark:border-gray-700 dark:bg-gray-900/20 dark:text-gray-500"
+                          }
+                          title={
+                            canAddPassenger
+                              ? "Add a passenger who needs a ride"
+                              : "Full"
+                          }
+                        >
+                          {actionLabel}
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })
               )}
@@ -914,6 +1109,25 @@ export function RidesBoard({
           Add car
         </button>
       </div>
+
+      {toast && (
+        <div
+          className="fixed bottom-4 left-4 z-50 w-[min(360px,calc(100vw-2rem))] rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-lg dark:border-red-900 dark:bg-red-950/70 dark:text-red-100"
+          role="alert"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">{toast}</div>
+            <button
+              type="button"
+              className="shrink-0 text-sm font-semibold text-red-800 hover:text-red-900 dark:text-red-100 dark:hover:text-white"
+              aria-label="Dismiss"
+              onClick={() => setToast(null)}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p
@@ -1352,6 +1566,122 @@ export function RidesBoard({
           </div>
         </div>
       )}
+
+      {otherLegPrompt.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                {otherLegPrompt.mode === "add"
+                  ? "Add to other direction?"
+                  : "Remove from other direction?"}
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                disabled={isPending}
+                onClick={() => setOtherLegPrompt({ open: false })}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <div className="text-sm text-gray-800 dark:text-gray-200">
+                {otherLegPrompt.mode === "add" ? (
+                  <>
+                    This car covers both directions. Also add them for{" "}
+                    <strong>{directionLabel(otherLegPrompt.otherLeg)}</strong>?
+                  </>
+                ) : (
+                  <>
+                    They&apos;re still in this car for{" "}
+                    <strong>{directionLabel(otherLegPrompt.otherLeg)}</strong>.
+                    Remove them from that direction too?
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+                  disabled={isPending}
+                  onClick={() => setOtherLegPrompt({ open: false })}
+                >
+                  {otherLegPrompt.mode === "add"
+                    ? "Skip"
+                    : "Keep other direction"}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (!otherLegPrompt.open) return;
+                    const { mode, carId, otherLeg, membershipId } =
+                      otherLegPrompt;
+                    setOtherLegPrompt({ open: false });
+                    startTransition(async () => {
+                      if (mode === "add") {
+                        const ar = await addRidePassenger({
+                          eventId,
+                          carId,
+                          leg: otherLeg,
+                          eventMemberId: membershipId,
+                        });
+                        if (!ar.ok) setErrorOrToast(ar.error);
+                      } else {
+                        const rr = await removeRidePassenger({
+                          eventId,
+                          carId,
+                          leg: otherLeg,
+                          eventMemberId: membershipId,
+                        });
+                        if (!rr.ok) setErrorOrToast(rr.error);
+                      }
+                      const lr = await listEventRides(eventId);
+                      if (lr.ok) setCars(lr.cars);
+                    });
+                  }}
+                >
+                  {otherLegPrompt.mode === "add"
+                    ? `Add for ${directionLabel(otherLegPrompt.otherLeg)}`
+                    : "Remove from other direction"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CarDetailsModal
+        open={carDetails.open}
+        car={carDetailsCar}
+        leg={carDetails.open ? carDetails.leg : "TO_EVENT"}
+        displayTimeZone={displayTimeZone}
+        isPending={isPending}
+        onClose={() => setCarDetails({ open: false })}
+        onEditCar={() => {
+          const c = carDetailsCar;
+          if (!carDetails.open || !c) return;
+          const leg = carDetails.leg;
+          setCarDetails({ open: false });
+          openEdit(c, leg);
+        }}
+        onDeleteCar={() => {
+          const c = carDetailsCar;
+          if (!carDetails.open || !c) return;
+          const leg = carDetails.leg;
+          setCarDetails({ open: false });
+          requestDelete(c, leg);
+        }}
+        onRemovePassenger={(membershipId) => {
+          const c = carDetailsCar;
+          if (!carDetails.open || !c) return;
+          doRemovePassenger(c, carDetails.leg, membershipId);
+        }}
+      />
 
       <PassengerPickerModal
         open={passengerPicker.open}
