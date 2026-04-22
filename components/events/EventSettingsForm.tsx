@@ -78,6 +78,11 @@ export function EventSettingsForm({
   const [isTaskBoardFeaturePending, startTaskBoardFeatureTransition] =
     useTransition();
 
+  const isDirty =
+    memberPolicy !== initial.memberManagementPolicy ||
+    packingVis !== initial.packingListVisibility ||
+    suggestionApproval !== initial.suggestionApprovalRequired;
+
   useEffect(() => {
     setMemberPolicy(initial.memberManagementPolicy);
     setPackingVis(initial.packingListVisibility);
@@ -106,8 +111,13 @@ export function EventSettingsForm({
     initial.taskBoardEnabled,
   ]);
 
+  useEffect(() => {
+    if (isDirty) setSavedFlash(false);
+  }, [isDirty]);
+
   function save() {
     if (!canEdit) return;
+    if (!isDirty) return;
     setError(null);
     setSavedFlash(false);
     startSaveTransition(async () => {
@@ -242,6 +252,33 @@ export function EventSettingsForm({
             </div>
           </div>
         </section>
+      )}
+
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            disabled={disabled || !isDirty}
+            onClick={save}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isSavePending ? "Saving…" : "Save settings"}
+          </button>
+          {isDirty && (
+            <span
+              className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+              role="status"
+              aria-live="polite"
+            >
+              Unsaved changes
+            </span>
+          )}
+          {savedFlash && (
+            <span className="text-sm text-green-700 dark:text-green-400">
+              Saved.
+            </span>
+          )}
+        </div>
       )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
@@ -589,24 +626,6 @@ export function EventSettingsForm({
           </li>
         </ul>
       </section>
-
-      {canEdit && (
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            disabled={isSavePending || isFeaturePending}
-            onClick={save}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isSavePending ? "Saving…" : "Save settings"}
-          </button>
-          {savedFlash && (
-            <span className="text-sm text-green-700 dark:text-green-400">
-              Saved.
-            </span>
-          )}
-        </div>
-      )}
 
       {error && (
         <p
