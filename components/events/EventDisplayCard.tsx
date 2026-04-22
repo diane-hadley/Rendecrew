@@ -39,10 +39,12 @@ export function EventDisplayCard({
               {canEditEventDetails && (
                 <button
                   type="button"
+                  aria-label="Edit event"
+                  title="Edit event"
                   onClick={onEditEventDetails}
-                  className="inline-flex shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-blue-400"
+                  className="inline-flex shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white p-2 text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-blue-400"
                 >
-                  Edit event
+                  <PencilIcon className="size-4" />
                 </button>
               )}
             </div>
