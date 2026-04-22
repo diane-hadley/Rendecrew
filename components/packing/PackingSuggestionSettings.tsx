@@ -57,8 +57,7 @@ export function PackingSuggestionSettings({
           }}
         />
         <span className="text-gray-800 dark:text-gray-200">
-          Require organizer approval before new suggestions are visible to the
-          group
+          Require admin approval before new suggestions are visible to the group
         </span>
       </label>
       {pendingDraftCount > 0 && packingListPath ? (

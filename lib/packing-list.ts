@@ -35,9 +35,9 @@ export type PackingListSyncPayload = {
   items: PackingItemPayload[];
 };
 
-/** Who is persisting: organizers apply the full payload; others may only change their own sign-ups. */
+/** Who is persisting: admins apply the full payload; others may only change their own sign-ups. */
 export type PackingPersistActor =
-  | { kind: "organizer"; userId: string }
+  | { kind: "admin"; userId: string }
   | { kind: "participant"; userId: string }
   | { kind: "guest"; displayName: string };
 
@@ -258,7 +258,7 @@ export type MergeParticipantPackingOptions = {
 };
 
 /**
- * Non-organizers may change their own sign-ups and (when `eventMemberUserIds` is provided) add, remove,
+ * Non-admins may change their own sign-ups and (when `eventMemberUserIds` is provided) add, remove,
  * or change quantity on sign-ups linked to other event members; shared template must match the database row-for-row.
  */
 export function mergeParticipantPackingPayload(
@@ -276,13 +276,13 @@ export function mergeParticipantPackingPayload(
   if (!sectionsStructureEqual(dbSectionsOrdered, incSections)) {
     return {
       ok: false,
-      error: "Only organizers can change the shared list structure",
+      error: "Only admins can change the shared list structure",
     };
   }
   if (incItems.length !== dbItemsOrdered.length) {
     return {
       ok: false,
-      error: "Only organizers can change the shared list structure",
+      error: "Only admins can change the shared list structure",
     };
   }
   const out: PackingItemPayload[] = [];
@@ -292,7 +292,7 @@ export function mergeParticipantPackingPayload(
     if (dbRow.id !== inc.id) {
       return {
         ok: false,
-        error: "Only organizers can change the shared list structure",
+        error: "Only admins can change the shared list structure",
       };
     }
     const dbT = templateFromDbRow(dbRow);
@@ -300,7 +300,7 @@ export function mergeParticipantPackingPayload(
     if (!templatesEqual(dbT, incT)) {
       return {
         ok: false,
-        error: "Only organizers can change the shared list structure",
+        error: "Only admins can change the shared list structure",
       };
     }
     const dbS = dbRow.signUps.map(dbSignUpToPayload);
@@ -542,7 +542,7 @@ export async function persistPackingListItems(
       };
     }
     const userId =
-      actor.kind === "organizer" || actor.kind === "participant"
+      actor.kind === "admin" || actor.kind === "participant"
         ? actor.userId
         : null;
     if (!userId) {
@@ -564,7 +564,7 @@ export async function persistPackingListItems(
 
   let sectionsToPersist = sectionsIn;
   let itemsToPersist = itemsIn;
-  if (actor.kind !== "organizer") {
+  if (actor.kind !== "admin") {
     const memberRows = await prisma.eventMember.findMany({
       where: { eventId: list.eventId },
       select: { userId: true },

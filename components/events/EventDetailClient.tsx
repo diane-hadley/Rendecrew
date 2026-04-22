@@ -28,7 +28,7 @@ function splitGeneralInformationMarkdown(markdown: string): {
   if (!md) return { publicMarkdown: "", editingMarkdown: null };
 
   const heading =
-    /^#{1,6}\s*(editing event info|editing event information|admin notes|organizer notes)\s*$/im;
+    /^#{1,6}\s*(editing event info|editing event information|admin notes)\s*$/im;
   const match = md.match(heading);
   if (!match || match.index == null) {
     return { publicMarkdown: md, editingMarkdown: null };

@@ -6,13 +6,13 @@ describe("EventDisplayCard", () => {
   it("renders role badge and date range", () => {
     render(
       <EventDisplayCard
-        role="organizer"
+        role="creator"
         dateRangeLabel="Jun 1 – Jun 3, 2026"
         location={null}
         generalInformation={null}
       />,
     );
-    expect(screen.getByText("organizer")).toBeInTheDocument();
+    expect(screen.getByText("creator")).toBeInTheDocument();
     expect(screen.getByText("Jun 1 – Jun 3, 2026")).toBeInTheDocument();
   });
 
