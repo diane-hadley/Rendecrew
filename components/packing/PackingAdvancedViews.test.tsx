@@ -64,7 +64,7 @@ describe("PackingSuggestionsTab", () => {
         drafts={[]}
       />,
     );
-    expect(screen.getByText(/need organizer approval/i)).toBeInTheDocument();
+    expect(screen.getByText(/need admin approval/i)).toBeInTheDocument();
   });
 
   it("renders draft moderation for managers", async () => {

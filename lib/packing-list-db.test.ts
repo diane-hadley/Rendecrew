@@ -167,7 +167,7 @@ describe("persistPackingListItems", () => {
   it("rejects when list missing", async () => {
     vi.mocked(prisma.packingList.findUnique).mockResolvedValue(null);
     const r = await persistPackingListItems("room", [], {
-      kind: "organizer",
+      kind: "admin",
       userId: "u-org",
     });
     expect(r).toEqual({ ok: false, error: "Packing list not found" });
@@ -185,7 +185,7 @@ describe("persistPackingListItems", () => {
       signUps: [] as PackingItemPayload["signUps"],
     }));
     const r = await persistPackingListItems("room", items, {
-      kind: "organizer",
+      kind: "admin",
       userId: "u-org",
     });
     expect(r).toEqual({ ok: false, error: "Too many items" });
@@ -206,12 +206,12 @@ describe("persistPackingListItems", () => {
           signUps: [],
         },
       ],
-      { kind: "organizer", userId: "u-org" },
+      { kind: "admin", userId: "u-org" },
     );
     expect(r).toEqual({ ok: false, error: "Invalid item name" });
   });
 
-  it("succeeds for organizer with one item and no sign-ups", async () => {
+  it("succeeds for admin with one item and no sign-ups", async () => {
     vi.mocked(prisma.packingList.findUnique).mockResolvedValue(
       baseList as never,
     );
@@ -228,7 +228,7 @@ describe("persistPackingListItems", () => {
       },
     ];
     const r = await persistPackingListItems("room", items, {
-      kind: "organizer",
+      kind: "admin",
       userId: "u-org",
     });
     expect(r).toEqual({ ok: true });
@@ -262,7 +262,7 @@ describe("persistPackingListItems", () => {
           ],
         },
       ],
-      { kind: "organizer", userId: "u-org" },
+      { kind: "admin", userId: "u-org" },
     );
     expect(r).toEqual({
       ok: false,

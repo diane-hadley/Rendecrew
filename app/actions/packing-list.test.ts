@@ -176,7 +176,7 @@ describe("syncPackingListToDatabase", () => {
     expect(persistPackingListItems).toHaveBeenCalledWith(
       "room-1",
       { sections: [], items },
-      { kind: "organizer", userId: "u1" },
+      { kind: "admin", userId: "u1" },
     );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/ev1");
     expect(revalidatePath).toHaveBeenCalledWith("/packing/room-1");

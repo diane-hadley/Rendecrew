@@ -10,7 +10,12 @@ export function normalizeEventRole(
   role: string | EventMemberRole | null | undefined,
 ): EventMemberRole {
   const s = role == null ? "" : String(role);
-  if (s === "owner" || s === EventMemberRole.creator || s === "creator") {
+  if (
+    s === "owner" ||
+    s === "organizer" ||
+    s === EventMemberRole.creator ||
+    s === "creator"
+  ) {
     return EventMemberRole.creator;
   }
   if (s === EventMemberRole.admin || s === "admin") {

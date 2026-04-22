@@ -106,7 +106,7 @@ export function PackingSuggestionsTab({
       )}
       <p className="text-gray-600 dark:text-gray-400">
         {suggestionApprovalRequired
-          ? "New ideas from participants may need organizer approval before everyone sees them."
+          ? "New ideas from participants may need admin approval before everyone sees them."
           : "Suggestions from signed-in participants appear in the catalog for everyone to browse."}
       </p>
 

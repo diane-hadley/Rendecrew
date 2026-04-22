@@ -81,17 +81,17 @@ export async function syncPackingListToDatabase(
         error: "You are not a member of this event.",
       };
     }
-    const isOrg = canManageEvent(row.role);
-    actor = isOrg
-      ? { kind: "organizer", userId: dbUser.id }
+    const isAdmin = canManageEvent(row.role);
+    actor = isAdmin
+      ? { kind: "admin", userId: dbUser.id }
       : { kind: "participant", userId: dbUser.id };
   } else {
     const dbUser = await getOptionalDbUser();
     if (dbUser) {
       const row = await getEventForUser(list.event.id, dbUser.id);
-      const isOrg = row != null && canManageEvent(row.role);
-      actor = isOrg
-        ? { kind: "organizer", userId: dbUser.id }
+      const isAdmin = row != null && canManageEvent(row.role);
+      actor = isAdmin
+        ? { kind: "admin", userId: dbUser.id }
         : { kind: "participant", userId: dbUser.id };
     } else {
       const gn = context.guestDisplayName?.trim();

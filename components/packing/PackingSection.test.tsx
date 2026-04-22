@@ -26,7 +26,7 @@ describe("PackingSection", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders organizer panel when canManagePacking", () => {
+  it("renders admin panel when canManagePacking", () => {
     render(
       <PackingSection
         eventId="e99"
