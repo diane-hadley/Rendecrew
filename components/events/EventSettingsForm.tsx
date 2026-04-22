@@ -150,34 +150,33 @@ export function EventSettingsForm({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
           Member management
         </h3>
-        <fieldset disabled={disabled} className="mt-4 space-y-3">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="mmp"
-              checked={memberPolicy === MMPolicy.ANY_MEMBER_CAN_INVITE}
-              onChange={() => setMemberPolicy(MMPolicy.ANY_MEMBER_CAN_INVITE)}
-              className="mt-1"
-            />
-            <span className="text-sm text-gray-800 dark:text-gray-200">
-              Any member can add or remove other <strong>members</strong>{" "}
-              (admins still follow hierarchy rules).
+        <div className="mt-4">
+          <label className="flex cursor-pointer items-center gap-3">
+            <span className="sr-only">
+              Only admins can add or remove members
             </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-3">
             <input
-              type="radio"
-              name="mmp"
+              type="checkbox"
+              disabled={disabled}
               checked={memberPolicy === MMPolicy.ADMINS_ONLY}
-              onChange={() => setMemberPolicy(MMPolicy.ADMINS_ONLY)}
-              className="mt-1"
+              onChange={(e) =>
+                setMemberPolicy(
+                  e.target.checked
+                    ? MMPolicy.ADMINS_ONLY
+                    : MMPolicy.ANY_MEMBER_CAN_INVITE,
+                )
+              }
+              className="peer sr-only"
             />
-            <span className="text-sm text-gray-800 dark:text-gray-200">
-              Only admins can add or remove members or change roles (except
-              promotions, which any admin can still do for members).
+            <span
+              className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-200 transition peer-disabled:cursor-not-allowed peer-disabled:opacity-60 peer-checked:bg-blue-600 after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-in-out peer-checked:after:translate-x-5 dark:bg-gray-700 dark:peer-checked:bg-blue-500 dark:after:bg-gray-100"
+              aria-hidden="true"
+            />
+            <span className="min-w-0 text-sm text-gray-900 dark:text-gray-100">
+              Only admins can add or remove members.
             </span>
           </label>
-        </fieldset>
+        </div>
       </section>
 
       {packingEnabled && (
@@ -221,21 +220,23 @@ export function EventSettingsForm({
               </fieldset>
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                Catalog admin approval
-              </p>
-              <label className="mt-3 flex cursor-pointer items-start gap-3">
+            <div className="pt-1">
+              <label className="flex cursor-pointer items-center gap-3">
+                <span className="sr-only">Catalog admin approval</span>
                 <input
                   type="checkbox"
                   disabled={disabled}
                   checked={suggestionApproval}
                   onChange={(e) => setSuggestionApproval(e.target.checked)}
-                  className="mt-1"
+                  className="peer sr-only"
                 />
-                <span className="text-sm text-gray-800 dark:text-gray-200">
-                  Require admin approval before catalog ideas from participants
-                  go live on the shared list.
+                <span
+                  className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-200 transition peer-disabled:cursor-not-allowed peer-disabled:opacity-60 peer-checked:bg-blue-600 after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-in-out peer-checked:after:translate-x-5 dark:bg-gray-700 dark:peer-checked:bg-blue-500 dark:after:bg-gray-100"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 text-sm text-gray-900 dark:text-gray-100">
+                  Require admin approval before catalog suggestions from
+                  participants go live on the shared list.
                 </span>
               </label>
             </div>
