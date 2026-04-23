@@ -172,8 +172,7 @@ export function EventSettingsForm({
                     className="mt-1"
                   />
                   <span className="text-sm text-gray-800 dark:text-gray-200">
-                    Anyone with the share link can open the list (current
-                    default).
+                    Anyone with the share link can view and edit the list.
                   </span>
                 </label>
                 <label className="flex cursor-pointer items-start gap-3">
@@ -185,9 +184,11 @@ export function EventSettingsForm({
                     className="mt-1"
                   />
                   <span className="text-sm text-gray-800 dark:text-gray-200">
-                    <strong>Members only</strong> — others are sent to sign-in
-                    or blocked. Previously shared public links will stop working
-                    for non-members.
+                    Members only.{" "}
+                    <em>
+                      Previously shared public links will stop working for
+                      non-members.
+                    </em>
                   </span>
                 </label>
               </fieldset>
