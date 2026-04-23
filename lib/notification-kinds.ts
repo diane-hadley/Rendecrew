@@ -41,12 +41,12 @@ export const NOTIFICATION_KIND_UI: readonly NotificationKindUiMeta[] = [
   {
     kind: "packing.signup_or_quantity",
     category: "packing",
-    label: "Packing sign-up or quantity",
+    label: "Assigned to pack an item",
   },
   {
     kind: "packing.removed_from_item",
     category: "packing",
-    label: "Removed from a packing item",
+    label: "Removed from packing an item",
   },
   {
     kind: "rides.passenger_joined_my_car",
@@ -56,7 +56,7 @@ export const NOTIFICATION_KIND_UI: readonly NotificationKindUiMeta[] = [
   {
     kind: "rides.driver_assignment_changed",
     category: "rides",
-    label: "Driver assignment changed",
+    label: "Added or removed as a driver",
   },
   {
     kind: "rides.car_assignment_changed",
@@ -66,7 +66,7 @@ export const NOTIFICATION_KIND_UI: readonly NotificationKindUiMeta[] = [
   {
     kind: "tasks.assignment_changed",
     category: "tasks",
-    label: "Task assignment changed",
+    label: "Assigned or unassigned from a task",
   },
   {
     kind: "tasks.due_date_changed",
