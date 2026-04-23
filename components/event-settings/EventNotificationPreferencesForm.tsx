@@ -134,14 +134,16 @@ export function EventNotificationPreferencesForm({
         return;
       }
       const ev = await getEventNotificationOverrides(eventId);
-      if (ev.ok) {
-        const t: Record<string, Tri> = {};
-        for (const row of NOTIFICATION_KIND_UI) {
-          t[row.kind] = triFor(row.kind, ev.overrides);
-        }
-        setTri(t);
-        setBaselineTri({ ...t });
+      if (!ev.ok) {
+        setError(ev.error);
+        return;
       }
+      const t: Record<string, Tri> = {};
+      for (const row of NOTIFICATION_KIND_UI) {
+        t[row.kind] = triFor(row.kind, ev.overrides);
+      }
+      setTri(t);
+      setBaselineTri({ ...t });
       setSavedFlash(true);
     });
   }
@@ -174,30 +176,37 @@ export function EventNotificationPreferencesForm({
                 {CATEGORY_LABELS[cat]}
               </EventSettingsSubsectionHeading>
               <ul className="mt-1 space-y-4 border-l border-gray-200 py-0.5 pl-5 dark:border-gray-600 sm:pl-6">
-                {rows.map((row) => (
-                  <li key={row.kind}>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                      <div className="min-w-0">
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {row.label}
-                        </span>
+                {rows.map((row) => {
+                  const fieldId = `event-notification-${eventId}-${row.kind}`;
+                  return (
+                    <li key={row.kind}>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                        <div className="min-w-0">
+                          <label
+                            htmlFor={fieldId}
+                            className="text-sm font-medium text-gray-900 dark:text-gray-100"
+                          >
+                            {row.label}
+                          </label>
+                        </div>
+                        <div className="shrink-0">
+                          <select
+                            id={fieldId}
+                            value={tri[row.kind] ?? "inherit"}
+                            onChange={(e) =>
+                              setKindTri(row.kind, e.target.value as Tri)
+                            }
+                            className="w-full min-w-48 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:w-auto dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                          >
+                            <option value="inherit">Account default</option>
+                            <option value="on">On for this event</option>
+                            <option value="off">Off for this event</option>
+                          </select>
+                        </div>
                       </div>
-                      <div className="shrink-0">
-                        <select
-                          value={tri[row.kind] ?? "inherit"}
-                          onChange={(e) =>
-                            setKindTri(row.kind, e.target.value as Tri)
-                          }
-                          className="w-full min-w-48 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:w-auto dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                        >
-                          <option value="inherit">Account default</option>
-                          <option value="on">On for this event</option>
-                          <option value="off">Off for this event</option>
-                        </select>
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>,
           ];

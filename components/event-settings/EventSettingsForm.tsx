@@ -105,7 +105,7 @@ export function EventSettingsForm({
 
   const disabled = !canEdit || isSavePending || featureOpsPending;
 
-  const hasPerEventNotificationOverrides =
+  const showEventNotificationPreferences =
     packingEnabled || ridesEnabled || taskBoardEnabled;
 
   return (
@@ -271,7 +271,7 @@ export function EventSettingsForm({
         </p>
       )}
 
-      {hasPerEventNotificationOverrides && (
+      {showEventNotificationPreferences && (
         <section className="border-t border-gray-200 pt-8 dark:border-gray-700">
           <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
             <EventSettingsSectionHeading>
