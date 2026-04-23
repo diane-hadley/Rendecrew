@@ -106,7 +106,7 @@ describe("isNotificationEnabledForUserEvent", () => {
     ).resolves.toBe(true);
   });
 
-  it("returns false when per-event override disables kind", async () => {
+  it("ignores per-event override for event membership kinds (account default only)", async () => {
     eventMemberFindUnique.mockResolvedValue({ id: "em1" });
     userNotificationPreferencesFindUnique.mockResolvedValue({
       disabledKinds: [],
@@ -121,7 +121,7 @@ describe("isNotificationEnabledForUserEvent", () => {
         eventId: "e1",
         kind: "event.member_added",
       }),
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
   });
 
   it("ignores invalid keys in perKindOverrides JSON", async () => {

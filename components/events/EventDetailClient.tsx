@@ -12,7 +12,7 @@ import { Chat } from "./Chat";
 import { EventDisplayCard } from "./EventDisplayCard";
 import { GeneralInformationMarkdown } from "./GeneralInformationMarkdown";
 import { MembersSection } from "./MembersSection";
-import { EventSettingsForm } from "./EventSettingsForm";
+import { EventSettingsForm } from "@/components/event-settings/EventSettingsForm";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
