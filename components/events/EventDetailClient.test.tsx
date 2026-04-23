@@ -20,7 +20,7 @@ vi.mock("./MembersSection", () => ({
   MembersSection: () => <div data-testid="members-section" />,
 }));
 
-vi.mock("./EventSettingsForm", () => ({
+vi.mock("@/components/event-settings/EventSettingsForm", () => ({
   EventSettingsForm: () => <div data-testid="settings-form" />,
 }));
 
