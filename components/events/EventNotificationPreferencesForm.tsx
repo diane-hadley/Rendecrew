@@ -12,6 +12,7 @@ import {
   getEventNotificationOverrides,
   saveEventNotificationOverrides,
 } from "@/app/actions/notifications";
+import { EventSettingsSubsectionHeading } from "./EventSettingsSectionHeading";
 
 type Tri = "inherit" | "on" | "off";
 
@@ -114,40 +115,45 @@ export function EventNotificationPreferencesForm({
 
   return (
     <div className="space-y-6">
-      {ORDER.map((cat) => {
-        const rows = byCategory.get(cat) ?? [];
-        if (!rows.length) return null;
-        return (
-          <div key={cat}>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {CATEGORY_LABELS[cat]}
-            </h4>
-            <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
-              {rows.map((row) => (
-                <li
-                  key={row.kind}
-                  className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <span className="text-sm text-gray-700 dark:text-gray-200">
-                    {row.label}
-                  </span>
-                  <select
-                    value={tri[row.kind] ?? "inherit"}
-                    onChange={(e) =>
-                      setKindTri(row.kind, e.target.value as Tri)
-                    }
-                    className="max-w-xs rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="inherit">Account default</option>
-                    <option value="on">On for this event</option>
-                    <option value="off">Off for this event</option>
-                  </select>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      <div className="divide-y divide-gray-200 dark:divide-gray-700 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0 [&>div]:py-6">
+        {ORDER.flatMap((cat) => {
+          const rows = byCategory.get(cat) ?? [];
+          if (!rows.length) return [];
+          return [
+            <div key={cat}>
+              <EventSettingsSubsectionHeading>
+                {CATEGORY_LABELS[cat]}
+              </EventSettingsSubsectionHeading>
+              <ul className="mt-2 space-y-4">
+                {rows.map((row) => (
+                  <li key={row.kind}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {row.label}
+                        </span>
+                      </div>
+                      <div className="shrink-0">
+                        <select
+                          value={tri[row.kind] ?? "inherit"}
+                          onChange={(e) =>
+                            setKindTri(row.kind, e.target.value as Tri)
+                          }
+                          className="w-full min-w-48 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:w-auto dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        >
+                          <option value="inherit">Account default</option>
+                          <option value="on">On for this event</option>
+                          <option value="off">Off for this event</option>
+                        </select>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>,
+          ];
+        })}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <button
