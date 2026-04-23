@@ -2,7 +2,10 @@
 
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { isNotificationKind } from "@/lib/notification-kinds";
+import {
+  allowsPerEventNotificationOverride,
+  isNotificationKind,
+} from "@/lib/notification-kinds";
 import { prisma } from "@/lib/prisma";
 import { getEventForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
@@ -53,7 +56,13 @@ export async function getEventNotificationOverrides(
   const overrides: Record<string, boolean> = {};
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     for (const [k, v] of Object.entries(raw)) {
-      if (isNotificationKind(k) && typeof v === "boolean") overrides[k] = v;
+      if (
+        isNotificationKind(k) &&
+        typeof v === "boolean" &&
+        allowsPerEventNotificationOverride(k)
+      ) {
+        overrides[k] = v;
+      }
     }
   }
   return { ok: true, overrides };
@@ -75,7 +84,13 @@ export async function saveEventNotificationOverrides(
 
   const cleaned: Record<string, boolean> = {};
   for (const [k, v] of Object.entries(overrides)) {
-    if (!isNotificationKind(k) || typeof v !== "boolean") continue;
+    if (
+      !isNotificationKind(k) ||
+      typeof v !== "boolean" ||
+      !allowsPerEventNotificationOverride(k)
+    ) {
+      continue;
+    }
     cleaned[k] = v;
   }
 

@@ -81,3 +81,16 @@ export const CATEGORY_LABELS: Record<NotificationCategoryId, string> = {
   rides: "Rides",
   tasks: "Tasks",
 };
+
+const PER_EVENT_OVERRIDE_KIND_SET = new Set(
+  NOTIFICATION_KIND_UI.filter((row) => row.category !== "event").map(
+    (row) => row.kind,
+  ),
+);
+
+/** Event membership kinds follow account settings only; per-event JSON overrides are ignored. */
+export function allowsPerEventNotificationOverride(
+  kind: NotificationKind,
+): boolean {
+  return PER_EVENT_OVERRIDE_KIND_SET.has(kind);
+}

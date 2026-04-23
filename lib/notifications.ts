@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  allowsPerEventNotificationOverride,
   isNotificationKind,
   type NotificationKind,
 } from "@/lib/notification-kinds";
@@ -68,7 +69,10 @@ export async function isNotificationEnabledForUserEvent(params: {
   const globalOn = !disabled.has(params.kind);
 
   const overrides = parseOverrides(memberPrefs?.perKindOverrides);
-  if (Object.prototype.hasOwnProperty.call(overrides, params.kind)) {
+  if (
+    allowsPerEventNotificationOverride(params.kind) &&
+    Object.prototype.hasOwnProperty.call(overrides, params.kind)
+  ) {
     return Boolean(overrides[params.kind]);
   }
   return globalOn;

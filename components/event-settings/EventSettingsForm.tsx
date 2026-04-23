@@ -105,6 +105,9 @@ export function EventSettingsForm({
 
   const disabled = !canEdit || isSavePending || featureOpsPending;
 
+  const hasPerEventNotificationOverrides =
+    packingEnabled || ridesEnabled || taskBoardEnabled;
+
   return (
     <div className="space-y-8">
       <div>
@@ -268,20 +271,26 @@ export function EventSettingsForm({
         </p>
       )}
 
-      <section className="border-t border-gray-200 pt-8 dark:border-gray-700">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-          <EventSettingsSectionHeading>
-            Notifications for this event
-          </EventSettingsSectionHeading>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Optional overrides to your account defaults. “Account default”
-            follows what you set under Dashboard → Settings.
-          </p>
-          <div className="mt-4">
-            <EventNotificationPreferencesForm eventId={eventId} />
+      {hasPerEventNotificationOverrides && (
+        <section className="border-t border-gray-200 pt-8 dark:border-gray-700">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+            <EventSettingsSectionHeading>
+              Notifications for this event
+            </EventSettingsSectionHeading>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Optional overrides to your account notification preferences.
+            </p>
+            <div className="mt-4">
+              <EventNotificationPreferencesForm
+                eventId={eventId}
+                packingEnabled={packingEnabled}
+                ridesEnabled={ridesEnabled}
+                taskBoardEnabled={taskBoardEnabled}
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {isCreator && (
         <div className="border-t border-gray-200 pt-8 dark:border-gray-700">

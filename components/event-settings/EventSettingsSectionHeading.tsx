@@ -26,11 +26,9 @@ export function EventSettingsSectionHeading({
 
   if (level === "danger") {
     return (
-      <div className="border-b border-red-200/90 pb-3 dark:border-red-900/45">
-        <h3 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
-          {children}
-        </h3>
-      </div>
+      <h3 className="text-lg font-semibold tracking-tight text-red-800 dark:text-red-300">
+        {children}
+      </h3>
     );
   }
 
@@ -43,12 +41,24 @@ export function EventSettingsSectionHeading({
   );
 }
 
+type EventSettingsSubsectionHeadingProps = {
+  children: ReactNode;
+  /** Uppercase overline style for dense grouped settings (e.g. notification categories). */
+  variant?: "default" | "overline";
+};
+
 /** Category / subgroup label inside settings (e.g. notification kinds). */
 export function EventSettingsSubsectionHeading({
   children,
-}: {
-  children: ReactNode;
-}) {
+  variant = "default",
+}: EventSettingsSubsectionHeadingProps) {
+  if (variant === "overline") {
+    return (
+      <h4 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-gray-600 dark:text-gray-400">
+        {children}
+      </h4>
+    );
+  }
   return (
     <h4 className="mb-2 text-sm font-semibold tracking-tight text-gray-800 dark:text-gray-200">
       {children}

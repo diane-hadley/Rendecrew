@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  allowsPerEventNotificationOverride,
   CATEGORY_LABELS,
   NOTIFICATION_KIND_UI,
   type NotificationCategoryId,
@@ -16,7 +17,11 @@ import { EventSettingsSubsectionHeading } from "./EventSettingsSectionHeading";
 
 type Tri = "inherit" | "on" | "off";
 
-const ORDER: NotificationCategoryId[] = ["event", "packing", "rides", "tasks"];
+const ALL_OPTIONAL_CATEGORIES: NotificationCategoryId[] = [
+  "packing",
+  "rides",
+  "tasks",
+];
 
 function triFor(
   kind: NotificationKind,
@@ -30,13 +35,20 @@ function triFor(
 
 export function EventNotificationPreferencesForm({
   eventId,
+  packingEnabled,
+  ridesEnabled,
+  taskBoardEnabled,
 }: {
   eventId: string;
+  packingEnabled: boolean;
+  ridesEnabled: boolean;
+  taskBoardEnabled: boolean;
 }) {
   const [tri, setTri] = useState<Record<string, Tri>>({});
+  const [baselineTri, setBaselineTri] = useState<Record<string, Tri>>({});
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [pending, start] = useTransition();
 
   useEffect(() => {
@@ -54,6 +66,8 @@ export function EventNotificationPreferencesForm({
         t[row.kind] = triFor(row.kind, ev.overrides);
       }
       setTri(t);
+      setBaselineTri({ ...t });
+      setSavedFlash(false);
       setLoaded(true);
     })();
     return () => {
@@ -61,25 +75,55 @@ export function EventNotificationPreferencesForm({
     };
   }, [eventId]);
 
+  const categoryOrder = useMemo(() => {
+    return ALL_OPTIONAL_CATEGORIES.filter((cat) => {
+      if (cat === "packing") return packingEnabled;
+      if (cat === "rides") return ridesEnabled;
+      if (cat === "tasks") return taskBoardEnabled;
+      return false;
+    });
+  }, [packingEnabled, ridesEnabled, taskBoardEnabled]);
+
   const byCategory = useMemo(() => {
+    const active = new Set(categoryOrder);
     const m = new Map<NotificationCategoryId, NotificationKindUiMeta[]>();
-    for (const c of ORDER) m.set(c, []);
+    for (const c of categoryOrder) m.set(c, []);
     for (const row of NOTIFICATION_KIND_UI) {
+      if (!allowsPerEventNotificationOverride(row.kind)) continue;
+      if (!active.has(row.category)) continue;
       m.get(row.category)!.push(row);
     }
     return m;
-  }, []);
+  }, [categoryOrder]);
+
+  const isDirty = useMemo(() => {
+    const active = new Set(categoryOrder);
+    for (const row of NOTIFICATION_KIND_UI) {
+      if (!allowsPerEventNotificationOverride(row.kind)) continue;
+      if (!active.has(row.category)) continue;
+      const cur = tri[row.kind] ?? "inherit";
+      const base = baselineTri[row.kind] ?? "inherit";
+      if (cur !== base) return true;
+    }
+    return false;
+  }, [tri, baselineTri, categoryOrder]);
+
+  useEffect(() => {
+    if (isDirty) setSavedFlash(false);
+  }, [isDirty]);
 
   function setKindTri(kind: NotificationKind, v: Tri) {
     setTri((prev) => ({ ...prev, [kind]: v }));
-    setSaved(false);
   }
 
   function save() {
     setError(null);
     start(async () => {
+      const activeCategories = new Set(categoryOrder);
       const final: Record<string, boolean> = {};
       for (const row of NOTIFICATION_KIND_UI) {
+        if (!allowsPerEventNotificationOverride(row.kind)) continue;
+        if (!activeCategories.has(row.category)) continue;
         const v = tri[row.kind] ?? "inherit";
         if (v === "inherit") continue;
         final[row.kind] = v === "on";
@@ -96,8 +140,9 @@ export function EventNotificationPreferencesForm({
           t[row.kind] = triFor(row.kind, ev.overrides);
         }
         setTri(t);
+        setBaselineTri({ ...t });
       }
-      setSaved(true);
+      setSavedFlash(true);
     });
   }
 
@@ -113,18 +158,22 @@ export function EventNotificationPreferencesForm({
     );
   }
 
+  if (categoryOrder.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       <div className="divide-y divide-gray-200 dark:divide-gray-700 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0 [&>div]:py-6">
-        {ORDER.flatMap((cat) => {
+        {categoryOrder.flatMap((cat) => {
           const rows = byCategory.get(cat) ?? [];
           if (!rows.length) return [];
           return [
             <div key={cat}>
-              <EventSettingsSubsectionHeading>
+              <EventSettingsSubsectionHeading variant="overline">
                 {CATEGORY_LABELS[cat]}
               </EventSettingsSubsectionHeading>
-              <ul className="mt-2 space-y-4">
+              <ul className="mt-1 space-y-4 border-l border-gray-200 py-0.5 pl-5 dark:border-gray-600 sm:pl-6">
                 {rows.map((row) => (
                   <li key={row.kind}>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -155,16 +204,25 @@ export function EventNotificationPreferencesForm({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4">
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !isDirty}
           onClick={save}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save event overrides"}
         </button>
-        {saved && (
+        {isDirty && (
+          <span
+            className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+            role="status"
+            aria-live="polite"
+          >
+            Unsaved changes
+          </span>
+        )}
+        {savedFlash && (
           <span className="text-sm text-green-700 dark:text-green-400">
             Saved.
           </span>
