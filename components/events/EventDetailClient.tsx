@@ -16,7 +16,13 @@ import { EventSettingsForm } from "@/components/event-settings/EventSettingsForm
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
-import { useEffect, useState } from "react";
+import {
+  EVENT_DETAIL_TAB_IDS,
+  isEventDetailTabId,
+  type EventDetailTabId,
+} from "@/lib/event-detail-tabs";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RidesBoard } from "@/components/rides/RidesBoard";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 
@@ -42,15 +48,8 @@ function splitGeneralInformationMarkdown(markdown: string): {
   };
 }
 
-const tabs = [
-  "overview",
-  "tasks",
-  "packing",
-  "rides",
-  "members",
-  "settings",
-] as const;
-type TabId = (typeof tabs)[number];
+const tabs = EVENT_DETAIL_TAB_IDS;
+type TabId = EventDetailTabId;
 
 export type EventDetailClientProps = {
   eventId: string;
@@ -108,7 +107,10 @@ export function EventDetailClient({
   ridesDefaultTimeZone,
   membersInitial,
 }: EventDetailClientProps) {
-  const [tab, setTab] = useState<TabId>("overview");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [isEditingGeneralInformation, setIsEditingGeneralInformation] =
     useState(false);
   const [isEditingEventDetails, setIsEditingEventDetails] = useState(false);
@@ -117,31 +119,59 @@ export function EventDetailClient({
   const showPackingTab =
     settings.packingEnabled &&
     (packing.packingListPath != null || packing.canManagePacking);
-  const visibleTabs = tabs.filter((t) =>
-    t === "rides"
-      ? settings.ridesEnabled
-      : t === "packing"
-        ? showPackingTab
-        : t === "tasks"
-          ? settings.taskBoardEnabled
-          : true,
+  const visibleTabs = useMemo(
+    () =>
+      tabs.filter((t) =>
+        t === "rides"
+          ? settings.ridesEnabled
+          : t === "packing"
+            ? showPackingTab
+            : t === "tasks"
+              ? settings.taskBoardEnabled
+              : true,
+      ),
+    [settings.ridesEnabled, settings.taskBoardEnabled, showPackingTab],
   );
+
+  const tabParam = searchParams.get("tab");
+  const tabFromUrl = useMemo((): TabId => {
+    const raw = tabParam;
+    if (!raw || !isEventDetailTabId(raw)) return "overview";
+    if (!visibleTabs.includes(raw as TabId)) return "overview";
+    return raw as TabId;
+  }, [tabParam, visibleTabs]);
+
+  const [tab, setTab] = useState<TabId>("overview");
+
+  useLayoutEffect(() => {
+    setTab(tabFromUrl);
+  }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (tabParam == null) return;
+    if (
+      !isEventDetailTabId(tabParam) ||
+      !visibleTabs.includes(tabParam as TabId)
+    ) {
+      router.replace(pathname, { scroll: false });
+    }
+  }, [tabParam, visibleTabs, router, pathname]);
+
+  const selectTab = (t: TabId) => {
+    setIsEditingGeneralInformation(false);
+    setIsEditingEventDetails(false);
+    if (t === "overview") {
+      router.replace(pathname, { scroll: false });
+    } else {
+      const q = new URLSearchParams({ tab: t });
+      router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+    }
+    setTab(t);
+  };
 
   const splitGeneral = splitGeneralInformationMarkdown(
     display.generalInformation ?? "",
   );
-
-  useEffect(() => {
-    if (tab === "rides" && !settings.ridesEnabled) {
-      setTab("overview");
-    }
-    if (tab === "packing" && !showPackingTab) {
-      setTab("overview");
-    }
-    if (tab === "tasks" && !settings.taskBoardEnabled) {
-      setTab("overview");
-    }
-  }, [tab, settings.ridesEnabled, settings.taskBoardEnabled, showPackingTab]);
 
   return (
     <div className="w-full space-y-6">
@@ -169,9 +199,7 @@ export function EventDetailClient({
                 key={t}
                 type="button"
                 onClick={() => {
-                  setTab(t);
-                  setIsEditingGeneralInformation(false);
-                  setIsEditingEventDetails(false);
+                  selectTab(t);
                 }}
                 className={
                   tab === t

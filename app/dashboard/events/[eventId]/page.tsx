@@ -2,6 +2,7 @@ import { PackingSuggestionStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import { EventDetailClient } from "@/components/events/EventDetailClient";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
@@ -92,46 +93,57 @@ export default async function EventDetailPage({
         <h1 className="text-3xl font-bold lg:col-start-2">{event.title}</h1>
       </div>
 
-      <EventDetailClient
-        eventId={event.id}
-        createdById={event.createdById}
-        currentUserId={dbUser.id}
-        actorRole={role}
-        isCreator={isCreator}
-        editable={editable}
-        display={{
-          title: event.title,
-          generalInformation: event.generalInformation,
-          location: event.location,
-          dateRangeLabel,
-        }}
-        editInitial={{
-          title: event.title,
-          generalInformation: event.generalInformation,
-          location: event.location,
-          startAt: event.startAt,
-          endAt: event.endAt,
-          timezone: event.timezone,
-        }}
-        packing={{
-          canManagePacking: editable,
-          liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
-          commitments: myPackingCommitments,
-          packingListPath,
-          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
-          pendingSuggestionDraftCount,
-        }}
-        settings={{
-          memberManagementPolicy: event.memberManagementPolicy,
-          packingListVisibility: event.packingListVisibility,
-          packingEnabled: event.packingEnabled,
-          suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
-          ridesEnabled: event.ridesEnabled,
-          taskBoardEnabled: event.taskBoardEnabled,
-        }}
-        ridesDefaultTimeZone={ridesDefaultTimeZone}
-        membersInitial={membersInitial}
-      />
+      <Suspense
+        fallback={
+          <div
+            className="min-h-[12rem] animate-pulse rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
+            aria-hidden
+          />
+        }
+      >
+        <EventDetailClient
+          eventId={event.id}
+          createdById={event.createdById}
+          currentUserId={dbUser.id}
+          actorRole={role}
+          isCreator={isCreator}
+          editable={editable}
+          display={{
+            title: event.title,
+            generalInformation: event.generalInformation,
+            location: event.location,
+            dateRangeLabel,
+          }}
+          editInitial={{
+            title: event.title,
+            generalInformation: event.generalInformation,
+            location: event.location,
+            startAt: event.startAt,
+            endAt: event.endAt,
+            timezone: event.timezone,
+          }}
+          packing={{
+            canManagePacking: editable,
+            liveblocksRoomId: packingList?.liveblocksRoomId ?? null,
+            commitments: myPackingCommitments,
+            packingListPath,
+            suggestionApprovalRequired:
+              event.suggestionApprovalRequired ?? false,
+            pendingSuggestionDraftCount,
+          }}
+          settings={{
+            memberManagementPolicy: event.memberManagementPolicy,
+            packingListVisibility: event.packingListVisibility,
+            packingEnabled: event.packingEnabled,
+            suggestionApprovalRequired:
+              event.suggestionApprovalRequired ?? false,
+            ridesEnabled: event.ridesEnabled,
+            taskBoardEnabled: event.taskBoardEnabled,
+          }}
+          ridesDefaultTimeZone={ridesDefaultTimeZone}
+          membersInitial={membersInitial}
+        />
+      </Suspense>
     </div>
   );
 }

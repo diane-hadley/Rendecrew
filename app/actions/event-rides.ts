@@ -260,6 +260,7 @@ export async function upsertRideCar(
 ): Promise<UpsertRideCarResult> {
   const r = await requireRidesEnabled(input.eventId);
   if (!r.ok) return r;
+  const eventTitle = r.row.event.title;
 
   const cap = normalizeCapacity(input.passengerCapacity);
   if (cap == null)
@@ -356,6 +357,7 @@ export async function upsertRideCar(
         eventId: input.eventId,
         metadata: {
           eventId: input.eventId,
+          eventTitle,
           rideCarId: updated.id,
           change: "removed",
         },
@@ -367,6 +369,7 @@ export async function upsertRideCar(
         eventId: input.eventId,
         metadata: {
           eventId: input.eventId,
+          eventTitle,
           rideCarId: updated.id,
           change: "assigned",
         },
@@ -411,6 +414,7 @@ export async function upsertRideCar(
     eventId: input.eventId,
     metadata: {
       eventId: input.eventId,
+      eventTitle,
       rideCarId: created.id,
       change: "assigned",
     },
@@ -428,6 +432,7 @@ export async function deleteRideCar(
 ): Promise<DeleteRideCarResult> {
   const r = await requireRidesEnabled(eventId);
   if (!r.ok) return r;
+  const eventTitle = r.row.event.title;
 
   const car = await prisma.eventRideCar.findFirst({
     where: { id: carId, eventId },
@@ -449,7 +454,7 @@ export async function deleteRideCar(
     actorUserId: r.user.id,
     kind: "rides.driver_assignment_changed",
     eventId,
-    metadata: { eventId, rideCarId: carId, change: "removed" },
+    metadata: { eventId, eventTitle, rideCarId: carId, change: "removed" },
   });
   for (const p of car.event_ride_passengers) {
     await enqueueNotification({
@@ -457,7 +462,7 @@ export async function deleteRideCar(
       actorUserId: r.user.id,
       kind: "rides.car_assignment_changed",
       eventId,
-      metadata: { eventId, rideCarId: carId, change: "removed" },
+      metadata: { eventId, eventTitle, rideCarId: carId, change: "removed" },
     });
   }
 
@@ -472,6 +477,7 @@ export async function disableRideCarLeg(params: {
 }): Promise<DeleteRideCarResult> {
   const r = await requireRidesEnabled(params.eventId);
   if (!r.ok) return r;
+  const eventTitle = r.row.event.title;
 
   const leg =
     params.leg === "TO_EVENT"
@@ -546,6 +552,7 @@ export async function disableRideCarLeg(params: {
       eventId: params.eventId,
       metadata: {
         eventId: params.eventId,
+        eventTitle,
         rideCarId: params.carId,
         change: "removed",
       },
@@ -558,6 +565,7 @@ export async function disableRideCarLeg(params: {
         eventId: params.eventId,
         metadata: {
           eventId: params.eventId,
+          eventTitle,
           rideCarId: params.carId,
           change: "removed",
         },
@@ -572,6 +580,7 @@ export async function disableRideCarLeg(params: {
         eventId: params.eventId,
         metadata: {
           eventId: params.eventId,
+          eventTitle,
           rideCarId: params.carId,
           change: "removed",
         },
@@ -657,6 +666,7 @@ export async function addRidePassenger(params: {
 }): Promise<MutateRidePassengerResult> {
   const r = await requireRidesEnabled(params.eventId);
   if (!r.ok) return r;
+  const eventTitle = r.row.event.title;
 
   const leg =
     params.leg === "TO_EVENT"
@@ -712,6 +722,7 @@ export async function addRidePassenger(params: {
       eventId: params.eventId,
       metadata: {
         eventId: params.eventId,
+        eventTitle,
         rideCarId: params.carId,
         passengerUserId: passengerMember.user.id,
         passengerName: passengerMember.user.name,
@@ -725,6 +736,7 @@ export async function addRidePassenger(params: {
       eventId: params.eventId,
       metadata: {
         eventId: params.eventId,
+        eventTitle,
         rideCarId: params.carId,
         change: "added",
         leg: params.leg,
@@ -744,6 +756,7 @@ export async function removeRidePassenger(params: {
 }): Promise<MutateRidePassengerResult> {
   const r = await requireRidesEnabled(params.eventId);
   if (!r.ok) return r;
+  const eventTitle = r.row.event.title;
 
   const leg =
     params.leg === "TO_EVENT"
@@ -767,6 +780,7 @@ export async function removeRidePassenger(params: {
       eventId: params.eventId,
       metadata: {
         eventId: params.eventId,
+        eventTitle,
         rideCarId: params.carId,
         change: "removed",
         leg: params.leg,

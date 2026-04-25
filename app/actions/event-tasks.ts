@@ -313,10 +313,12 @@ export async function createEventTask(params: {
       where: { id: created.id },
       select: {
         title: true,
+        event: { select: { title: true } },
         assignments: { include: { eventMember: { select: { userId: true } } } },
       },
     });
     if (taskRow) {
+      const eventTitle = taskRow.event.title;
       for (const a of taskRow.assignments) {
         await enqueueNotification({
           recipientUserId: a.eventMember.userId,
@@ -325,6 +327,7 @@ export async function createEventTask(params: {
           eventId: params.eventId,
           metadata: {
             eventId: params.eventId,
+            eventTitle,
             taskId: created.id,
             taskTitle: taskRow.title,
           },
@@ -417,8 +420,9 @@ export async function updateEventTask(params: {
     if (oldKey !== newKey) {
       const taskMeta = await prisma.eventTask.findUnique({
         where: { id: params.taskId },
-        select: { title: true },
+        select: { title: true, event: { select: { title: true } } },
       });
+      const eventTitle = taskMeta?.event.title;
       for (const a of before.assignments) {
         await enqueueNotification({
           recipientUserId: a.eventMember.userId,
@@ -427,8 +431,11 @@ export async function updateEventTask(params: {
           eventId: existing.eventId,
           metadata: {
             eventId: existing.eventId,
+            eventTitle,
             taskId: params.taskId,
             taskTitle: taskMeta?.title ?? null,
+            dueDateFrom: oldKey,
+            dueDateTo: newKey,
           },
         });
       }
@@ -446,6 +453,7 @@ export async function deleteEventTask(taskId: string): Promise<Ok | Err> {
       id: true,
       eventId: true,
       title: true,
+      event: { select: { title: true } },
       assignments: {
         include: { eventMember: { select: { userId: true } } },
       },
@@ -455,6 +463,8 @@ export async function deleteEventTask(taskId: string): Promise<Ok | Err> {
 
   const r = await requireTaskBoardEnabled(existing.eventId);
   if (!r.ok) return r;
+
+  const eventTitle = existing.event.title;
 
   await prisma.eventTask.delete({ where: { id: taskId } });
 
@@ -466,6 +476,7 @@ export async function deleteEventTask(taskId: string): Promise<Ok | Err> {
       eventId: existing.eventId,
       metadata: {
         eventId: existing.eventId,
+        eventTitle,
         taskId: existing.id,
         taskTitle: existing.title,
         change: "task_deleted",
@@ -520,8 +531,9 @@ export async function assignMembersToTask(params: {
   if (addedMemberIds.length) {
     const taskMeta = await prisma.eventTask.findUnique({
       where: { id: task.id },
-      select: { title: true },
+      select: { title: true, event: { select: { title: true } } },
     });
+    const eventTitle = taskMeta?.event.title;
     const newMembers = await prisma.eventMember.findMany({
       where: { eventId: task.eventId, id: { in: addedMemberIds } },
       select: { userId: true },
@@ -534,6 +546,7 @@ export async function assignMembersToTask(params: {
         eventId: task.eventId,
         metadata: {
           eventId: task.eventId,
+          eventTitle,
           taskId: task.id,
           taskTitle: taskMeta?.title ?? null,
         },
@@ -563,8 +576,9 @@ export async function unassignMembersFromTask(params: {
 
   const taskMeta = await prisma.eventTask.findUnique({
     where: { id: task.id },
-    select: { title: true },
+    select: { title: true, event: { select: { title: true } } },
   });
+  const eventTitle = taskMeta?.event.title;
   const removedMembers = await prisma.eventMember.findMany({
     where: { eventId: task.eventId, id: { in: memberIds } },
     select: { userId: true },
@@ -585,6 +599,7 @@ export async function unassignMembersFromTask(params: {
       eventId: task.eventId,
       metadata: {
         eventId: task.eventId,
+        eventTitle,
         taskId: task.id,
         taskTitle: taskMeta?.title ?? null,
         change: "unassigned",
@@ -631,8 +646,9 @@ export async function assignEveryoneToTask(taskId: string): Promise<Ok | Err> {
   });
   const taskMeta = await prisma.eventTask.findUnique({
     where: { id: task.id },
-    select: { title: true },
+    select: { title: true, event: { select: { title: true } } },
   });
+  const eventTitle = taskMeta?.event.title;
   for (const m of allMembers) {
     if (priorSet.has(m.id)) continue;
     await enqueueNotification({
@@ -642,6 +658,7 @@ export async function assignEveryoneToTask(taskId: string): Promise<Ok | Err> {
       eventId: task.eventId,
       metadata: {
         eventId: task.eventId,
+        eventTitle,
         taskId: task.id,
         taskTitle: taskMeta?.title ?? null,
       },
