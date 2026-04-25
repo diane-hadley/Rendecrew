@@ -8,10 +8,12 @@ const notificationFindMany = vi.hoisted(() => vi.fn());
 const notificationUpdateMany = vi.hoisted(() => vi.fn());
 const notificationCount = vi.hoisted(() => vi.fn());
 const notificationDeleteMany = vi.hoisted(() => vi.fn());
+const eventFindMany = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     eventMember: { findUnique: eventMemberFindUnique },
+    event: { findMany: eventFindMany },
     userNotificationPreferences: {
       findUnique: userNotificationPreferencesFindUnique,
     },
@@ -327,6 +329,7 @@ describe("countUnreadNotifications", () => {
 describe("listNotificationsForUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    eventFindMany.mockResolvedValue([]);
   });
 
   it("clamps take to [1, 50] (findMany uses page size + 1)", async () => {
@@ -354,13 +357,38 @@ describe("listNotificationsForUser", () => {
         readAt: null,
         metadata: {},
         actorUserId: "a1",
+        actor: { name: "Alex" },
       },
     ]);
 
     const r = await listNotificationsForUser({ userId: "u1", take: 5 });
     expect(r.items).toHaveLength(1);
     expect(r.items[0].readAt).toBeNull();
+    expect(r.items[0].actorName).toBe("Alex");
     expect(r.nextCursor).toBeNull();
+  });
+
+  it("backfills eventTitle in metadata from Event when missing", async () => {
+    const t = new Date("2026-01-15T12:00:00.000Z");
+    eventFindMany.mockResolvedValue([{ id: "e-evt", title: "Campout" }]);
+    notificationFindMany.mockResolvedValue([
+      {
+        id: "n1",
+        kind: "tasks.assignment_changed",
+        createdAt: t,
+        readAt: null,
+        metadata: { eventId: "e-evt", taskTitle: "Shop" },
+        actorUserId: "a1",
+        actor: { name: "Alex" },
+      },
+    ]);
+
+    const r = await listNotificationsForUser({ userId: "u1", take: 5 });
+    expect(r.items[0]!.metadata.eventTitle).toBe("Campout");
+    expect(eventFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ["e-evt"] } },
+      select: { id: true, title: true },
+    });
   });
 
   it("returns nextCursor when more than one page", async () => {
@@ -373,6 +401,7 @@ describe("listNotificationsForUser", () => {
         readAt: null,
         metadata: null,
         actorUserId: null,
+        actor: null,
       },
       {
         id: "n2",
@@ -381,6 +410,7 @@ describe("listNotificationsForUser", () => {
         readAt: t,
         metadata: {},
         actorUserId: null,
+        actor: null,
       },
     ]);
 

@@ -11,6 +11,7 @@ import {
 
 vi.mock("@/lib/packing-notifications", () => ({
   emitPackingPersistNotifications: vi.fn().mockResolvedValue(undefined),
+  buildPackingPersistNotificationQueue: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("@/lib/prisma", () => ({

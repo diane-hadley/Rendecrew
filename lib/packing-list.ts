@@ -1,6 +1,9 @@
 import { randomBytes } from "crypto";
 import { PackingListVisibility } from "@prisma/client";
-import { emitPackingPersistNotifications } from "@/lib/packing-notifications";
+import {
+  buildPackingPersistNotificationQueue,
+  emitPackingPersistNotifications,
+} from "@/lib/packing-notifications";
 import { prisma } from "@/lib/prisma";
 import { itemQuantityCap } from "@/lib/packing-quantity";
 
@@ -518,7 +521,7 @@ export async function persistPackingListItems(
     select: {
       id: true,
       eventId: true,
-      event: { select: { packingListVisibility: true } },
+      event: { select: { packingListVisibility: true, title: true } },
       sections: {
         orderBy: { sortOrder: "asc" },
         select: { id: true, title: true },
@@ -873,8 +876,9 @@ export async function persistPackingListItems(
   }
 
   const actorUserId = actor.kind === "guest" ? null : (actor.userId as string);
-  await emitPackingPersistNotifications({
+  const persistMeta = {
     eventId: list.eventId,
+    eventTitle: list.event.title,
     packingListId: list.id,
     dbItemsBefore: list.items as Array<{
       id: string;
@@ -887,7 +891,30 @@ export async function persistPackingListItems(
     }>,
     itemsAfter: itemsToPersist,
     actorUserId,
-  });
+  };
+  const packingQueue = buildPackingPersistNotificationQueue(persistMeta);
+  if (packingQueue.length === 0) {
+    return { ok: true };
+  }
+
+  let actorName: string | null = null;
+  if (actor.kind === "guest") {
+    const d = actor.displayName.trim();
+    actorName = d || null;
+  } else {
+    const u = await prisma.user.findUnique({
+      where: { id: actor.userId },
+      select: { name: true },
+    });
+    actorName = u?.name?.trim() ? u.name.trim() : null;
+  }
+  await emitPackingPersistNotifications(
+    {
+      ...persistMeta,
+      actorName,
+    },
+    packingQueue,
+  );
 
   return { ok: true };
 }

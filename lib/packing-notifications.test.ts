@@ -43,6 +43,7 @@ function item(
 describe("buildPackingPersistNotificationQueue", () => {
   const base = {
     eventId: "e1",
+    eventTitle: "Test Event",
     packingListId: "pl1",
     actorUserId: "actor1" as string | null,
   };
@@ -220,10 +221,12 @@ describe("emitPackingPersistNotifications", () => {
       await import("./packing-notifications");
     await emitPackingPersistNotifications({
       eventId: "e1",
+      eventTitle: "Test Event",
       packingListId: "pl1",
       dbItemsBefore: [],
       itemsAfter: [item("i1", "Z", [su("s1", "u9")])],
       actorUserId: "a",
+      actorName: null,
     });
     expect(enqueueManyNotifications).toHaveBeenCalledTimes(1);
     expect(enqueueManyNotifications.mock.calls[0][0].length).toBeGreaterThan(0);
@@ -234,10 +237,12 @@ describe("emitPackingPersistNotifications", () => {
       await import("./packing-notifications");
     await emitPackingPersistNotifications({
       eventId: "e1",
+      eventTitle: "Test Event",
       packingListId: "pl1",
       dbItemsBefore: [],
       itemsAfter: [],
       actorUserId: "a",
+      actorName: null,
     });
     expect(enqueueManyNotifications).not.toHaveBeenCalled();
   });

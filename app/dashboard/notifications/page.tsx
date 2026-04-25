@@ -7,17 +7,14 @@ import {
   NOTIFICATION_KIND_UI,
   type NotificationCategoryId,
 } from "@/lib/notification-kinds";
+import { formatNotificationMessage } from "@/lib/notification-messages";
+import { eventDetailTabForNotificationKind } from "@/lib/notification-event-tab";
 import {
   listNotificationsForUser,
   markAllNotificationsReadForUser,
 } from "@/lib/notifications";
 import { getOrCreateUser } from "@/lib/user";
 import { DateTime } from "luxon";
-
-function labelForKind(kind: string): string {
-  const row = NOTIFICATION_KIND_UI.find((k) => k.kind === kind);
-  return row?.label ?? kind;
-}
 
 function categoryForKind(kind: string): NotificationCategoryId {
   const row = NOTIFICATION_KIND_UI.find((k) => k.kind === kind);
@@ -82,10 +79,6 @@ export default async function NotificationsPage({
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
         Notifications
       </h1>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-        {!cursor ? "Opening this page marks all notifications as read." : null}{" "}
-        Times use your account timezone ({tz}).
-      </p>
 
       {items.length === 0 ? (
         <p className="mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -96,21 +89,33 @@ export default async function NotificationsPage({
       ) : (
         <ul className="mt-8 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white shadow-sm dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-900">
           {items.map((n) => {
-            const meta = n.metadata as {
-              eventId?: string;
-              taskId?: string;
-              rideCarId?: string;
-              packingItemId?: string;
-            };
+            const meta = n.metadata;
+            const eventId = meta.eventId;
+            const eventTitle =
+              typeof meta.eventTitle === "string" &&
+              meta.eventTitle.trim() !== ""
+                ? meta.eventTitle.trim()
+                : null;
             const when = DateTime.fromISO(n.createdAt, { zone: "utc" }).setZone(
               tz,
             );
             const whenLabel = when.toLocaleString(DateTime.DATETIME_MED);
             const cat = categoryForKind(n.kind);
+            const sectionTab = eventDetailTabForNotificationKind(n.kind);
             const href =
-              meta.eventId != null
-                ? `/dashboard/events/${meta.eventId}`
+              eventId != null
+                ? sectionTab
+                  ? `/dashboard/events/${eventId}?${new URLSearchParams({ tab: sectionTab }).toString()}`
+                  : `/dashboard/events/${eventId}`
                 : "/dashboard";
+            const body = formatNotificationMessage({
+              kind: n.kind,
+              metadata: n.metadata,
+              actorName: n.actorName,
+              actorUserId: n.actorUserId,
+              timeZone: tz,
+            });
+            const linkLabel = eventTitle ? `View ${eventTitle}` : "View event";
 
             return (
               <li key={n.id} className="p-4 sm:px-5">
@@ -120,24 +125,15 @@ export default async function NotificationsPage({
                       {CATEGORY_LABELS[cat]}
                     </p>
                     <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {labelForKind(n.kind)}
+                      {body}
                     </p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                       <Link
                         href={href}
                         className="text-blue-600 hover:underline dark:text-blue-400"
                       >
-                        View event
+                        {linkLabel}
                       </Link>
-                      {meta.taskId ? (
-                        <span className="text-gray-400"> · Task</span>
-                      ) : null}
-                      {meta.rideCarId ? (
-                        <span className="text-gray-400"> · Rides</span>
-                      ) : null}
-                      {meta.packingItemId ? (
-                        <span className="text-gray-400"> · Packing</span>
-                      ) : null}
                     </p>
                   </div>
                   <time

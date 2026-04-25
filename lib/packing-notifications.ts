@@ -24,18 +24,20 @@ function qtyKey(q: number | null | undefined): number | null {
  */
 export function buildPackingPersistNotificationQueue(params: {
   eventId: string;
+  eventTitle: string;
   packingListId: string;
   dbItemsBefore: DbItem[];
   itemsAfter: PackingItemPayload[];
   actorUserId: string | null;
 }): EnqueueNotificationInput[] {
   const out: EnqueueNotificationInput[] = [];
-  const { eventId, packingListId, actorUserId } = params;
+  const { eventId, eventTitle, packingListId, actorUserId } = params;
   const oldById = new Map(params.dbItemsBefore.map((i) => [i.id, i]));
   const newIds = new Set(params.itemsAfter.map((i) => i.id));
 
   const baseMeta = (item: { id: string; name: string }) => ({
     eventId,
+    eventTitle,
     packingListId,
     packingItemId: item.id,
     packingItemName: item.name,
@@ -160,14 +162,30 @@ function dedupePackingQueue(
   return res;
 }
 
-export async function emitPackingPersistNotifications(params: {
-  eventId: string;
-  packingListId: string;
-  dbItemsBefore: DbItem[];
-  itemsAfter: PackingItemPayload[];
-  actorUserId: string | null;
-}): Promise<void> {
-  const queue = buildPackingPersistNotificationQueue(params);
+export async function emitPackingPersistNotifications(
+  params: {
+    eventId: string;
+    eventTitle: string;
+    packingListId: string;
+    dbItemsBefore: DbItem[];
+    itemsAfter: PackingItemPayload[];
+    actorUserId: string | null;
+    /** Pass when known (see `persistPackingListItems`); stored in metadata for copy. */
+    actorName: string | null;
+  },
+  /** When the caller already built the queue (e.g. to skip work when empty), pass it to avoid building twice. */
+  prebuiltQueue?: EnqueueNotificationInput[],
+): Promise<void> {
+  const { actorName } = params;
+  const baseQueue =
+    prebuiltQueue ?? buildPackingPersistNotificationQueue(params);
+  const queue = baseQueue.map((n) => ({
+    ...n,
+    metadata: {
+      ...n.metadata,
+      ...(actorName != null && actorName !== "" ? { actorName } : {}),
+    },
+  }));
   if (!queue.length) return;
   await enqueueManyNotifications(queue);
 }

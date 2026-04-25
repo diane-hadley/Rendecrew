@@ -18,9 +18,50 @@ export type NotificationMetadata = {
   packingItemId?: string;
   packingItemName?: string | null;
   actorName?: string | null;
+  /** `tasks.due_date_changed` — YYYY-MM-DD or null (no date). */
+  dueDateFrom?: string | null;
+  dueDateTo?: string | null;
   /** Extra template fields without secrets */
   [key: string]: unknown;
 };
+
+function missingEventTitleInMetadata(meta: NotificationMetadata): boolean {
+  if (meta.eventId == null || String(meta.eventId).trim() === "") return false;
+  if (
+    typeof meta.eventTitle === "string" &&
+    String(meta.eventTitle).trim() !== ""
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function hydrateEventTitlesInMetadata(
+  items: NotificationListRow[],
+): Promise<NotificationListRow[]> {
+  const toFetch = new Set<string>();
+  for (const it of items) {
+    if (missingEventTitleInMetadata(it.metadata) && it.metadata.eventId) {
+      toFetch.add(String(it.metadata.eventId));
+    }
+  }
+  if (toFetch.size === 0) return items;
+
+  const rows = await prisma.event.findMany({
+    where: { id: { in: [...toFetch] } },
+    select: { id: true, title: true },
+  });
+  const titleById = new Map(rows.map((r) => [r.id, r.title] as const));
+
+  return items.map((it) => {
+    if (!missingEventTitleInMetadata(it.metadata) || !it.metadata.eventId) {
+      return it;
+    }
+    const t = titleById.get(String(it.metadata.eventId));
+    if (t == null) return it;
+    return { ...it, metadata: { ...it.metadata, eventTitle: t } };
+  });
+}
 
 function parseOverrides(
   raw: unknown,
@@ -204,6 +245,8 @@ export type NotificationListRow = {
   readAt: string | null;
   metadata: NotificationMetadata;
   actorUserId: string | null;
+  /** Set when the actor user row exists (or was denormalized at enqueue time). */
+  actorName: string | null;
 };
 
 export async function listNotificationsForUser(params: {
@@ -243,6 +286,7 @@ export async function listNotificationsForUser(params: {
       readAt: true,
       metadata: true,
       actorUserId: true,
+      actor: { select: { name: true } },
     },
   });
 
@@ -257,10 +301,11 @@ export async function listNotificationsForUser(params: {
     readAt: r.readAt ? r.readAt.toISOString() : null,
     metadata: (r.metadata ?? {}) as NotificationMetadata,
     actorUserId: r.actorUserId,
+    actorName: r.actor?.name ?? null,
   }));
 
   return {
-    items,
+    items: await hydrateEventTitlesInMetadata(items),
     nextCursor:
       hasMore && last
         ? { createdAt: last.createdAt.toISOString(), id: last.id }
