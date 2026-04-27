@@ -39,6 +39,7 @@ export type DateTimeFieldsProps = {
   value: string;
   onChange: (combined: string) => void;
   disabled?: boolean;
+  hideSubLabels?: boolean;
 };
 
 export function DateTimeFields({
@@ -47,6 +48,7 @@ export function DateTimeFields({
   value,
   onChange,
   disabled,
+  hideSubLabels = false,
 }: DateTimeFieldsProps) {
   const snapped = snapDatetimeLocalToMinutes(value, 15);
   const { date, time } = splitDatetimeLocal(snapped);
@@ -60,21 +62,26 @@ export function DateTimeFields({
 
   return (
     <div className="min-w-0">
-      <div className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-        {label}
-      </div>
+      {label.trim() ? (
+        <div className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+          {label}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="min-w-0">
-          <label
-            htmlFor={`${id}-date`}
-            className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
-          >
-            Date
-          </label>
+          {!hideSubLabels ? (
+            <label
+              htmlFor={`${id}-date`}
+              className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+            >
+              Date
+            </label>
+          ) : null}
           <input
             id={`${id}-date`}
             type="date"
+            aria-label={hideSubLabels ? "Date" : undefined}
             disabled={disabled}
             value={date}
             onChange={(e) => {
@@ -91,12 +98,14 @@ export function DateTimeFields({
         </div>
 
         <div className="min-w-0">
-          <label
-            htmlFor={`${id}-time`}
-            className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
-          >
-            Time
-          </label>
+          {!hideSubLabels ? (
+            <label
+              htmlFor={`${id}-time`}
+              className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+            >
+              Time
+            </label>
+          ) : null}
           <select
             id={`${id}-time`}
             aria-label="Time"

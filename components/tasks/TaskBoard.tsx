@@ -538,12 +538,13 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                    Due time (optional)
+                    Due
                   </label>
                   <div className="mt-1">
                     <DateTimeFields
                       id="task-due"
-                      label="Due"
+                      label=""
+                      hideSubLabels
                       value={editor.dueDate}
                       disabled={isPending}
                       onChange={(next) =>
