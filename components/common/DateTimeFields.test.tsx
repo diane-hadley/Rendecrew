@@ -1,18 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DateTimeFields } from "./DateTimeFields";
 
 describe("DateTimeFields", () => {
-  it("renders legend and date field", () => {
+  it("renders label plus date/time fields", () => {
     const onChange = vi.fn();
     render(
       <DateTimeFields id="t" label="Start" value="" onChange={onChange} />,
     );
-    expect(screen.getByRole("group", { name: "Start" })).toBeInTheDocument();
+    expect(screen.getByText("Start")).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Time")).toBeInTheDocument();
   });
 
-  it("calls onChange with empty string when date is cleared", () => {
+  it("calls onChange with empty string when cleared", () => {
     const onChange = vi.fn();
     render(
       <DateTimeFields
@@ -27,7 +28,22 @@ describe("DateTimeFields", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("updates combined datetime when date changes", () => {
+  it("snaps non-grid value and syncs to parent", async () => {
+    const onChange = vi.fn();
+    render(
+      <DateTimeFields
+        id="t"
+        label="Start"
+        value="2026-04-10T14:07"
+        onChange={onChange}
+      />,
+    );
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith("2026-04-10T14:00"),
+    );
+  });
+
+  it("updates value when changed", () => {
     const onChange = vi.fn();
     render(
       <DateTimeFields
@@ -37,18 +53,23 @@ describe("DateTimeFields", () => {
         onChange={onChange}
       />,
     );
-    const dateInput = screen.getByLabelText("Date");
-    fireEvent.change(dateInput, { target: { value: "2026-05-01" } });
-    expect(onChange).toHaveBeenCalled();
-    const last = onChange.mock.calls.at(-1)?.[0] as string;
-    expect(last).toMatch(/^2026-05-01T/);
+    const time = screen.getByLabelText("Time");
+    fireEvent.change(time, { target: { value: "14:15" } });
+    expect(onChange).toHaveBeenCalledWith("2026-04-10T14:15");
   });
 
-  it("disables time selects when no date is set", () => {
+  it("disables date/time when disabled", () => {
     const onChange = vi.fn();
-    render(<DateTimeFields id="t" label="End" value="" onChange={onChange} />);
-    expect(screen.getByLabelText("End, hour")).toBeDisabled();
-    expect(screen.getByLabelText("End, minute")).toBeDisabled();
-    expect(screen.getByLabelText("End, AM or PM")).toBeDisabled();
+    render(
+      <DateTimeFields
+        id="t"
+        label="End"
+        value=""
+        onChange={onChange}
+        disabled
+      />,
+    );
+    expect(screen.getByLabelText("Date")).toBeDisabled();
+    expect(screen.getByLabelText("Time")).toBeDisabled();
   });
 });
