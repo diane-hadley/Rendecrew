@@ -1,7 +1,7 @@
 "use client";
 
 import { updateEvent } from "@/app/actions/events";
-import { EventDateTimeFields } from "./EventDateTimeFields";
+import { DateTimeFields } from "@/components/common/DateTimeFields";
 import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import {
   rezoneWallDatetimeLocal,
@@ -156,7 +156,7 @@ export function EditEventDetailsForm({
         />
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
-          <EventDateTimeFields
+          <DateTimeFields
             id="edit-event-start"
             label="Start"
             value={startAt}
@@ -167,7 +167,7 @@ export function EditEventDetailsForm({
               );
             }}
           />
-          <EventDateTimeFields
+          <DateTimeFields
             id="edit-event-end"
             label="End"
             value={endAt}

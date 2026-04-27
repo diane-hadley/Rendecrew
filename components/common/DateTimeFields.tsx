@@ -40,7 +40,7 @@ const MINUTES_FIVE = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((n) =>
 );
 const PERIODS = ["AM", "PM"] as const;
 
-type EventDateTimeFieldsProps = {
+export type DateTimeFieldsProps = {
   id: string;
   label: string;
   value: string;
@@ -50,14 +50,15 @@ type EventDateTimeFieldsProps = {
 
 /**
  * Date + 12-hour time with 5-minute steps (stored as `YYYY-MM-DDTHH:mm` 24h).
+ * Supports both typing time and scrolling selects.
  */
-export function EventDateTimeFields({
+export function DateTimeFields({
   id,
   label,
   value,
   onChange,
   disabled,
-}: EventDateTimeFieldsProps) {
+}: DateTimeFieldsProps) {
   const { date, time } = splitDatetimeLocal(value);
   const { hour: hour24, minute } = splitTimeToHourMinuteFive(time || "00:00");
   const { hour12, period } = hour24ToHour12AndPeriod(hour24);
@@ -112,65 +113,82 @@ export function EventDateTimeFields({
           >
             Time
           </span>
-          <div
-            className="flex h-10 w-fit max-w-full flex-nowrap items-stretch overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-900 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-blue-500 dark:[&:has(:focus-visible)]:ring-blue-400"
-            role="group"
-            aria-labelledby={`${id}-time-heading`}
-          >
-            <select
-              id={`${id}-hour`}
-              aria-label={`${label}, hour`}
+          <div className="flex flex-wrap items-start gap-2">
+            <input
+              id={`${id}-time`}
+              type="time"
+              step={300}
               disabled={disabled || !date}
-              value={hour12}
-              onChange={(e) => applyTime(e.target.value, minute, period)}
-              className={`${selectTightClass} w-12 rounded-l-md`}
+              value={time || "00:00"}
+              aria-label={`${label}, time`}
+              onChange={(e) => {
+                if (!date) return;
+                const t = e.target.value;
+                const next = joinDatetimeLocal(date, t);
+                onChange(snapDatetimeLocalToFiveMinutes(next));
+              }}
+              className={`${fieldClass} max-w-[10rem]`}
+            />
+            <div
+              className="flex h-10 w-fit max-w-full flex-nowrap items-stretch overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-900 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-blue-500 dark:[&:has(:focus-visible)]:ring-blue-400"
+              role="group"
+              aria-labelledby={`${id}-time-heading`}
             >
-              {HOURS_12.map((h) => (
-                <option key={h} value={h}>
-                  {h}
-                </option>
-              ))}
-            </select>
-            <span
-              className="flex w-[1.125rem] shrink-0 items-center justify-center border-x border-gray-200 bg-gray-50/90 text-xs font-medium text-gray-400 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-500"
-              aria-hidden
-            >
-              :
-            </span>
-            <select
-              id={`${id}-minute`}
-              aria-label={`${label}, minute`}
-              disabled={disabled || !date}
-              value={minute}
-              onChange={(e) => applyTime(hour12, e.target.value, period)}
-              className={`${selectTightClass} w-14`}
-            >
-              {MINUTES_FIVE.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <select
-              id={`${id}-period`}
-              aria-label={`${label}, AM or PM`}
-              disabled={disabled || !date}
-              value={period}
-              onChange={(e) =>
-                applyTime(
-                  hour12,
-                  minute,
-                  e.target.value as (typeof PERIODS)[number],
-                )
-              }
-              className={`${selectPeriodTightClass} w-16 rounded-r-md`}
-            >
-              {PERIODS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              <select
+                id={`${id}-hour`}
+                aria-label={`${label}, hour`}
+                disabled={disabled || !date}
+                value={hour12}
+                onChange={(e) => applyTime(e.target.value, minute, period)}
+                className={`${selectTightClass} w-12 rounded-l-md`}
+              >
+                {HOURS_12.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
+                  </option>
+                ))}
+              </select>
+              <span
+                className="flex w-[1.125rem] shrink-0 items-center justify-center border-x border-gray-200 bg-gray-50/90 text-xs font-medium text-gray-400 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-500"
+                aria-hidden
+              >
+                :
+              </span>
+              <select
+                id={`${id}-minute`}
+                aria-label={`${label}, minute`}
+                disabled={disabled || !date}
+                value={minute}
+                onChange={(e) => applyTime(hour12, e.target.value, period)}
+                className={`${selectTightClass} w-14`}
+              >
+                {MINUTES_FIVE.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                id={`${id}-period`}
+                aria-label={`${label}, AM or PM`}
+                disabled={disabled || !date}
+                value={period}
+                onChange={(e) =>
+                  applyTime(
+                    hour12,
+                    minute,
+                    e.target.value as (typeof PERIODS)[number],
+                  )
+                }
+                className={`${selectPeriodTightClass} w-16 rounded-r-md`}
+              >
+                {PERIODS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
