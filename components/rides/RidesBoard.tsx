@@ -12,6 +12,7 @@ import {
   type RideCarRow,
   type RideMemberListItem,
 } from "@/app/actions/event-rides";
+import { DateTimeFields } from "@/components/common/DateTimeFields";
 import {
   getTimezoneSelectChoices,
   normalizeTimeZone,
@@ -19,6 +20,7 @@ import {
   rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
+import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import {
   useCallback,
   useEffect,
@@ -1359,38 +1361,36 @@ export function RidesBoard({
                     />
                   </div>
                   <div />
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      Departs (optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editor.toDepartsWall}
-                      onChange={(e) =>
-                        setEditor((s) => ({
-                          ...s,
-                          toDepartsWall: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      Arrives (optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editor.toArrivesWall}
-                      onChange={(e) =>
-                        setEditor((s) => ({
-                          ...s,
-                          toArrivesWall: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                    />
-                  </div>
+                  <DateTimeFields
+                    id="ride-to-departs"
+                    label="Departs (optional)"
+                    value={editor.toDepartsWall}
+                    disabled={isPending}
+                    onChange={(next) => {
+                      setEditor((s) => ({
+                        ...s,
+                        toDepartsWall: next,
+                        toArrivesWall: shouldSyncEndToStart(
+                          next,
+                          s.toArrivesWall,
+                        )
+                          ? next
+                          : s.toArrivesWall,
+                      }));
+                    }}
+                  />
+                  <DateTimeFields
+                    id="ride-to-arrives"
+                    label="Arrives (optional)"
+                    value={editor.toArrivesWall}
+                    disabled={isPending}
+                    onChange={(next) =>
+                      setEditor((s) => ({
+                        ...s,
+                        toArrivesWall: next,
+                      }))
+                    }
+                  />
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -1408,38 +1408,36 @@ export function RidesBoard({
                     />
                   </div>
                   <div />
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      Departs (optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editor.fromDepartsWall}
-                      onChange={(e) =>
-                        setEditor((s) => ({
-                          ...s,
-                          fromDepartsWall: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      Arrives (optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editor.fromArrivesWall}
-                      onChange={(e) =>
-                        setEditor((s) => ({
-                          ...s,
-                          fromArrivesWall: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                    />
-                  </div>
+                  <DateTimeFields
+                    id="ride-from-departs"
+                    label="Departs (optional)"
+                    value={editor.fromDepartsWall}
+                    disabled={isPending}
+                    onChange={(next) => {
+                      setEditor((s) => ({
+                        ...s,
+                        fromDepartsWall: next,
+                        fromArrivesWall: shouldSyncEndToStart(
+                          next,
+                          s.fromArrivesWall,
+                        )
+                          ? next
+                          : s.fromArrivesWall,
+                      }));
+                    }}
+                  />
+                  <DateTimeFields
+                    id="ride-from-arrives"
+                    label="Arrives (optional)"
+                    value={editor.fromArrivesWall}
+                    disabled={isPending}
+                    onChange={(next) =>
+                      setEditor((s) => ({
+                        ...s,
+                        fromArrivesWall: next,
+                      }))
+                    }
+                  />
                 </div>
               )}
 

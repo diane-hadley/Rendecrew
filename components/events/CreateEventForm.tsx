@@ -2,8 +2,8 @@
 
 import { createEvent } from "@/app/actions/events";
 import { TimezoneSelect } from "@/components/common/TimezoneSelect";
+import { DateTimeFields } from "@/components/common/DateTimeFields";
 import { APP_DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/event-datetime";
-import { EventDateTimeFields } from "./EventDateTimeFields";
 import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
@@ -129,7 +129,7 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
-          <EventDateTimeFields
+          <DateTimeFields
             id="event-start"
             label="Start"
             value={startAt}
@@ -140,7 +140,7 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
               );
             }}
           />
-          <EventDateTimeFields
+          <DateTimeFields
             id="event-end"
             label="End"
             value={endAt}

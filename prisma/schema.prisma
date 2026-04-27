@@ -70,7 +70,7 @@ model EventTask {
   title           String
   notes           String?
   status          EventTaskStatus   @default(TO_DO)
-  dueDate         DateTime?         @db.Date @map("due_date")
+  dueDate         DateTime?         @db.Timestamptz(3) @map("due_date")
   sortOrder       Int               @default(0) @map("sort_order")
   createdByUserId String?           @map("created_by_user_id")
   createdAt       DateTime          @default(now()) @map("created_at")

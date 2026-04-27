@@ -26,6 +26,7 @@ export type EventTaskRow = {
   title: string;
   notes: string | null;
   status: EventTaskStatus;
+  /** ISO instant (UTC) or null. */
   dueDate: string | null;
   sortOrder: number;
   createdByUserId: string | null;
@@ -76,12 +77,6 @@ function toIso(d: Date | null): string | null {
   return d ? d.toISOString() : null;
 }
 
-function toDateIso(d: Date | null): string | null {
-  if (!d) return null;
-  // dueDate is DATE-only; keep a stable ISO date string.
-  return d.toISOString().slice(0, 10);
-}
-
 function normalizeTitle(v: unknown): string | null {
   const s = String(v ?? "").trim();
   if (!s) return null;
@@ -98,12 +93,22 @@ function normalizeNotes(v: unknown): string | null {
 
 function normalizeDueDate(v: unknown): Date | null {
   if (v == null || v === "") return null;
-  // Accept either YYYY-MM-DD or any Date-ish input.
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())) {
-    const [y, m, d] = v.trim().split("-").map(Number);
-    if (!y || !m || !d) return null;
-    // Use UTC midnight so it round-trips as a date.
-    return new Date(Date.UTC(y, m - 1, d));
+  // Accept:
+  // - YYYY-MM-DD
+  // - YYYY-MM-DDTHH:mm (browser-local wall time)
+  // - any Date-ish input
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split("-").map(Number);
+      if (!y || !m || !d) return null;
+      return new Date(Date.UTC(y, m - 1, d));
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+      // Date(string) interprets this as local time.
+      const dt = new Date(s);
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    }
   }
   const dt = new Date(v as never);
   return Number.isNaN(dt.getTime()) ? null : dt;
@@ -136,7 +141,7 @@ function taskToRow(t: {
     title: t.title,
     notes: t.notes,
     status: t.status,
-    dueDate: toDateIso(t.dueDate),
+    dueDate: toIso(t.dueDate),
     sortOrder: t.sortOrder,
     createdByUserId: t.createdByUserId,
     createdAt: t.createdAt.toISOString(),
@@ -413,10 +418,8 @@ export async function updateEventTask(params: {
 
   if (before && params.dueDate !== undefined && before.assignments.length > 0) {
     const newDue = normalizeDueDate(params.dueDate);
-    const oldKey = before.dueDate
-      ? before.dueDate.toISOString().slice(0, 10)
-      : null;
-    const newKey = newDue ? newDue.toISOString().slice(0, 10) : null;
+    const oldKey = before.dueDate ? before.dueDate.toISOString() : null;
+    const newKey = newDue ? newDue.toISOString() : null;
     if (oldKey !== newKey) {
       const taskMeta = await prisma.eventTask.findUnique({
         where: { id: params.taskId },

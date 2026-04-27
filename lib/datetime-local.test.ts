@@ -7,6 +7,7 @@ import {
   normalizeStartEndPair,
   shouldSyncEndToStart,
   snapDatetimeLocalToFiveMinutes,
+  snapDatetimeLocalToMinutes,
   splitDatetimeLocal,
   splitTimeToHourMinuteFive,
 } from "./datetime-local";
@@ -64,6 +65,16 @@ describe("datetime-local", () => {
       "2026-06-01T10:05",
     );
     expect(snapDatetimeLocalToFiveMinutes("")).toBe("");
+  });
+
+  it("snapDatetimeLocalToMinutes rounds to specified grid", () => {
+    expect(snapDatetimeLocalToMinutes("2026-06-01T10:07", 15)).toBe(
+      "2026-06-01T10:00",
+    );
+    expect(snapDatetimeLocalToMinutes("2026-06-01T10:08", 15)).toBe(
+      "2026-06-01T10:15",
+    );
+    expect(snapDatetimeLocalToMinutes("", 15)).toBe("");
   });
 
   it("splitTimeToHourMinuteFive snaps to five minutes", () => {

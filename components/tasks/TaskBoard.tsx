@@ -1,6 +1,11 @@
 "use client";
 
 import type { EventTaskStatus } from "@prisma/client";
+import { DateTimeFields } from "@/components/common/DateTimeFields";
+import {
+  isoToDatetimeLocal,
+  snapDatetimeLocalToFiveMinutes,
+} from "@/lib/datetime-local";
 import {
   useCallback,
   useEffect,
@@ -55,9 +60,11 @@ function viewFor(scope: ScopeId, bucket: BucketId): TaskView {
   return bucket === "OPEN" ? "USER_OPEN" : "USER_DONE";
 }
 
-function normalizeDate(v: string): string | null {
+function normalizeDueWall(v: string): string | null {
   const s = v.trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  if (!s) return null;
+  const snapped = snapDatetimeLocalToFiveMinutes(s);
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(snapped) ? snapped : null;
 }
 
 type EditorState = {
@@ -99,7 +106,7 @@ function editorFromTask(
     taskId: task.id,
     title: task.title,
     status: task.status,
-    dueDate: task.dueDate ?? "",
+    dueDate: task.dueDate ? isoToDatetimeLocal(task.dueDate) : "",
     notes: task.notes ?? "",
   };
 }
@@ -174,11 +181,14 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
       setError("Title is required.");
       return;
     }
-    const due = editor.dueDate ? normalizeDate(editor.dueDate) : null;
-    if (editor.dueDate && !due) {
-      setError("Due date must be a valid date.");
+    const dueWall = editor.dueDate ? normalizeDueWall(editor.dueDate) : null;
+    if (editor.dueDate && !dueWall) {
+      setError("Due time must be a valid date and time.");
       return;
     }
+    // Convert wall-time (datetime-local) to an ISO instant using the browser's timezone.
+    // Never send bare `YYYY-MM-DDTHH:mm` to the server (it would be interpreted in server TZ).
+    const dueIso = dueWall ? new Date(dueWall).toISOString() : null;
 
     const assigneeIds = selectedAssigneeIds();
 
@@ -188,7 +198,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
           eventId,
           title,
           status: editor.status,
-          dueDate: due,
+          dueDate: dueIso,
           notes: editor.notes || null,
           assignedEventMemberIds: assigneeIds,
         });
@@ -206,7 +216,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
         taskId,
         title,
         status: editor.status,
-        dueDate: due,
+        dueDate: dueIso,
         notes: editor.notes || null,
       });
       if (!r.ok) {
@@ -403,7 +413,11 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-200">
-                        {t.dueDate ?? <span className="text-gray-400">—</span>}
+                        {t.dueDate ? (
+                          isoToDatetimeLocal(t.dueDate).replace("T", " ")
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-2">
@@ -524,16 +538,20 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                    Due date (optional)
+                    Due
                   </label>
-                  <input
-                    type="date"
-                    value={editor.dueDate}
-                    onChange={(e) =>
-                      setEditor((s) => ({ ...s, dueDate: e.target.value }))
-                    }
-                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                  />
+                  <div className="mt-1">
+                    <DateTimeFields
+                      id="task-due"
+                      label=""
+                      hideSubLabels
+                      value={editor.dueDate}
+                      disabled={isPending}
+                      onChange={(next) =>
+                        setEditor((s) => ({ ...s, dueDate: next }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -46,15 +46,27 @@ function parseWallDatetimeAsUtcMs(value: string): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-/** Snap to nearest 5 minutes using calendar components (no browser local TZ). */
-export function snapDatetimeLocalToFiveMinutes(value: string): string {
+/**
+ * Snap to nearest N minutes using calendar components (no browser local TZ).
+ * `minutes` must be an integer 1–60.
+ */
+export function snapDatetimeLocalToMinutes(
+  value: string,
+  minutes: number,
+): string {
   if (!value.trim()) return "";
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 60) return value;
   const ms = parseWallDatetimeAsUtcMs(value);
   if (ms == null) return value;
-  const fiveMs = 5 * 60 * 1000;
-  const snapped = new Date(Math.round(ms / fiveMs) * fiveMs);
+  const stepMs = minutes * 60 * 1000;
+  const snapped = new Date(Math.round(ms / stepMs) * stepMs);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${snapped.getUTCFullYear()}-${pad(snapped.getUTCMonth() + 1)}-${pad(snapped.getUTCDate())}T${pad(snapped.getUTCHours())}:${pad(snapped.getUTCMinutes())}`;
+}
+
+/** Snap to nearest 5 minutes using calendar components (no browser local TZ). */
+export function snapDatetimeLocalToFiveMinutes(value: string): string {
+  return snapDatetimeLocalToMinutes(value, 5);
 }
 
 /** Hour/minute strings on the 5-minute grid (for `HH:mm` parts, 24-hour). */
