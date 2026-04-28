@@ -528,7 +528,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
                         status: e.target.value as EventTaskStatus,
                       }))
                     }
-                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                    className="mt-1 w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
                   >
                     <option value="TO_DO">To‑do</option>
                     <option value="IN_PROGRESS">In progress</option>
