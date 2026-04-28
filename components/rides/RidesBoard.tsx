@@ -686,6 +686,21 @@ export function RidesBoard({
     [editor.timesTimeZone],
   );
 
+  // If the user disables the currently-selected leg, automatically switch tabs.
+  useEffect(() => {
+    if (editor.tab === "TO_EVENT" && !editor.toEnabled && editor.fromEnabled) {
+      setEditor((s) => ({ ...s, tab: "FROM_EVENT" }));
+      return;
+    }
+    if (
+      editor.tab === "FROM_EVENT" &&
+      !editor.fromEnabled &&
+      editor.toEnabled
+    ) {
+      setEditor((s) => ({ ...s, tab: "TO_EVENT" }));
+    }
+  }, [editor.tab, editor.toEnabled, editor.fromEnabled]);
+
   const needsRide = useMemo(() => {
     return {
       TO_EVENT: members.filter(
@@ -1328,118 +1343,154 @@ export function RidesBoard({
                 </select>
               </div>
 
-              <div className="flex gap-2 border-b border-gray-200 pb-2 dark:border-gray-700">
-                {(["TO_EVENT", "FROM_EVENT"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setEditor((s) => ({ ...s, tab: t }))}
-                    className={
-                      editor.tab === t
-                        ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                        : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                    }
-                  >
-                    {t === "TO_EVENT" ? "To Event info" : "From Event info"}
-                  </button>
-                ))}
-              </div>
+              <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/20">
+                <div
+                  role="tablist"
+                  aria-label="Car direction details"
+                  className="flex items-end gap-1 border-b border-gray-200 bg-gray-200/70 px-2 pt-2 dark:border-gray-700 dark:bg-gray-800/70"
+                >
+                  {(["TO_EVENT", "FROM_EVENT"] as const).map((t) => {
+                    const enabled =
+                      t === "TO_EVENT" ? editor.toEnabled : editor.fromEnabled;
+                    const selected = editor.tab === t;
+                    const id = `ride-car-editor-tab:${t}`;
+                    const panelId = `ride-car-editor-panel:${t}`;
+                    return (
+                      <button
+                        key={t}
+                        id={id}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        aria-controls={panelId}
+                        aria-disabled={!enabled}
+                        tabIndex={selected ? 0 : -1}
+                        disabled={!enabled}
+                        onClick={() => setEditor((s) => ({ ...s, tab: t }))}
+                        className={
+                          selected
+                            ? "relative z-10 -mb-px rounded-t-md border border-gray-200 border-b-white bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm dark:border-gray-700 dark:border-b-gray-900 dark:bg-gray-900 dark:text-gray-100"
+                            : enabled
+                              ? "rounded-t-md bg-gray-200/70 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+                              : "rounded-t-md px-3 py-2 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+                        }
+                      >
+                        {t === "TO_EVENT" ? "To Event info" : "From Event info"}
+                      </button>
+                    );
+                  })}
+                </div>
 
-              {editor.tab === "TO_EVENT" ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      From (optional)
-                    </label>
-                    <input
-                      value={editor.toFrom}
-                      onChange={(e) =>
-                        setEditor((s) => ({ ...s, toFrom: e.target.value }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                      placeholder="Seattle"
-                    />
+                {editor.tab === "TO_EVENT" ? (
+                  <div
+                    id="ride-car-editor-panel:TO_EVENT"
+                    role="tabpanel"
+                    aria-labelledby="ride-car-editor-tab:TO_EVENT"
+                    className="p-4"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                          From (optional)
+                        </label>
+                        <input
+                          value={editor.toFrom}
+                          onChange={(e) =>
+                            setEditor((s) => ({ ...s, toFrom: e.target.value }))
+                          }
+                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                          placeholder="Seattle"
+                        />
+                      </div>
+                      <div />
+                      <DateTimeFields
+                        id="ride-to-departs"
+                        label="Departs (optional)"
+                        value={editor.toDepartsWall}
+                        disabled={isPending}
+                        onChange={(next) => {
+                          setEditor((s) => ({
+                            ...s,
+                            toDepartsWall: next,
+                            toArrivesWall: shouldSyncEndToStart(
+                              next,
+                              s.toArrivesWall,
+                            )
+                              ? next
+                              : s.toArrivesWall,
+                          }));
+                        }}
+                      />
+                      <DateTimeFields
+                        id="ride-to-arrives"
+                        label="Arrives (optional)"
+                        value={editor.toArrivesWall}
+                        disabled={isPending}
+                        onChange={(next) =>
+                          setEditor((s) => ({
+                            ...s,
+                            toArrivesWall: next,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
-                  <div />
-                  <DateTimeFields
-                    id="ride-to-departs"
-                    label="Departs (optional)"
-                    value={editor.toDepartsWall}
-                    disabled={isPending}
-                    onChange={(next) => {
-                      setEditor((s) => ({
-                        ...s,
-                        toDepartsWall: next,
-                        toArrivesWall: shouldSyncEndToStart(
-                          next,
-                          s.toArrivesWall,
-                        )
-                          ? next
-                          : s.toArrivesWall,
-                      }));
-                    }}
-                  />
-                  <DateTimeFields
-                    id="ride-to-arrives"
-                    label="Arrives (optional)"
-                    value={editor.toArrivesWall}
-                    disabled={isPending}
-                    onChange={(next) =>
-                      setEditor((s) => ({
-                        ...s,
-                        toArrivesWall: next,
-                      }))
-                    }
-                  />
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                      To (optional)
-                    </label>
-                    <input
-                      value={editor.fromTo}
-                      onChange={(e) =>
-                        setEditor((s) => ({ ...s, fromTo: e.target.value }))
-                      }
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                      placeholder="Bellevue"
-                    />
+                ) : (
+                  <div
+                    id="ride-car-editor-panel:FROM_EVENT"
+                    role="tabpanel"
+                    aria-labelledby="ride-car-editor-tab:FROM_EVENT"
+                    className="p-4"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                          To (optional)
+                        </label>
+                        <input
+                          value={editor.fromTo}
+                          onChange={(e) =>
+                            setEditor((s) => ({ ...s, fromTo: e.target.value }))
+                          }
+                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                          placeholder="Bellevue"
+                        />
+                      </div>
+                      <div />
+                      <DateTimeFields
+                        id="ride-from-departs"
+                        label="Departs (optional)"
+                        value={editor.fromDepartsWall}
+                        disabled={isPending}
+                        onChange={(next) => {
+                          setEditor((s) => ({
+                            ...s,
+                            fromDepartsWall: next,
+                            fromArrivesWall: shouldSyncEndToStart(
+                              next,
+                              s.fromArrivesWall,
+                            )
+                              ? next
+                              : s.fromArrivesWall,
+                          }));
+                        }}
+                      />
+                      <DateTimeFields
+                        id="ride-from-arrives"
+                        label="Arrives (optional)"
+                        value={editor.fromArrivesWall}
+                        disabled={isPending}
+                        onChange={(next) =>
+                          setEditor((s) => ({
+                            ...s,
+                            fromArrivesWall: next,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
-                  <div />
-                  <DateTimeFields
-                    id="ride-from-departs"
-                    label="Departs (optional)"
-                    value={editor.fromDepartsWall}
-                    disabled={isPending}
-                    onChange={(next) => {
-                      setEditor((s) => ({
-                        ...s,
-                        fromDepartsWall: next,
-                        fromArrivesWall: shouldSyncEndToStart(
-                          next,
-                          s.fromArrivesWall,
-                        )
-                          ? next
-                          : s.fromArrivesWall,
-                      }));
-                    }}
-                  />
-                  <DateTimeFields
-                    id="ride-from-arrives"
-                    label="Arrives (optional)"
-                    value={editor.fromArrivesWall}
-                    disabled={isPending}
-                    onChange={(next) =>
-                      setEditor((s) => ({
-                        ...s,
-                        fromArrivesWall: next,
-                      }))
-                    }
-                  />
-                </div>
-              )}
+                )}
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
