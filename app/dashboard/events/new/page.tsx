@@ -34,7 +34,7 @@ export default async function NewEventPage() {
         </Link>
       </div>
 
-      <div className="flex max-w-xl flex-col gap-8">
+      <div className="flex w-full max-w-4xl flex-col gap-8">
         <DescribeEventForm />
         <div>
           <h2 className="mb-4 text-lg font-semibold">Or fill in the form</h2>
