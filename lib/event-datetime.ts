@@ -13,13 +13,13 @@ export function isValidIanaTimeZone(tz: string): boolean {
 
 export function normalizeTimeZone(
   input: string | null | undefined,
-  fallback: string,
+  fallback?: string | null,
 ): string {
   const candidate = input?.trim();
   if (candidate && isValidIanaTimeZone(candidate)) {
     return candidate;
   }
-  const fb = fallback.trim() || APP_DEFAULT_TIME_ZONE;
+  const fb = (fallback ?? "").trim() || APP_DEFAULT_TIME_ZONE;
   return isValidIanaTimeZone(fb) ? fb : APP_DEFAULT_TIME_ZONE;
 }
 
@@ -96,29 +96,47 @@ function timeZoneAbbreviation(at: Date, timeZone: string): string {
   }
 }
 
-/**
- * Human-readable range in the event zone, plus explicit IANA (and abbreviation when available).
- */
-export function formatEventDateRangeWithTimeZone(
+/** Human-readable range with explicit IANA zone labels. */
+export function formatEventDateRangeWithTimeZones(
   start: Date | null,
   end: Date | null,
-  timeZone: string,
+  startTimeZone: string,
+  endTimeZone: string,
   locale?: string,
 ): string {
-  if (!start || !end) {
-    return "No date set";
-  }
-  const opts: Intl.DateTimeFormatOptions = {
-    timeZone,
+  if (!start || !end) return "No date set";
+  const loc = locale ?? undefined;
+  const startOpts: Intl.DateTimeFormatOptions = {
+    timeZone: startTimeZone,
     dateStyle: "medium",
     timeStyle: "short",
   };
-  const loc = locale ?? undefined;
-  const range = `${start.toLocaleString(loc, opts)} – ${end.toLocaleString(loc, opts)}`;
-  const abbr = timeZoneAbbreviation(start, timeZone);
-  const zoneSuffix =
-    abbr && abbr !== timeZone ? `${abbr} · ${timeZone}` : timeZone;
-  return `${range} (${zoneSuffix})`;
+  const endOpts: Intl.DateTimeFormatOptions = {
+    timeZone: endTimeZone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  };
+  const startLabel = start.toLocaleString(loc, startOpts);
+  const endLabel = end.toLocaleString(loc, endOpts);
+  if (startTimeZone === endTimeZone) {
+    const abbr = timeZoneAbbreviation(start, startTimeZone);
+    const zoneSuffix =
+      abbr && abbr !== startTimeZone
+        ? `${abbr} · ${startTimeZone}`
+        : startTimeZone;
+    return `${startLabel} – ${endLabel} (${zoneSuffix})`;
+  }
+  const startAbbr = timeZoneAbbreviation(start, startTimeZone);
+  const endAbbr = timeZoneAbbreviation(end, endTimeZone);
+  const startSuffix =
+    startAbbr && startAbbr !== startTimeZone
+      ? `${startAbbr} · ${startTimeZone}`
+      : startTimeZone;
+  const endSuffix =
+    endAbbr && endAbbr !== endTimeZone
+      ? `${endAbbr} · ${endTimeZone}`
+      : endTimeZone;
+  return `${startLabel} (${startSuffix}) – ${endLabel} (${endSuffix})`;
 }
 
 export type TimezoneSelectChoice = {

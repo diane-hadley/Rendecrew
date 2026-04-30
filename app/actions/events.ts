@@ -18,8 +18,10 @@ export type CreateEventInput = {
   generalInformation?: string | null;
   startAt?: Date | string | null;
   endAt?: Date | string | null;
-  /** IANA zone; omitted or invalid uses the creating user's default. */
-  timezone?: string | null;
+  /** IANA zone for interpreting `startAt` wall time. Defaults to user timezone. */
+  startAtTimeZone?: string | null;
+  /** IANA zone for interpreting `endAt` wall time. Defaults to user timezone. */
+  endAtTimeZone?: string | null;
   location?: string | null;
 };
 
@@ -37,15 +39,16 @@ export type DeleteEventResult = { ok: true } | { ok: false; error: string };
 
 function validateCreateEventInput(
   input: CreateEventInput,
-  resolvedTimeZone: string,
+  startTz: string,
+  endTz: string,
 ): string | null {
   const title = input.title.trim();
   if (!title) {
     return "Title is required";
   }
 
-  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
-  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
+  const startAt = parseEventDateTime(input.startAt, startTz);
+  const endAt = parseEventDateTime(input.endAt, endTz);
   const hasStart = startAt != null;
   const hasEnd = endAt != null;
   if (hasStart !== hasEnd) {
@@ -62,18 +65,19 @@ async function createEventRecord(
   input: CreateEventInput,
   actorDefaultTimeZone: string,
 ): Promise<CreateEventResult> {
-  const resolvedTimeZone = normalizeTimeZone(
-    input.timezone,
+  const startTz = normalizeTimeZone(
+    input.startAtTimeZone,
     actorDefaultTimeZone,
   );
-  const validationError = validateCreateEventInput(input, resolvedTimeZone);
+  const endTz = normalizeTimeZone(input.endAtTimeZone, startTz);
+  const validationError = validateCreateEventInput(input, startTz, endTz);
   if (validationError) {
     return { ok: false, error: validationError };
   }
 
   const title = input.title.trim();
-  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
-  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
+  const startAt = parseEventDateTime(input.startAt, startTz);
+  const endAt = parseEventDateTime(input.endAt, endTz);
 
   try {
     let eventId = "";
@@ -83,8 +87,9 @@ async function createEventRecord(
           title,
           generalInformation: input.generalInformation?.trim() || null,
           startAt: startAt ?? null,
+          startAtTimeZone: startTz,
           endAt: endAt ?? null,
-          timezone: resolvedTimeZone,
+          endAtTimeZone: endTz,
           location: input.location?.trim() || null,
           createdById: userId,
         },
@@ -143,7 +148,8 @@ export async function createEventFromNaturalLanguage(
       location: fields.location,
       startAt: fields.startAt,
       endAt: fields.endAt,
-      timezone: user.timezone,
+      startAtTimeZone: user.timezone,
+      endAtTimeZone: user.timezone,
     },
     user.timezone,
   );
@@ -174,12 +180,14 @@ export async function updateEvent(
     };
   }
 
-  const resolvedTimeZone = normalizeTimeZone(
-    input.timezone,
-    row.event.timezone,
+  const startTz = normalizeTimeZone(
+    input.startAtTimeZone,
+    row.event.startAtTimeZone,
   );
-  const startAt = parseEventDateTime(input.startAt, resolvedTimeZone);
-  const endAt = parseEventDateTime(input.endAt, resolvedTimeZone);
+  const endTz = normalizeTimeZone(input.endAtTimeZone, startTz);
+
+  const startAt = parseEventDateTime(input.startAt, startTz);
+  const endAt = parseEventDateTime(input.endAt, endTz);
   const hasStart = startAt != null;
   const hasEnd = endAt != null;
   if (hasStart !== hasEnd) {
@@ -199,8 +207,9 @@ export async function updateEvent(
         title,
         generalInformation: input.generalInformation?.trim() || null,
         startAt: startAt ?? null,
+        startAtTimeZone: startTz,
         endAt: endAt ?? null,
-        timezone: resolvedTimeZone,
+        endAtTimeZone: endTz,
         location: input.location?.trim() || null,
       },
     });

@@ -3,8 +3,10 @@
 import { updateEvent } from "@/app/actions/events";
 import { DateTimeFields } from "@/components/common/DateTimeFields";
 import { GeneralInformationAiPanel } from "./GeneralInformationAiPanel";
-import { TimezoneSelect } from "@/components/common/TimezoneSelect";
+import { TimeZonePickerModal } from "@/components/common/TimeZonePickerModal";
 import {
+  APP_DEFAULT_TIME_ZONE,
+  normalizeTimeZone,
   rezoneWallDatetimeLocal,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
@@ -23,7 +25,8 @@ export type EditEventFormProps = {
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
-    timezone: string;
+    startAtTimeZone: string;
+    endAtTimeZone: string;
   };
   onCancel?: () => void;
   onSaved?: () => void;
@@ -44,21 +47,32 @@ export function EditEventForm({
   const generalInformationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const initialPair = useMemo(() => {
-    const tz = initial.timezone;
+    const startTz = initial.startAtTimeZone;
+    const endTz = initial.endAtTimeZone;
     const start = utcToWallDatetimeLocal(
       initial.startAt != null ? String(initial.startAt) : null,
-      tz,
+      startTz,
     );
     const end = utcToWallDatetimeLocal(
       initial.endAt != null ? String(initial.endAt) : null,
-      tz,
+      endTz,
     );
     return normalizeStartEndPair(start, end);
-  }, [initial.startAt, initial.endAt, initial.timezone]);
+  }, [
+    initial.startAt,
+    initial.endAt,
+    initial.startAtTimeZone,
+    initial.endAtTimeZone,
+  ]);
 
   const [startAt, setStartAt] = useState(initialPair.start);
   const [endAt, setEndAt] = useState(initialPair.end);
-  const [timeZone, setTimeZone] = useState(initial.timezone);
+  const [startTz, setStartTz] = useState(initial.startAtTimeZone);
+  const [endTz, setEndTz] = useState(initial.endAtTimeZone);
+  const [useSeparateEndTz, setUseSeparateEndTz] = useState(
+    initial.startAtTimeZone !== initial.endAtTimeZone,
+  );
+  const [tzModalOpen, setTzModalOpen] = useState(false);
 
   return (
     <div className="w-full rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800">
@@ -80,7 +94,8 @@ export function EditEventForm({
               location: location.trim() || null,
               startAt,
               endAt,
-              timezone: timeZone,
+              startAtTimeZone: startTz,
+              endAtTimeZone: useSeparateEndTz ? endTz : startTz,
             });
 
             if (!result.ok) {
@@ -130,19 +145,19 @@ export function EditEventForm({
           />
         </div>
 
-        <TimezoneSelect
-          id="edit-event-timezone"
-          label="Times below are in"
-          value={timeZone}
-          onChange={(nextTz) => {
-            setTimeZone((prevTz) => {
-              setStartAt((s) => rezoneWallDatetimeLocal(s, prevTz, nextTz));
-              setEndAt((e) => rezoneWallDatetimeLocal(e, prevTz, nextTz));
-              return nextTz;
-            });
-          }}
-          disabled={isPending}
-        />
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setTzModalOpen(true)}
+            className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Time zone
+          </button>
+          <span className="text-gray-600 dark:text-gray-300">
+            {useSeparateEndTz ? `${startTz} → ${endTz}` : startTz}
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
           <DateTimeFields
@@ -163,6 +178,34 @@ export function EditEventForm({
             onChange={setEndAt}
           />
         </div>
+
+        <TimeZonePickerModal
+          open={tzModalOpen}
+          title="Event time zone"
+          startLabel="Event start time zone"
+          endLabel="Event end time zone"
+          startTimeZone={normalizeTimeZone(startTz, APP_DEFAULT_TIME_ZONE)}
+          endTimeZone={normalizeTimeZone(
+            useSeparateEndTz ? endTz : startTz,
+            startTz,
+          )}
+          onClose={() => setTzModalOpen(false)}
+          onApply={({ startTimeZone, endTimeZone, useSeparateEndTimeZone }) => {
+            setStartAt((s) =>
+              rezoneWallDatetimeLocal(s, startTz, startTimeZone),
+            );
+            setEndAt((e) =>
+              rezoneWallDatetimeLocal(
+                e,
+                useSeparateEndTz ? endTz : startTz,
+                useSeparateEndTimeZone ? endTimeZone : startTimeZone,
+              ),
+            );
+            setUseSeparateEndTz(useSeparateEndTimeZone);
+            setStartTz(startTimeZone);
+            setEndTz(endTimeZone);
+          }}
+        />
 
         <div className="flex flex-col gap-1">
           <label

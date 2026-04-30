@@ -76,7 +76,8 @@ function mockRidesContext() {
     event: {
       id: "e1",
       ridesEnabled: true,
-      timezone: "America/Los_Angeles",
+      startAtTimeZone: "America/Los_Angeles",
+      endAtTimeZone: "America/Los_Angeles",
     },
     role: "member",
   } as Awaited<ReturnType<typeof getEventForUser>>);
@@ -129,7 +130,12 @@ describe("listEventRides", () => {
 
   it("returns error when rides are disabled", async () => {
     vi.mocked(getEventForUser).mockResolvedValue({
-      event: { id: "e1", ridesEnabled: false, timezone: "UTC" },
+      event: {
+        id: "e1",
+        ridesEnabled: false,
+        startAtTimeZone: "UTC",
+        endAtTimeZone: "UTC",
+      },
       role: "member",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     const r = await listEventRides("e1");
@@ -164,7 +170,11 @@ describe("listEventRides", () => {
     const r = await listEventRides("e1");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.event).toEqual({ id: "e1", timezone: "America/Los_Angeles" });
+    expect(r.event).toEqual({
+      id: "e1",
+      startAtTimeZone: "America/Los_Angeles",
+      endAtTimeZone: "America/Los_Angeles",
+    });
     expect(r.cars).toHaveLength(1);
     const car = r.cars[0];
     expect(car.driver.membershipId).toBe("mem-driver");

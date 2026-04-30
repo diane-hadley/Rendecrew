@@ -1,40 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  hour12PeriodToHour24,
-  hour24ToHour12AndPeriod,
-  isoToDatetimeLocal,
   joinDatetimeLocal,
   normalizeStartEndPair,
   shouldSyncEndToStart,
   snapDatetimeLocalToFiveMinutes,
   snapDatetimeLocalToMinutes,
   splitDatetimeLocal,
-  splitTimeToHourMinuteFive,
 } from "./datetime-local";
 
 describe("datetime-local", () => {
-  describe("with TZ=UTC", () => {
-    const prevTz = process.env.TZ;
-    beforeAll(() => {
-      process.env.TZ = "UTC";
-    });
-    afterAll(() => {
-      process.env.TZ = prevTz;
-    });
-
-    it("isoToDatetimeLocal formats valid ISO in local (UTC) components", () => {
-      expect(isoToDatetimeLocal("2026-03-01T15:30:00.000Z")).toBe(
-        "2026-03-01T15:30",
-      );
-    });
-
-    it("isoToDatetimeLocal returns empty for nullish or invalid", () => {
-      expect(isoToDatetimeLocal(null)).toBe("");
-      expect(isoToDatetimeLocal(undefined)).toBe("");
-      expect(isoToDatetimeLocal("not-a-date")).toBe("");
-    });
-  });
-
   it("splitDatetimeLocal splits date and HH:mm", () => {
     expect(splitDatetimeLocal("2026-04-10T14:05")).toEqual({
       date: "2026-04-10",
@@ -75,48 +49,6 @@ describe("datetime-local", () => {
       "2026-06-01T10:15",
     );
     expect(snapDatetimeLocalToMinutes("", 15)).toBe("");
-  });
-
-  it("splitTimeToHourMinuteFive snaps to five minutes", () => {
-    expect(splitTimeToHourMinuteFive("14:07")).toEqual({
-      hour: "14",
-      minute: "05",
-    });
-    expect(splitTimeToHourMinuteFive("bad")).toEqual({
-      hour: "00",
-      minute: "00",
-    });
-  });
-
-  it("hour24ToHour12AndPeriod converts 24h to 12h + period", () => {
-    expect(hour24ToHour12AndPeriod("00")).toEqual({
-      hour12: "12",
-      period: "AM",
-    });
-    expect(hour24ToHour12AndPeriod("09")).toEqual({
-      hour12: "9",
-      period: "AM",
-    });
-    expect(hour24ToHour12AndPeriod("12")).toEqual({
-      hour12: "12",
-      period: "PM",
-    });
-    expect(hour24ToHour12AndPeriod("15")).toEqual({
-      hour12: "3",
-      period: "PM",
-    });
-    expect(hour24ToHour12AndPeriod("xx")).toEqual({
-      hour12: "12",
-      period: "AM",
-    });
-  });
-
-  it("hour12PeriodToHour24 converts to two-digit 24h", () => {
-    expect(hour12PeriodToHour24("12", "AM")).toBe("00");
-    expect(hour12PeriodToHour24("9", "AM")).toBe("09");
-    expect(hour12PeriodToHour24("12", "PM")).toBe("12");
-    expect(hour12PeriodToHour24("3", "PM")).toBe("15");
-    expect(hour12PeriodToHour24("0", "AM")).toBe("00");
   });
 
   it("shouldSyncEndToStart when end empty or before start", () => {

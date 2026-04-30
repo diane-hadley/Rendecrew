@@ -38,7 +38,8 @@ describe("CreateEventForm", () => {
           title: "Meetup",
           generalInformation: "details",
           location: "Cafe",
-          timezone: "UTC",
+          startAtTimeZone: "UTC",
+          endAtTimeZone: "UTC",
         }),
       );
     });

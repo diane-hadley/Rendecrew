@@ -11,7 +11,7 @@ import {
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
 import {
-  formatEventDateRangeWithTimeZone,
+  formatEventDateRangeWithTimeZones,
   normalizeTimeZone,
 } from "@/lib/event-datetime";
 import { prisma } from "@/lib/prisma";
@@ -53,10 +53,11 @@ export default async function EventDetailPage({
         })
       : 0;
 
-  const dateRangeLabel = formatEventDateRangeWithTimeZone(
+  const dateRangeLabel = formatEventDateRangeWithTimeZones(
     event.startAt,
     event.endAt,
-    event.timezone,
+    event.startAtTimeZone,
+    event.endAtTimeZone,
   );
 
   const memberRows = await prisma.eventMember.findMany({
@@ -77,9 +78,10 @@ export default async function EventDetailPage({
 
   const eventHasScheduledRange = event.startAt != null && event.endAt != null;
   const ridesDefaultTimeZone = normalizeTimeZone(
-    eventHasScheduledRange ? event.timezone : dbUser.timezone,
+    eventHasScheduledRange ? event.startAtTimeZone : dbUser.timezone,
     dbUser.timezone,
   );
+  const tasksDefaultTimeZone = ridesDefaultTimeZone;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -120,7 +122,8 @@ export default async function EventDetailPage({
             location: event.location,
             startAt: event.startAt,
             endAt: event.endAt,
-            timezone: event.timezone,
+            startAtTimeZone: event.startAtTimeZone,
+            endAtTimeZone: event.endAtTimeZone,
           }}
           packing={{
             canManagePacking: editable,
@@ -141,6 +144,7 @@ export default async function EventDetailPage({
             taskBoardEnabled: event.taskBoardEnabled,
           }}
           ridesDefaultTimeZone={ridesDefaultTimeZone}
+          tasksDefaultTimeZone={tasksDefaultTimeZone}
           membersInitial={membersInitial}
         />
       </Suspense>

@@ -20,18 +20,6 @@ export function joinDatetimeLocal(date: string, time: string): string {
   return `${d}T${t}`;
 }
 
-/**
- * Formats an ISO instant using the **JavaScript environment’s local timezone** (not an IANA event zone).
- * For event start/end wall strings, use `utcToWallDatetimeLocal` from `@/lib/event-datetime` instead.
- */
-export function isoToDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 const WALL_LOCAL_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 function parseWallDatetimeAsUtcMs(value: string): number | null {
@@ -67,46 +55,6 @@ export function snapDatetimeLocalToMinutes(
 /** Snap to nearest 5 minutes using calendar components (no browser local TZ). */
 export function snapDatetimeLocalToFiveMinutes(value: string): string {
   return snapDatetimeLocalToMinutes(value, 5);
-}
-
-/** Hour/minute strings on the 5-minute grid (for `HH:mm` parts, 24-hour). */
-export function splitTimeToHourMinuteFive(time: string): {
-  hour: string;
-  minute: string;
-} {
-  if (!/^\d{2}:\d{2}$/.test(time)) return { hour: "00", minute: "00" };
-  const snapped = snapDatetimeLocalToFiveMinutes(`2000-01-01T${time}`);
-  const part = snapped.split("T")[1] ?? "00:00";
-  const [h, m] = part.split(":");
-  return { hour: h ?? "00", minute: m ?? "00" };
-}
-
-/** `hour24` is two-digit 00–23. */
-export function hour24ToHour12AndPeriod(hour24: string): {
-  hour12: string;
-  period: "AM" | "PM";
-} {
-  const h = parseInt(hour24, 10);
-  if (Number.isNaN(h) || h < 0 || h > 23) return { hour12: "12", period: "AM" };
-  if (h === 0) return { hour12: "12", period: "AM" };
-  if (h < 12) return { hour12: String(h), period: "AM" };
-  if (h === 12) return { hour12: "12", period: "PM" };
-  return { hour12: String(h - 12), period: "PM" };
-}
-
-/** `hour12` is 1–12 as string (e.g. "1" … "12"). Returns two-digit 00–23. */
-export function hour12PeriodToHour24(
-  hour12: string,
-  period: "AM" | "PM",
-): string {
-  const h = parseInt(hour12, 10);
-  if (Number.isNaN(h) || h < 1 || h > 12) return "00";
-  if (period === "AM") {
-    if (h === 12) return "00";
-    return String(h).padStart(2, "0");
-  }
-  if (h === 12) return "12";
-  return String(h + 12).padStart(2, "0");
 }
 
 /** When start changes: copy start to end if end is empty or end is before start. */

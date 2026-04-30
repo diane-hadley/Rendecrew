@@ -13,8 +13,8 @@ import {
   type RideMemberListItem,
 } from "@/app/actions/event-rides";
 import { DateTimeFields } from "@/components/common/DateTimeFields";
+import { TimeZonePickerModal } from "@/components/common/TimeZonePickerModal";
 import {
-  getTimezoneSelectChoices,
   normalizeTimeZone,
   parseEventDateTime,
   rezoneWallDatetimeLocal,
@@ -128,12 +128,16 @@ function directionSummary(car: RideCarRow, d: DirectionId) {
     ? {
         placeLabel: car.toEvent.from ?? "",
         departs: car.toEvent.departsAt,
+        departsTz: car.toEvent.departsAtTimeZone,
         arrives: car.toEvent.arrivesAt,
+        arrivesTz: car.toEvent.arrivesAtTimeZone,
       }
     : {
         placeLabel: car.fromEvent.to ?? "",
         departs: car.fromEvent.departsAt,
+        departsTz: car.fromEvent.departsAtTimeZone,
         arrives: car.fromEvent.arrivesAt,
+        arrivesTz: car.fromEvent.arrivesAtTimeZone,
       };
 }
 
@@ -149,13 +153,17 @@ type CarEditorState = {
   notes: string;
   toFrom: string;
   toDepartsWall: string;
+  toDepartsTimeZone: string;
   toArrivesWall: string;
+  toArrivesTimeZone: string;
+  toUseSeparateArrivesTimeZone: boolean;
   fromTo: string;
   fromDepartsWall: string;
+  fromDepartsTimeZone: string;
   fromArrivesWall: string;
+  fromArrivesTimeZone: string;
+  fromUseSeparateArrivesTimeZone: boolean;
   tab: DirectionId;
-  /** IANA zone used to interpret the datetime-local fields below. */
-  timesTimeZone: string;
 };
 
 type PassengerPickerState =
@@ -181,11 +189,16 @@ function emptyEditor(
     toFrom: "",
     toDepartsWall: "",
     toArrivesWall: "",
+    toDepartsTimeZone: tz,
+    toArrivesTimeZone: tz,
+    toUseSeparateArrivesTimeZone: false,
     fromTo: "",
     fromDepartsWall: "",
     fromArrivesWall: "",
+    fromDepartsTimeZone: tz,
+    fromArrivesTimeZone: tz,
+    fromUseSeparateArrivesTimeZone: false,
     tab,
-    timesTimeZone: tz,
   };
 }
 
@@ -195,7 +208,26 @@ function editorFromCar(
   members: RideMemberListItem[],
   tab: DirectionId,
 ): CarEditorState {
-  const tz = normalizeTimeZone(displayTimeZone, displayTimeZone);
+  const seeded =
+    car.toEvent.departsAtTimeZone ??
+    car.toEvent.arrivesAtTimeZone ??
+    car.fromEvent.departsAtTimeZone ??
+    car.fromEvent.arrivesAtTimeZone ??
+    displayTimeZone;
+  const tz = normalizeTimeZone(seeded, displayTimeZone);
+  const toDepTz = normalizeTimeZone(car.toEvent.departsAtTimeZone ?? tz, tz);
+  const toArrTz = normalizeTimeZone(
+    car.toEvent.arrivesAtTimeZone ?? toDepTz,
+    toDepTz,
+  );
+  const fromDepTz = normalizeTimeZone(
+    car.fromEvent.departsAtTimeZone ?? tz,
+    tz,
+  );
+  const fromArrTz = normalizeTimeZone(
+    car.fromEvent.arrivesAtTimeZone ?? fromDepTz,
+    fromDepTz,
+  );
   const toEnabled = car.direction === "BOTH" || car.direction === "TO_EVENT";
   const fromEnabled =
     car.direction === "BOTH" || car.direction === "FROM_EVENT";
@@ -214,13 +246,18 @@ function editorFromCar(
     funName: car.funName ?? "",
     notes: car.notes ?? "",
     toFrom: car.toEvent.from ?? "",
-    toDepartsWall: utcToWallDatetimeLocal(car.toEvent.departsAt, tz),
-    toArrivesWall: utcToWallDatetimeLocal(car.toEvent.arrivesAt, tz),
+    toDepartsWall: utcToWallDatetimeLocal(car.toEvent.departsAt, toDepTz),
+    toArrivesWall: utcToWallDatetimeLocal(car.toEvent.arrivesAt, toArrTz),
+    toDepartsTimeZone: toDepTz,
+    toArrivesTimeZone: toArrTz,
+    toUseSeparateArrivesTimeZone: toDepTz !== toArrTz,
     fromTo: car.fromEvent.to ?? "",
-    fromDepartsWall: utcToWallDatetimeLocal(car.fromEvent.departsAt, tz),
-    fromArrivesWall: utcToWallDatetimeLocal(car.fromEvent.arrivesAt, tz),
+    fromDepartsWall: utcToWallDatetimeLocal(car.fromEvent.departsAt, fromDepTz),
+    fromArrivesWall: utcToWallDatetimeLocal(car.fromEvent.arrivesAt, fromArrTz),
     tab,
-    timesTimeZone: tz,
+    fromDepartsTimeZone: fromDepTz,
+    fromArrivesTimeZone: fromArrTz,
+    fromUseSeparateArrivesTimeZone: fromDepTz !== fromArrTz,
   };
 }
 
@@ -504,7 +541,7 @@ function CarDetailsModal({
                     <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
                       {formatTime(
                         summary?.departs ?? null,
-                        displayTimeZone,
+                        summary?.departsTz ?? displayTimeZone,
                       ) || <span className="text-gray-400">—</span>}
                     </div>
                   </div>
@@ -515,7 +552,7 @@ function CarDetailsModal({
                     <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">
                       {formatTime(
                         summary?.arrives ?? null,
-                        displayTimeZone,
+                        summary?.arrivesTz ?? displayTimeZone,
                       ) || <span className="text-gray-400">—</span>}
                     </div>
                   </div>
@@ -601,6 +638,9 @@ export function RidesBoard({
   const [passengerPicker, setPassengerPicker] = useState<PassengerPickerState>({
     open: false,
   });
+  const [tzModalOpen, setTzModalOpen] = useState<
+    { open: false } | { open: true; leg: DirectionId }
+  >({ open: false });
   const [deletePrompt, setDeletePrompt] = useState<{
     open: boolean;
     car: RideCarRow | null;
@@ -681,11 +721,6 @@ export function RidesBoard({
     }
   }, [cars, carDetails]);
 
-  const editorTimezoneChoices = useMemo(
-    () => getTimezoneSelectChoices(editor.timesTimeZone),
-    [editor.timesTimeZone],
-  );
-
   // If the user disables the currently-selected leg, automatically switch tabs.
   useEffect(() => {
     if (editor.tab === "TO_EVENT" && !editor.toEnabled && editor.fromEnabled) {
@@ -700,7 +735,6 @@ export function RidesBoard({
       setEditor((s) => ({ ...s, tab: "TO_EVENT" }));
     }
   }, [editor.tab, editor.toEnabled, editor.fromEnabled]);
-
   const needsRide = useMemo(() => {
     return {
       TO_EVENT: members.filter(
@@ -771,21 +805,41 @@ export function RidesBoard({
       return;
     }
 
-    const tzForSave = normalizeTimeZone(editor.timesTimeZone, displayTimeZone);
+    const toDepTz = normalizeTimeZone(
+      editor.toDepartsTimeZone,
+      displayTimeZone,
+    );
+    const toArrTz = normalizeTimeZone(
+      editor.toUseSeparateArrivesTimeZone
+        ? editor.toArrivesTimeZone
+        : editor.toDepartsTimeZone,
+      toDepTz,
+    );
+    const fromDepTz = normalizeTimeZone(
+      editor.fromDepartsTimeZone,
+      displayTimeZone,
+    );
+    const fromArrTz = normalizeTimeZone(
+      editor.fromUseSeparateArrivesTimeZone
+        ? editor.fromArrivesTimeZone
+        : editor.fromDepartsTimeZone,
+      fromDepTz,
+    );
+
     const toDepartsAt = editor.toDepartsWall
-      ? (parseEventDateTime(editor.toDepartsWall, tzForSave)?.toISOString() ??
+      ? (parseEventDateTime(editor.toDepartsWall, toDepTz)?.toISOString() ??
         null)
       : null;
     const toArrivesAt = editor.toArrivesWall
-      ? (parseEventDateTime(editor.toArrivesWall, tzForSave)?.toISOString() ??
+      ? (parseEventDateTime(editor.toArrivesWall, toArrTz)?.toISOString() ??
         null)
       : null;
     const fromDepartsAt = editor.fromDepartsWall
-      ? (parseEventDateTime(editor.fromDepartsWall, tzForSave)?.toISOString() ??
+      ? (parseEventDateTime(editor.fromDepartsWall, fromDepTz)?.toISOString() ??
         null)
       : null;
     const fromArrivesAt = editor.fromArrivesWall
-      ? (parseEventDateTime(editor.fromArrivesWall, tzForSave)?.toISOString() ??
+      ? (parseEventDateTime(editor.fromArrivesWall, fromArrTz)?.toISOString() ??
         null)
       : null;
 
@@ -802,12 +856,16 @@ export function RidesBoard({
         toEvent: {
           from: editor.toFrom || null,
           departsAt: toDepartsAt,
+          departsAtTimeZone: toDepartsAt ? toDepTz : null,
           arrivesAt: toArrivesAt,
+          arrivesAtTimeZone: toArrivesAt ? toArrTz : null,
         },
         fromEvent: {
           to: editor.fromTo || null,
           departsAt: fromDepartsAt,
+          departsAtTimeZone: fromDepartsAt ? fromDepTz : null,
           arrivesAt: fromArrivesAt,
+          arrivesAtTimeZone: fromArrivesAt ? fromArrTz : null,
         },
       });
       if (!r.ok) {
@@ -1007,14 +1065,16 @@ export function RidesBoard({
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                        {formatTime(sum.departs, displayTimeZone) || (
-                          <span className="text-gray-400">—</span>
-                        )}
+                        {formatTime(
+                          sum.departs,
+                          sum.departsTz ?? displayTimeZone,
+                        ) || <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-800 dark:text-gray-200">
-                        {formatTime(sum.arrives, displayTimeZone) || (
-                          <span className="text-gray-400">—</span>
-                        )}
+                        {formatTime(
+                          sum.arrives,
+                          sum.arrivesTz ?? displayTimeZone,
+                        ) || <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1290,59 +1350,6 @@ export function RidesBoard({
                 </label>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                  Timezone for departure & arrival times
-                </label>
-                <select
-                  value={editor.timesTimeZone}
-                  onChange={(e) => {
-                    const next = normalizeTimeZone(
-                      e.target.value,
-                      displayTimeZone,
-                    );
-                    setEditor((s) => {
-                      const from = s.timesTimeZone;
-                      return {
-                        ...s,
-                        timesTimeZone: next,
-                        toDepartsWall: rezoneWallDatetimeLocal(
-                          s.toDepartsWall,
-                          from,
-                          next,
-                        ),
-                        toArrivesWall: rezoneWallDatetimeLocal(
-                          s.toArrivesWall,
-                          from,
-                          next,
-                        ),
-                        fromDepartsWall: rezoneWallDatetimeLocal(
-                          s.fromDepartsWall,
-                          from,
-                          next,
-                        ),
-                        fromArrivesWall: rezoneWallDatetimeLocal(
-                          s.fromArrivesWall,
-                          from,
-                          next,
-                        ),
-                      };
-                    });
-                  }}
-                  className="mt-1 w-full max-w-md rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-                >
-                  {editorTimezoneChoices.map((g) => (
-                    <optgroup key={g.group} label={g.group}>
-                      {g.choices.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/20">
                 <div
                   role="tablist"
@@ -1433,6 +1440,25 @@ export function RidesBoard({
                           }))
                         }
                       />
+                      <div className="sm:col-span-2">
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() =>
+                              setTzModalOpen({ open: true, leg: "TO_EVENT" })
+                            }
+                            className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Time zone
+                          </button>
+                          <span className="text-gray-600 dark:text-gray-300">
+                            {editor.toUseSeparateArrivesTimeZone
+                              ? `${editor.toDepartsTimeZone} → ${editor.toArrivesTimeZone}`
+                              : editor.toDepartsTimeZone}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1487,6 +1513,25 @@ export function RidesBoard({
                           }))
                         }
                       />
+                      <div className="sm:col-span-2">
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() =>
+                              setTzModalOpen({ open: true, leg: "FROM_EVENT" })
+                            }
+                            className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Time zone
+                          </button>
+                          <span className="text-gray-600 dark:text-gray-300">
+                            {editor.fromUseSeparateArrivesTimeZone
+                              ? `${editor.fromDepartsTimeZone} → ${editor.fromArrivesTimeZone}`
+                              : editor.fromDepartsTimeZone}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1524,6 +1569,95 @@ export function RidesBoard({
                 {isPending ? "Saving…" : "Save"}
               </button>
             </div>
+
+            <TimeZonePickerModal
+              open={tzModalOpen.open}
+              title="Ride time zone"
+              startLabel="Departure time zone"
+              endLabel="Arrival time zone"
+              startTimeZone={
+                tzModalOpen.open && tzModalOpen.leg === "FROM_EVENT"
+                  ? editor.fromDepartsTimeZone
+                  : editor.toDepartsTimeZone
+              }
+              endTimeZone={
+                tzModalOpen.open && tzModalOpen.leg === "FROM_EVENT"
+                  ? editor.fromUseSeparateArrivesTimeZone
+                    ? editor.fromArrivesTimeZone
+                    : editor.fromDepartsTimeZone
+                  : editor.toUseSeparateArrivesTimeZone
+                    ? editor.toArrivesTimeZone
+                    : editor.toDepartsTimeZone
+              }
+              onClose={() => setTzModalOpen({ open: false })}
+              onApply={({
+                startTimeZone,
+                endTimeZone,
+                useSeparateEndTimeZone,
+              }) => {
+                setEditor((s) => {
+                  if (tzModalOpen.open && tzModalOpen.leg === "FROM_EVENT") {
+                    const prevDep = s.fromDepartsTimeZone;
+                    const prevArr = s.fromUseSeparateArrivesTimeZone
+                      ? s.fromArrivesTimeZone
+                      : s.fromDepartsTimeZone;
+                    const nextDep = normalizeTimeZone(
+                      startTimeZone,
+                      displayTimeZone,
+                    );
+                    const nextArr = normalizeTimeZone(
+                      useSeparateEndTimeZone ? endTimeZone : startTimeZone,
+                      nextDep,
+                    );
+                    return {
+                      ...s,
+                      fromDepartsTimeZone: nextDep,
+                      fromArrivesTimeZone: nextArr,
+                      fromUseSeparateArrivesTimeZone: useSeparateEndTimeZone,
+                      fromDepartsWall: rezoneWallDatetimeLocal(
+                        s.fromDepartsWall,
+                        prevDep,
+                        nextDep,
+                      ),
+                      fromArrivesWall: rezoneWallDatetimeLocal(
+                        s.fromArrivesWall,
+                        prevArr,
+                        nextArr,
+                      ),
+                    };
+                  }
+
+                  const prevDep = s.toDepartsTimeZone;
+                  const prevArr = s.toUseSeparateArrivesTimeZone
+                    ? s.toArrivesTimeZone
+                    : s.toDepartsTimeZone;
+                  const nextDep = normalizeTimeZone(
+                    startTimeZone,
+                    displayTimeZone,
+                  );
+                  const nextArr = normalizeTimeZone(
+                    useSeparateEndTimeZone ? endTimeZone : startTimeZone,
+                    nextDep,
+                  );
+                  return {
+                    ...s,
+                    toDepartsTimeZone: nextDep,
+                    toArrivesTimeZone: nextArr,
+                    toUseSeparateArrivesTimeZone: useSeparateEndTimeZone,
+                    toDepartsWall: rezoneWallDatetimeLocal(
+                      s.toDepartsWall,
+                      prevDep,
+                      nextDep,
+                    ),
+                    toArrivesWall: rezoneWallDatetimeLocal(
+                      s.toArrivesWall,
+                      prevArr,
+                      nextArr,
+                    ),
+                  };
+                });
+              }}
+            />
           </div>
         </div>
       )}

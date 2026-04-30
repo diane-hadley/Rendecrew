@@ -70,7 +70,8 @@ export type EventDetailClientProps = {
     location: string | null;
     startAt: Date | string | null;
     endAt: Date | string | null;
-    timezone: string;
+    startAtTimeZone: string;
+    endAtTimeZone: string;
   };
   packing: {
     canManagePacking: boolean;
@@ -90,6 +91,8 @@ export type EventDetailClientProps = {
   };
   /** Event TZ when the event has start/end; otherwise the signed-in user's TZ. */
   ridesDefaultTimeZone: string;
+  /** Default timezone for task due dates and display. */
+  tasksDefaultTimeZone: string;
   membersInitial: EventMemberListItem[];
 };
 
@@ -105,6 +108,7 @@ export function EventDetailClient({
   packing,
   settings,
   ridesDefaultTimeZone,
+  tasksDefaultTimeZone,
   membersInitial,
 }: EventDetailClientProps) {
   const router = useRouter();
@@ -305,6 +309,7 @@ export function EventDetailClient({
             <TaskBoard
               eventId={eventId}
               currentUserId={currentUserId}
+              defaultTimeZone={tasksDefaultTimeZone}
               members={membersInitial.map((m) => ({
                 membershipId: m.membershipId,
                 userId: m.userId,
