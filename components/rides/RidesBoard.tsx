@@ -1440,25 +1440,25 @@ export function RidesBoard({
                           }))
                         }
                       />
-                        <div className="sm:col-span-2">
-                          <div className="flex flex-wrap items-center gap-3 text-sm">
-                            <button
-                              type="button"
-                              disabled={isPending}
-                              onClick={() =>
-                                setTzModalOpen({ open: true, leg: "TO_EVENT" })
-                              }
-                              className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              Time zone
-                            </button>
-                            <span className="text-gray-600 dark:text-gray-300">
-                              {editor.toUseSeparateArrivesTimeZone
-                                ? `${editor.toDepartsTimeZone} → ${editor.toArrivesTimeZone}`
-                                : editor.toDepartsTimeZone}
-                            </span>
-                          </div>
+                      <div className="sm:col-span-2">
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() =>
+                              setTzModalOpen({ open: true, leg: "TO_EVENT" })
+                            }
+                            className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Time zone
+                          </button>
+                          <span className="text-gray-600 dark:text-gray-300">
+                            {editor.toUseSeparateArrivesTimeZone
+                              ? `${editor.toDepartsTimeZone} → ${editor.toArrivesTimeZone}`
+                              : editor.toDepartsTimeZone}
+                          </span>
                         </div>
+                      </div>
                     </div>
                   </div>
                 ) : (
