@@ -1,8 +1,8 @@
 "use client";
 
 import { createEvent } from "@/app/actions/events";
-import { TimezoneSelect } from "@/components/common/TimezoneSelect";
 import { DateTimeFields } from "@/components/common/DateTimeFields";
+import { TimeZonePickerModal } from "@/components/common/TimeZonePickerModal";
 import { APP_DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/event-datetime";
 import { shouldSyncEndToStart } from "@/lib/datetime-local";
 import Link from "next/link";
@@ -18,12 +18,22 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
   const [isPending, startTransition] = useTransition();
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
-  const [timeZone, setTimeZone] = useState(() =>
+  const [startTz, setStartTz] = useState(() =>
     normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE),
   );
+  const [endTz, setEndTz] = useState(() =>
+    normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE),
+  );
+  const [useSeparateEndTz, setUseSeparateEndTz] = useState(false);
+  const [tzModalOpen, setTzModalOpen] = useState(false);
 
   useEffect(() => {
-    setTimeZone(normalizeTimeZone(defaultTimeZone, APP_DEFAULT_TIME_ZONE));
+    const normalized = normalizeTimeZone(
+      defaultTimeZone,
+      APP_DEFAULT_TIME_ZONE,
+    );
+    setStartTz(normalized);
+    setEndTz(normalized);
   }, [defaultTimeZone]);
 
   return (
@@ -47,7 +57,8 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
               location: location.trim() || null,
               startAt,
               endAt,
-              timezone: timeZone,
+              startAtTimeZone: startTz,
+              endAtTimeZone: useSeparateEndTz ? endTz : startTz,
             });
 
             if (!result.ok) {
@@ -114,20 +125,6 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
           />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <TimezoneSelect
-            id="event-timezone"
-            label="Times below are in"
-            value={timeZone}
-            onChange={setTimeZone}
-            disabled={isPending}
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Starts as your account timezone; pick another if this event is in a
-            different region.
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
           <DateTimeFields
             id="event-start"
@@ -147,6 +144,35 @@ export function CreateEventForm({ defaultTimeZone }: CreateEventFormProps) {
             onChange={setEndAt}
           />
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setTzModalOpen(true)}
+            className="font-medium text-blue-600 hover:text-blue-800 disabled:opacity-60 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Time zone
+          </button>
+          <span className="text-gray-600 dark:text-gray-300">
+            {useSeparateEndTz ? `${startTz} → ${endTz}` : startTz}
+          </span>
+        </div>
+
+        <TimeZonePickerModal
+          open={tzModalOpen}
+          title="Event time zone"
+          startLabel="Event start time zone"
+          endLabel="Event end time zone"
+          startTimeZone={startTz}
+          endTimeZone={useSeparateEndTz ? endTz : startTz}
+          onClose={() => setTzModalOpen(false)}
+          onApply={({ startTimeZone, endTimeZone, useSeparateEndTimeZone }) => {
+            setUseSeparateEndTz(useSeparateEndTimeZone);
+            setStartTz(startTimeZone);
+            setEndTz(endTimeZone);
+          }}
+        />
 
         <div className="flex flex-wrap items-center gap-3">
           <button

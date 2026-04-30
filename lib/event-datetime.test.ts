@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_DEFAULT_TIME_ZONE,
-  formatEventDateRangeWithTimeZone,
+  formatEventDateRangeWithTimeZones,
   getTimezoneSelectChoices,
   isValidIanaTimeZone,
   normalizeTimeZone,
@@ -53,16 +53,21 @@ describe("event-datetime", () => {
     expect(a).toBe(b);
   });
 
-  it("formatEventDateRangeWithTimeZone includes the IANA id", () => {
+  it("formatEventDateRangeWithTimeZones includes the IANA id", () => {
     const start = new Date("2026-06-01T16:00:00.000Z");
     const end = new Date("2026-06-01T18:00:00.000Z");
-    const s = formatEventDateRangeWithTimeZone(start, end, "America/New_York");
+    const s = formatEventDateRangeWithTimeZones(
+      start,
+      end,
+      "America/New_York",
+      "America/New_York",
+    );
     expect(s).toContain("America/New_York");
     expect(s).toMatch(/–/);
   });
 
-  it("formatEventDateRangeWithTimeZone handles missing dates", () => {
-    expect(formatEventDateRangeWithTimeZone(null, null, "UTC")).toBe(
+  it("formatEventDateRangeWithTimeZones handles missing dates", () => {
+    expect(formatEventDateRangeWithTimeZones(null, null, "UTC", "UTC")).toBe(
       "No date set",
     );
   });

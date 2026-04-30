@@ -68,7 +68,7 @@ describe("updateEvent", () => {
       timezone: "UTC",
     } as Awaited<ReturnType<typeof getOrCreateUser>>);
     vi.mocked(getEventForUser).mockResolvedValue({
-      event: { id: "e1", timezone: "UTC" },
+      event: { id: "e1", startAtTimeZone: "UTC", endAtTimeZone: "UTC" },
       role: "creator",
     } as Awaited<ReturnType<typeof getEventForUser>>);
     vi.mocked(canManageEvent).mockReturnValue(true);
@@ -169,8 +169,9 @@ describe("updateEvent", () => {
         title: "Title",
         generalInformation: "d",
         startAt: null,
+        startAtTimeZone: "UTC",
         endAt: null,
-        timezone: "UTC",
+        endAtTimeZone: "UTC",
         location: "L",
       },
     });

@@ -4,6 +4,7 @@ import {
   type PackingListVisibility,
 } from "@prisma/client";
 import { prisma } from "./prisma";
+import { APP_DEFAULT_TIME_ZONE } from "./event-datetime";
 
 export type DashboardEventRow = {
   event: {
@@ -11,8 +12,9 @@ export type DashboardEventRow = {
     title: string;
     generalInformation: string | null;
     startAt: Date | null;
+    startAtTimeZone: string;
     endAt: Date | null;
-    timezone: string;
+    endAtTimeZone: string;
     location: string | null;
     createdById: string;
     suggestionApprovalRequired: boolean;
@@ -65,9 +67,19 @@ export async function getEventsForUser(
       (event.createdById === userId
         ? EventMemberRole.creator
         : EventMemberRole.member);
-    const { eventMembers, ...eventRow } = event;
-    void eventMembers;
-    return { event: eventRow, role };
+    const { eventMembers: _eventMembers, ...eventRow } = event;
+    void _eventMembers;
+    const startAtTimeZone =
+      (
+        (event as unknown as { startAtTimeZone?: string }).startAtTimeZone ??
+        APP_DEFAULT_TIME_ZONE
+      ).trim() || APP_DEFAULT_TIME_ZONE;
+    const endAtTimeZone =
+      (
+        (event as unknown as { endAtTimeZone?: string }).endAtTimeZone ??
+        startAtTimeZone
+      ).trim() || startAtTimeZone;
+    return { event: { ...eventRow, startAtTimeZone, endAtTimeZone }, role };
   });
 }
 
@@ -99,7 +111,17 @@ export async function getEventForUser(
     (event.createdById === userId
       ? EventMemberRole.creator
       : EventMemberRole.member);
-  const { eventMembers, ...eventRow } = event;
-  void eventMembers;
-  return { event: eventRow, role };
+  const { eventMembers: _eventMembers, ...eventRow } = event;
+  void _eventMembers;
+  const startAtTimeZone =
+    (
+      (event as unknown as { startAtTimeZone?: string }).startAtTimeZone ??
+      APP_DEFAULT_TIME_ZONE
+    ).trim() || APP_DEFAULT_TIME_ZONE;
+  const endAtTimeZone =
+    (
+      (event as unknown as { endAtTimeZone?: string }).endAtTimeZone ??
+      startAtTimeZone
+    ).trim() || startAtTimeZone;
+  return { event: { ...eventRow, startAtTimeZone, endAtTimeZone }, role };
 }

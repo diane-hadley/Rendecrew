@@ -2,10 +2,12 @@
 
 import type { EventTaskStatus } from "@prisma/client";
 import { DateTimeFields } from "@/components/common/DateTimeFields";
+import { TimeZonePickerModal } from "@/components/common/TimeZonePickerModal";
+import { snapDatetimeLocalToFiveMinutes } from "@/lib/datetime-local";
 import {
-  isoToDatetimeLocal,
-  snapDatetimeLocalToFiveMinutes,
-} from "@/lib/datetime-local";
+  normalizeTimeZone,
+  utcToWallDatetimeLocal,
+} from "@/lib/event-datetime";
 import {
   useCallback,
   useEffect,
@@ -31,6 +33,8 @@ type TaskBoardProps = {
   eventId: string;
   currentUserId: string;
   members: TaskMemberListItem[];
+  /** Default tz for interpreting due date wall times. */
+  defaultTimeZone: string;
 };
 
 type ScopeId = "ME" | "GROUP";
@@ -73,11 +77,15 @@ type EditorState = {
   title: string;
   status: EventTaskStatus;
   dueDate: string;
+  dueTimeZone: string;
   notes: string;
   assignees: Record<string, boolean>;
 };
 
-function emptyEditor(members: TaskMemberListItem[]): EditorState {
+function emptyEditor(
+  members: TaskMemberListItem[],
+  defaultTimeZone: string,
+): EditorState {
   const assignees: Record<string, boolean> = {};
   for (const m of members) assignees[m.membershipId] = false;
   return {
@@ -86,6 +94,7 @@ function emptyEditor(members: TaskMemberListItem[]): EditorState {
     title: "",
     status: "TO_DO",
     dueDate: "",
+    dueTimeZone: defaultTimeZone,
     notes: "",
     assignees,
   };
@@ -94,8 +103,9 @@ function emptyEditor(members: TaskMemberListItem[]): EditorState {
 function editorFromTask(
   task: EventTaskRow,
   members: TaskMemberListItem[],
+  defaultTimeZone: string,
 ): EditorState {
-  const base = emptyEditor(members);
+  const base = emptyEditor(members, defaultTimeZone);
   const assigned = new Set(
     task.assignments.map((a) => a.eventMember.membershipId),
   );
@@ -106,12 +116,23 @@ function editorFromTask(
     taskId: task.id,
     title: task.title,
     status: task.status,
-    dueDate: task.dueDate ? isoToDatetimeLocal(task.dueDate) : "",
+    dueDate:
+      task.dueDate && task.dueDateTimeZone
+        ? utcToWallDatetimeLocal(task.dueDate, task.dueDateTimeZone)
+        : task.dueDate
+          ? utcToWallDatetimeLocal(task.dueDate, defaultTimeZone)
+          : "",
+    dueTimeZone: task.dueDateTimeZone ?? defaultTimeZone,
     notes: task.notes ?? "",
   };
 }
 
-export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
+export function TaskBoard({
+  eventId,
+  currentUserId,
+  members,
+  defaultTimeZone,
+}: TaskBoardProps) {
   const meMembershipId = useMemo(
     () => members.find((m) => m.userId === currentUserId)?.membershipId ?? null,
     [members, currentUserId],
@@ -123,7 +144,10 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [editor, setEditor] = useState<EditorState>(() => emptyEditor(members));
+  const [editor, setEditor] = useState<EditorState>(() =>
+    emptyEditor(members, defaultTimeZone),
+  );
+  const [tzModalOpen, setTzModalOpen] = useState(false);
 
   const refresh = useCallback(
     (next?: { scope?: ScopeId; bucket?: BucketId }) => {
@@ -154,7 +178,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
 
   function openCreate() {
     setEditor(() => {
-      const next = emptyEditor(members);
+      const next = emptyEditor(members, defaultTimeZone);
       next.open = true;
       return next;
     });
@@ -162,7 +186,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
 
   function openEdit(t: EventTaskRow) {
     setEditor(() => {
-      const next = editorFromTask(t, members);
+      const next = editorFromTask(t, members, defaultTimeZone);
       next.open = true;
       return next;
     });
@@ -186,9 +210,7 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
       setError("Due time must be a valid date and time.");
       return;
     }
-    // Convert wall-time (datetime-local) to an ISO instant using the browser's timezone.
-    // Never send bare `YYYY-MM-DDTHH:mm` to the server (it would be interpreted in server TZ).
-    const dueIso = dueWall ? new Date(dueWall).toISOString() : null;
+    const dueTz = normalizeTimeZone(editor.dueTimeZone, defaultTimeZone);
 
     const assigneeIds = selectedAssigneeIds();
 
@@ -198,7 +220,8 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
           eventId,
           title,
           status: editor.status,
-          dueDate: dueIso,
+          dueWall,
+          dueDateTimeZone: dueWall ? dueTz : null,
           notes: editor.notes || null,
           assignedEventMemberIds: assigneeIds,
         });
@@ -216,7 +239,8 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
         taskId,
         title,
         status: editor.status,
-        dueDate: dueIso,
+        dueWall,
+        dueDateTimeZone: dueWall ? dueTz : null,
         notes: editor.notes || null,
       });
       if (!r.ok) {
@@ -414,7 +438,12 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-200">
                         {t.dueDate ? (
-                          isoToDatetimeLocal(t.dueDate).replace("T", " ")
+                          (
+                            utcToWallDatetimeLocal(
+                              t.dueDate,
+                              t.dueDateTimeZone ?? defaultTimeZone,
+                            ) || ""
+                          ).replace("T", " ")
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
@@ -552,6 +581,16 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
                       }
                     />
                   </div>
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
+                      onClick={() => setTzModalOpen(true)}
+                    >
+                      Time zone: {editor.dueTimeZone}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -642,6 +681,20 @@ export function TaskBoard({ eventId, currentUserId, members }: TaskBoardProps) {
                 {isPending ? "Saving…" : "Save"}
               </button>
             </div>
+
+            <TimeZonePickerModal
+              open={tzModalOpen}
+              title="Task time zone"
+              startLabel="Due time zone"
+              endLabel="Due time zone"
+              allowSeparateStartEnd={false}
+              startTimeZone={editor.dueTimeZone}
+              endTimeZone={editor.dueTimeZone}
+              onClose={() => setTzModalOpen(false)}
+              onApply={({ startTimeZone }) => {
+                setEditor((s) => ({ ...s, dueTimeZone: startTimeZone }));
+              }}
+            />
           </div>
         </div>
       )}

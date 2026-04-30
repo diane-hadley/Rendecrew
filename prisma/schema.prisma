@@ -35,7 +35,11 @@ model Event {
   /// * Markdown: itinerary, themed nights, links, and other general event info for the Overview tab.
   generalInformation                  String?                               @map("general_information")
   startAt                             DateTime?                             @map("start_at")
+  /// * IANA zone for interpreting/displaying `startAt` (wall time).
+  startAtTimeZone                     String                                @default("America/Los_Angeles") @map("start_at_time_zone")
   endAt                               DateTime?                             @map("end_at")
+  /// * IANA zone for interpreting/displaying `endAt` (wall time).
+  endAtTimeZone                       String                                @default("America/Los_Angeles") @map("end_at_time_zone")
   location                            String?
   createdById                         String                                @map("created_by_id")
   createdAt                           DateTime                              @default(now()) @map("created_at")
@@ -45,8 +49,6 @@ model Event {
   memberManagementPolicy              MemberManagementPolicy                @default(ANY_MEMBER_CAN_INVITE) @map("member_management_policy")
   packingListVisibility               PackingListVisibility                 @default(URL_PUBLIC) @map("packing_list_visibility")
   packingEnabled                      Boolean                               @default(true) @map("packing_enabled")
-  /// * IANA zone for interpreting start/end wall times and for display (default matches user default / app constant).
-  timezone                            String                                @default("America/Los_Angeles")
   ridesEnabled                        Boolean                               @default(false) @map("rides_enabled")
   taskBoardEnabled                    Boolean                               @default(false) @map("task_board_enabled")
   rides_mode                          RidesMode                             @default(RIDES_UNIFIED)
@@ -71,6 +73,8 @@ model EventTask {
   notes           String?
   status          EventTaskStatus   @default(TO_DO)
   dueDate         DateTime?         @db.Timestamptz(3) @map("due_date")
+  /// * IANA zone for interpreting/displaying `dueDate` (wall time).
+  dueDateTimeZone String?           @map("due_date_time_zone")
   sortOrder       Int               @default(0) @map("sort_order")
   createdByUserId String?           @map("created_by_user_id")
   createdAt       DateTime          @default(now()) @map("created_at")
@@ -236,9 +240,13 @@ model EventRideCar {
   notes                          String?
   departure_location             String?
   departure_toward_event_at      DateTime?                        @db.Timestamptz(3)
+  departure_toward_event_time_zone String?                        @map("departure_toward_event_time_zone")
   expected_arrival_at_event_at   DateTime?                        @db.Timestamptz(3)
+  expected_arrival_at_event_time_zone String?                      @map("expected_arrival_at_event_time_zone")
   departure_from_event_at        DateTime?                        @db.Timestamptz(3)
+  departure_from_event_time_zone String?                          @map("departure_from_event_time_zone")
   expected_arrival_home_at       DateTime?                        @db.Timestamptz(3)
+  expected_arrival_home_time_zone String?                         @map("expected_arrival_home_time_zone")
   returning_to                   String?
   createdAt                      DateTime                         @default(now()) @map("created_at")
   updatedAt                      DateTime                         @updatedAt @map("updated_at")

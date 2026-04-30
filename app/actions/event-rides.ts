@@ -32,12 +32,16 @@ export type RideCarRow = {
   toEvent: {
     from: string | null;
     departsAt: string | null;
+    departsAtTimeZone: string | null;
     arrivesAt: string | null;
+    arrivesAtTimeZone: string | null;
   };
   fromEvent: {
     to: string | null;
     departsAt: string | null;
+    departsAtTimeZone: string | null;
     arrivesAt: string | null;
+    arrivesAtTimeZone: string | null;
   };
   passengers: {
     TO_EVENT: RidePassenger[];
@@ -48,7 +52,7 @@ export type RideCarRow = {
 export type ListEventRidesResult =
   | {
       ok: true;
-      event: { id: string; timezone: string };
+      event: { id: string; startAtTimeZone: string; endAtTimeZone: string };
       cars: RideCarRow[];
     }
   | { ok: false; error: string };
@@ -118,7 +122,11 @@ export async function listEventRides(
 
   return {
     ok: true,
-    event: { id: eventId, timezone: r.row.event.timezone },
+    event: {
+      id: eventId,
+      startAtTimeZone: r.row.event.startAtTimeZone,
+      endAtTimeZone: r.row.event.endAtTimeZone,
+    },
     cars: cars.map((c) => {
       const passengersTo: RidePassenger[] = [];
       const passengersFrom: RidePassenger[] = [];
@@ -155,12 +163,16 @@ export async function listEventRides(
         toEvent: {
           from: c.departure_location,
           departsAt: toIso(c.departure_toward_event_at),
+          departsAtTimeZone: c.departure_toward_event_time_zone,
           arrivesAt: toIso(c.expected_arrival_at_event_at),
+          arrivesAtTimeZone: c.expected_arrival_at_event_time_zone,
         },
         fromEvent: {
           to: c.returning_to,
           departsAt: toIso(c.departure_from_event_at),
+          departsAtTimeZone: c.departure_from_event_time_zone,
           arrivesAt: toIso(c.expected_arrival_home_at),
+          arrivesAtTimeZone: c.expected_arrival_home_time_zone,
         },
         passengers: {
           TO_EVENT: passengersTo,
@@ -183,12 +195,16 @@ export type UpsertRideCarInput = {
   toEvent?: {
     from?: string | null;
     departsAt?: Date | string | null;
+    departsAtTimeZone?: string | null;
     arrivesAt?: Date | string | null;
+    arrivesAtTimeZone?: string | null;
   };
   fromEvent?: {
     to?: string | null;
     departsAt?: Date | string | null;
+    departsAtTimeZone?: string | null;
     arrivesAt?: Date | string | null;
+    arrivesAtTimeZone?: string | null;
   };
 };
 
@@ -261,6 +277,7 @@ export async function upsertRideCar(
   const r = await requireRidesEnabled(input.eventId);
   if (!r.ok) return r;
   const eventTitle = r.row.event.title;
+  const fallbackTz = r.row.event.startAtTimeZone;
 
   const cap = normalizeCapacity(input.passengerCapacity);
   if (cap == null)
@@ -335,15 +352,27 @@ export async function upsertRideCar(
         departure_toward_event_at: input.toEvent?.departsAt
           ? new Date(input.toEvent.departsAt)
           : null,
+        departure_toward_event_time_zone: input.toEvent?.departsAt
+          ? (input.toEvent?.departsAtTimeZone ?? fallbackTz)
+          : null,
         expected_arrival_at_event_at: input.toEvent?.arrivesAt
           ? new Date(input.toEvent.arrivesAt)
+          : null,
+        expected_arrival_at_event_time_zone: input.toEvent?.arrivesAt
+          ? (input.toEvent?.arrivesAtTimeZone ?? fallbackTz)
           : null,
         returning_to: normalizeText(input.fromEvent?.to),
         departure_from_event_at: input.fromEvent?.departsAt
           ? new Date(input.fromEvent.departsAt)
           : null,
+        departure_from_event_time_zone: input.fromEvent?.departsAt
+          ? (input.fromEvent?.departsAtTimeZone ?? fallbackTz)
+          : null,
         expected_arrival_home_at: input.fromEvent?.arrivesAt
           ? new Date(input.fromEvent.arrivesAt)
+          : null,
+        expected_arrival_home_time_zone: input.fromEvent?.arrivesAt
+          ? (input.fromEvent?.arrivesAtTimeZone ?? fallbackTz)
           : null,
       },
       select: { id: true },
@@ -393,15 +422,27 @@ export async function upsertRideCar(
       departure_toward_event_at: input.toEvent?.departsAt
         ? new Date(input.toEvent.departsAt)
         : null,
+      departure_toward_event_time_zone: input.toEvent?.departsAt
+        ? (input.toEvent?.departsAtTimeZone ?? fallbackTz)
+        : null,
       expected_arrival_at_event_at: input.toEvent?.arrivesAt
         ? new Date(input.toEvent.arrivesAt)
+        : null,
+      expected_arrival_at_event_time_zone: input.toEvent?.arrivesAt
+        ? (input.toEvent?.arrivesAtTimeZone ?? fallbackTz)
         : null,
       returning_to: normalizeText(input.fromEvent?.to),
       departure_from_event_at: input.fromEvent?.departsAt
         ? new Date(input.fromEvent.departsAt)
         : null,
+      departure_from_event_time_zone: input.fromEvent?.departsAt
+        ? (input.fromEvent?.departsAtTimeZone ?? fallbackTz)
+        : null,
       expected_arrival_home_at: input.fromEvent?.arrivesAt
         ? new Date(input.fromEvent.arrivesAt)
+        : null,
+      expected_arrival_home_time_zone: input.fromEvent?.arrivesAt
+        ? (input.fromEvent?.arrivesAtTimeZone ?? fallbackTz)
         : null,
     },
     select: { id: true },
@@ -529,12 +570,16 @@ export async function disableRideCarLeg(params: {
                 departure_location: null,
                 departure_toward_event_at: null,
                 expected_arrival_at_event_at: null,
+                departure_toward_event_time_zone: null,
+                expected_arrival_at_event_time_zone: null,
               }
             : {
                 direction: nextDirection,
                 returning_to: null,
                 departure_from_event_at: null,
                 expected_arrival_home_at: null,
+                departure_from_event_time_zone: null,
+                expected_arrival_home_time_zone: null,
               },
       });
       return;

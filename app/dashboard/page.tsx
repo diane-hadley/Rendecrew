@@ -1,7 +1,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { formatEventDateRangeWithTimeZone } from "@/lib/event-datetime";
+import { formatEventDateRangeWithTimeZones } from "@/lib/event-datetime";
 import { getEventsForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
 
@@ -62,10 +62,11 @@ export default async function DashboardPage() {
                       {event.title}
                     </p>
                     <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                      {formatEventDateRangeWithTimeZone(
+                      {formatEventDateRangeWithTimeZones(
                         event.startAt,
                         event.endAt,
-                        event.timezone,
+                        event.startAtTimeZone,
+                        event.endAtTimeZone,
                       )}
                     </p>
                     {event.location && (

@@ -224,9 +224,7 @@ describe("RidesBoard", () => {
     await screen.findByText("To Event");
     await user.click(screen.getByRole("button", { name: "Add car" }));
     expect(screen.getAllByText("Add car").length).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByText("Timezone for departure & arrival times"),
-    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Time zone" }).length).toBe(1);
   });
 
   it("submits a new car via Save", async () => {

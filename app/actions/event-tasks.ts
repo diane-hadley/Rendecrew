@@ -6,6 +6,7 @@ import { getEventForUser } from "@/lib/events";
 import { enqueueNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
+import { normalizeTimeZone, parseEventDateTime } from "@/lib/event-datetime";
 
 export type TaskMemberListItem = {
   membershipId: string;
@@ -28,6 +29,8 @@ export type EventTaskRow = {
   status: EventTaskStatus;
   /** ISO instant (UTC) or null. */
   dueDate: string | null;
+  /** IANA zone used to interpret/display `dueDate` (wall time). */
+  dueDateTimeZone: string | null;
   sortOrder: number;
   createdByUserId: string | null;
   createdAt: string;
@@ -91,29 +94,6 @@ function normalizeNotes(v: unknown): string | null {
   return s.length > 4000 ? s.slice(0, 4000) : s;
 }
 
-function normalizeDueDate(v: unknown): Date | null {
-  if (v == null || v === "") return null;
-  // Accept:
-  // - YYYY-MM-DD
-  // - YYYY-MM-DDTHH:mm (browser-local wall time)
-  // - any Date-ish input
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      const [y, m, d] = s.split("-").map(Number);
-      if (!y || !m || !d) return null;
-      return new Date(Date.UTC(y, m - 1, d));
-    }
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
-      // Date(string) interprets this as local time.
-      const dt = new Date(s);
-      return Number.isNaN(dt.getTime()) ? null : dt;
-    }
-  }
-  const dt = new Date(v as never);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-}
-
 function taskToRow(t: {
   id: string;
   eventId: string;
@@ -121,6 +101,7 @@ function taskToRow(t: {
   notes: string | null;
   status: EventTaskStatus;
   dueDate: Date | null;
+  dueDateTimeZone: string | null;
   sortOrder: number;
   createdByUserId: string | null;
   createdAt: Date;
@@ -142,6 +123,7 @@ function taskToRow(t: {
     notes: t.notes,
     status: t.status,
     dueDate: toIso(t.dueDate),
+    dueDateTimeZone: t.dueDateTimeZone,
     sortOrder: t.sortOrder,
     createdByUserId: t.createdByUserId,
     createdAt: t.createdAt.toISOString(),
@@ -271,7 +253,10 @@ export async function createEventTask(params: {
   title: string;
   notes?: string | null;
   status?: EventTaskStatus;
-  dueDate?: string | Date | null;
+  /** Wall-time `YYYY-MM-DDTHH:mm` in `dueDateTimeZone`. */
+  dueWall?: string | null;
+  /** IANA zone for interpreting `dueWall`. Defaults to event start tz. */
+  dueDateTimeZone?: string | null;
   assignedEventMemberIds?: string[] | null;
 }): Promise<{ ok: true; taskId: string } | Err> {
   const r = await requireTaskBoardEnabled(params.eventId);
@@ -281,7 +266,12 @@ export async function createEventTask(params: {
   if (!title) return { ok: false, error: "Title is required" };
 
   const notes = normalizeNotes(params.notes);
-  const dueDate = normalizeDueDate(params.dueDate);
+  const effectiveTz = normalizeTimeZone(
+    params.dueDateTimeZone,
+    r.row.event.startAtTimeZone,
+  );
+  const dueWall = String(params.dueWall ?? "").trim();
+  const dueDate = dueWall ? parseEventDateTime(dueWall, effectiveTz) : null;
   const status = params.status ?? EventTaskStatus.TO_DO;
 
   try {
@@ -292,6 +282,7 @@ export async function createEventTask(params: {
           title,
           notes,
           dueDate,
+          dueDateTimeZone: dueDate ? effectiveTz : null,
           status,
           createdByUserId: r.user.id,
         },
@@ -353,7 +344,10 @@ export async function updateEventTask(params: {
   title?: string;
   notes?: string | null;
   status?: EventTaskStatus;
-  dueDate?: string | Date | null;
+  /** Wall-time `YYYY-MM-DDTHH:mm` in `dueDateTimeZone`. Empty/null clears due. */
+  dueWall?: string | null;
+  /** IANA zone for interpreting `dueWall`. Defaults to event start tz. */
+  dueDateTimeZone?: string | null;
 }): Promise<Ok | Err> {
   const existing = await prisma.eventTask.findUnique({
     where: { id: params.taskId },
@@ -371,8 +365,23 @@ export async function updateEventTask(params: {
   }
   const nextNotes =
     params.notes === undefined ? undefined : normalizeNotes(params.notes);
-  const nextDue =
-    params.dueDate === undefined ? undefined : normalizeDueDate(params.dueDate);
+  const nextDue:
+    | { dueDate: Date | null; dueDateTimeZone: string | null }
+    | undefined =
+    params.dueWall === undefined
+      ? undefined
+      : (() => {
+          const effectiveTz = normalizeTimeZone(
+            params.dueDateTimeZone,
+            r.row.event.startAtTimeZone,
+          );
+          const wall = String(params.dueWall ?? "").trim();
+          const dueDate = wall ? parseEventDateTime(wall, effectiveTz) : null;
+          return {
+            dueDate,
+            dueDateTimeZone: dueDate ? effectiveTz : null,
+          };
+        })();
 
   const before = await prisma.eventTask.findUnique({
     where: { id: params.taskId },
@@ -401,7 +410,10 @@ export async function updateEventTask(params: {
       const data: Prisma.EventTaskUpdateInput = {};
       if (typeof nextTitle === "string") data.title = nextTitle;
       if (nextNotes !== undefined) data.notes = nextNotes;
-      if (nextDue !== undefined) data.dueDate = nextDue;
+      if (nextDue !== undefined) {
+        data.dueDate = nextDue.dueDate;
+        data.dueDateTimeZone = nextDue.dueDateTimeZone;
+      }
       if (params.status !== undefined) data.status = params.status;
 
       await tx.eventTask.update({
@@ -416,8 +428,14 @@ export async function updateEventTask(params: {
     return { ok: false, error: msg };
   }
 
-  if (before && params.dueDate !== undefined && before.assignments.length > 0) {
-    const newDue = normalizeDueDate(params.dueDate);
+  if (before && params.dueWall !== undefined && before.assignments.length > 0) {
+    const effectiveTz = normalizeTimeZone(
+      params.dueDateTimeZone,
+      r.row.event.startAtTimeZone,
+    );
+    const newDue = params.dueWall
+      ? parseEventDateTime(params.dueWall, effectiveTz)
+      : null;
     const oldKey = before.dueDate ? before.dueDate.toISOString() : null;
     const newKey = newDue ? newDue.toISOString() : null;
     if (oldKey !== newKey) {
