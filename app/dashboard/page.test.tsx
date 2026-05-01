@@ -58,8 +58,8 @@ describe("DashboardPage", () => {
         event: {
           id: "e1",
           title: "Camping",
-          startAt: new Date("2026-06-01T12:00:00Z"),
-          endAt: new Date("2026-06-02T12:00:00Z"),
+          startAt: new Date("2099-06-01T12:00:00Z"),
+          endAt: new Date("2099-06-02T12:00:00Z"),
           startAtTimeZone: "UTC",
           endAtTimeZone: "UTC",
           location: "Yosemite",
@@ -72,5 +72,85 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Camping")).toBeInTheDocument();
     expect(screen.getByText("Yosemite")).toBeInTheDocument();
     expect(screen.getByText("Organizer")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Upcoming/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists undated events under their own heading above Upcoming", async () => {
+    vi.mocked(currentUser).mockResolvedValue({ id: "c1" } as Awaited<
+      ReturnType<typeof currentUser>
+    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      name: "Alex",
+      timezone: "UTC",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getEventsForUser).mockResolvedValue([
+      {
+        event: {
+          id: "e-dated",
+          title: "Summer trip",
+          startAt: new Date("2099-06-01T12:00:00Z"),
+          endAt: new Date("2099-06-02T12:00:00Z"),
+          startAtTimeZone: "UTC",
+          endAtTimeZone: "UTC",
+          location: null,
+        },
+        role: "member",
+      },
+      {
+        event: {
+          id: "e-undated",
+          title: "TBD meetup",
+          startAt: null,
+          endAt: null,
+          startAtTimeZone: "UTC",
+          endAtTimeZone: "UTC",
+          location: null,
+        },
+        role: "member",
+      },
+    ] as Awaited<ReturnType<typeof getEventsForUser>>);
+    const ui = await DashboardPage();
+    render(ui);
+    const headings = screen.getAllByRole("heading", { level: 3 });
+    expect(headings[0]).toHaveTextContent(/Events without a date/i);
+    expect(headings[1]).toHaveTextContent(/Upcoming/i);
+    expect(screen.getByText("TBD meetup")).toBeInTheDocument();
+    expect(screen.getByText("Summer trip")).toBeInTheDocument();
+  });
+
+  it("shows See Past Events when there are ended events", async () => {
+    vi.mocked(currentUser).mockResolvedValue({ id: "c1" } as Awaited<
+      ReturnType<typeof currentUser>
+    >);
+    vi.mocked(getOrCreateUser).mockResolvedValue({
+      id: "u1",
+      name: "Alex",
+      timezone: "UTC",
+    } as Awaited<ReturnType<typeof getOrCreateUser>>);
+    vi.mocked(getEventsForUser).mockResolvedValue([
+      {
+        event: {
+          id: "e-past",
+          title: "Old camp",
+          startAt: new Date("2000-01-01T12:00:00Z"),
+          endAt: new Date("2000-01-02T12:00:00Z"),
+          startAtTimeZone: "UTC",
+          endAtTimeZone: "UTC",
+          location: null,
+        },
+        role: "member",
+      },
+    ] as Awaited<ReturnType<typeof getEventsForUser>>);
+    const ui = await DashboardPage();
+    render(ui);
+    expect(
+      screen.getByRole("link", { name: /See Past Events/i }),
+    ).toHaveAttribute("href", "/dashboard/events/past");
+    expect(
+      screen.getByText(/No upcoming events on your calendar/i),
+    ).toBeInTheDocument();
   });
 });
