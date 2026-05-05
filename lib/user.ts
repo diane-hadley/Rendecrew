@@ -45,31 +45,46 @@ export async function getOrCreateUser() {
       ? `${clerkUser.firstName} ${clerkUser.lastName}`
       : clerkUser.firstName || clerkUser.lastName || email;
 
-  const existing = await prisma.user.findUnique({
+  const existingByClerk = await prisma.user.findUnique({
     where: { clerkId: clerkUser.id },
-    select: { id: true },
   });
-  if (!existing && !isPreviewPlatformOperator(clerkUser.id)) {
+  const existingByEmail = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (
+    !existingByClerk &&
+    !existingByEmail &&
+    !isPreviewPlatformOperator(clerkUser.id)
+  ) {
     throw new Error(
       "New accounts are limited during preview. Ask your Rendecrew preview operator for access.",
     );
   }
 
-  // Upsert: create with Clerk-derived name; updates only sync email so `name` stays the DB display value.
-  const user = await prisma.user.upsert({
-    where: {
-      clerkId: clerkUser.id,
-    },
-    update: {
-      email,
-    },
-    create: {
-      clerkId: clerkUser.id,
-      email,
-      name,
-      timezone: APP_DEFAULT_TIME_ZONE,
-    },
-  });
+  // Prefer `clerkId` (normal path). If Clerk issued a new id for the same email, link the row by
+  // email so we do not hit the unique constraint on `email` that `upsert({ where: clerkId })` would.
+  let user: NonNullable<typeof existingByClerk>;
+  if (existingByClerk) {
+    user = await prisma.user.update({
+      where: { id: existingByClerk.id },
+      data: { email },
+    });
+  } else if (existingByEmail) {
+    user = await prisma.user.update({
+      where: { id: existingByEmail.id },
+      data: { clerkId: clerkUser.id, email },
+    });
+  } else {
+    user = await prisma.user.create({
+      data: {
+        clerkId: clerkUser.id,
+        email,
+        name,
+        timezone: APP_DEFAULT_TIME_ZONE,
+      },
+    });
+  }
 
   await backfillPackingItemSignUpsForUser(user.id, email);
 
