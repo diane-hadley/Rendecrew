@@ -795,10 +795,7 @@ export function RidesBoard({
       editor.toEnabled,
       editor.fromEnabled,
     );
-    if (!direction) {
-      setErrorOrToast("Choose To Event and/or From Event for this car.");
-      return;
-    }
+    if (!direction) return;
     const cap = Number(editor.passengerCapacity);
     if (!Number.isInteger(cap) || cap < 0) {
       setErrorOrToast("Passenger capacity must be an integer ≥ 0.");
@@ -1153,6 +1150,8 @@ export function RidesBoard({
     );
   }
 
+  const rideCarEditorPanelLocked = !editor.toEnabled && !editor.fromEnabled;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800">
@@ -1322,32 +1321,45 @@ export function RidesBoard({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={editor.toEnabled}
-                    onChange={(e) =>
-                      setEditor((s) => ({ ...s, toEnabled: e.target.checked }))
-                    }
-                    className="mt-1"
-                  />
-                  To Event
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={editor.fromEnabled}
-                    onChange={(e) =>
-                      setEditor((s) => ({
-                        ...s,
-                        fromEnabled: e.target.checked,
-                      }))
-                    }
-                    className="mt-1"
-                  />
-                  From Event
-                </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1">
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={editor.toEnabled}
+                      onChange={(e) =>
+                        setEditor((s) => ({
+                          ...s,
+                          toEnabled: e.target.checked,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                    To Event
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={editor.fromEnabled}
+                      onChange={(e) =>
+                        setEditor((s) => ({
+                          ...s,
+                          fromEnabled: e.target.checked,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                    From Event
+                  </label>
+                </div>
+                {rideCarEditorPanelLocked ? (
+                  <p
+                    className="text-sm text-red-600 dark:text-red-400"
+                    role="alert"
+                  >
+                    A car must be assigned at least one direction.
+                  </p>
+                ) : null}
               </div>
 
               <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/20">
@@ -1357,8 +1369,10 @@ export function RidesBoard({
                   className="flex items-end gap-1 border-b border-gray-200 bg-gray-200/70 px-2 pt-2 dark:border-gray-700 dark:bg-gray-800/70"
                 >
                   {(["TO_EVENT", "FROM_EVENT"] as const).map((t) => {
-                    const enabled =
+                    const legEnabled =
                       t === "TO_EVENT" ? editor.toEnabled : editor.fromEnabled;
+                    const tabInteractive =
+                      legEnabled || rideCarEditorPanelLocked;
                     const selected = editor.tab === t;
                     const id = `ride-car-editor-tab:${t}`;
                     const panelId = `ride-car-editor-panel:${t}`;
@@ -1370,16 +1384,18 @@ export function RidesBoard({
                         role="tab"
                         aria-selected={selected}
                         aria-controls={panelId}
-                        aria-disabled={!enabled}
+                        aria-disabled={!tabInteractive}
                         tabIndex={selected ? 0 : -1}
-                        disabled={!enabled}
+                        disabled={!tabInteractive}
                         onClick={() => setEditor((s) => ({ ...s, tab: t }))}
                         className={
-                          selected
-                            ? "relative z-10 -mb-px rounded-t-md border border-gray-200 border-b-white bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm dark:border-gray-700 dark:border-b-gray-900 dark:bg-gray-900 dark:text-gray-100"
-                            : enabled
-                              ? "rounded-t-md bg-gray-200/70 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-50"
-                              : "rounded-t-md px-3 py-2 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+                          selected && rideCarEditorPanelLocked
+                            ? "relative z-10 -mb-px rounded-t-md border border-gray-200 border-b-gray-100 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-500 shadow-sm dark:border-gray-700 dark:border-b-gray-900 dark:bg-gray-800/90 dark:text-gray-400"
+                            : selected
+                              ? "relative z-10 -mb-px rounded-t-md border border-gray-200 border-b-white bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm dark:border-gray-700 dark:border-b-gray-900 dark:bg-gray-900 dark:text-gray-100"
+                              : tabInteractive
+                                ? "rounded-t-md bg-gray-200/70 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+                                : "rounded-t-md px-3 py-2 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
                         }
                       >
                         {t === "TO_EVENT" ? "To Event info" : "From Event info"}
@@ -1393,7 +1409,11 @@ export function RidesBoard({
                     id="ride-car-editor-panel:TO_EVENT"
                     role="tabpanel"
                     aria-labelledby="ride-car-editor-tab:TO_EVENT"
-                    className="p-4"
+                    className={
+                      rideCarEditorPanelLocked
+                        ? "bg-gray-50/90 p-4 dark:bg-gray-900/35"
+                        : "p-4"
+                    }
                   >
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
@@ -1402,10 +1422,11 @@ export function RidesBoard({
                         </label>
                         <input
                           value={editor.toFrom}
+                          disabled={isPending || rideCarEditorPanelLocked}
                           onChange={(e) =>
                             setEditor((s) => ({ ...s, toFrom: e.target.value }))
                           }
-                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:disabled:bg-gray-900/50 dark:disabled:text-gray-400"
                           placeholder="Seattle"
                         />
                       </div>
@@ -1414,7 +1435,7 @@ export function RidesBoard({
                         id="ride-to-departs"
                         label="Departs (optional)"
                         value={editor.toDepartsWall}
-                        disabled={isPending}
+                        disabled={isPending || rideCarEditorPanelLocked}
                         onChange={(next) => {
                           setEditor((s) => ({
                             ...s,
@@ -1432,7 +1453,7 @@ export function RidesBoard({
                         id="ride-to-arrives"
                         label="Arrives (optional)"
                         value={editor.toArrivesWall}
-                        disabled={isPending}
+                        disabled={isPending || rideCarEditorPanelLocked}
                         onChange={(next) =>
                           setEditor((s) => ({
                             ...s,
@@ -1444,7 +1465,7 @@ export function RidesBoard({
                         <div className="flex flex-wrap items-center gap-3 text-sm">
                           <button
                             type="button"
-                            disabled={isPending}
+                            disabled={isPending || rideCarEditorPanelLocked}
                             onClick={() =>
                               setTzModalOpen({ open: true, leg: "TO_EVENT" })
                             }
@@ -1466,7 +1487,11 @@ export function RidesBoard({
                     id="ride-car-editor-panel:FROM_EVENT"
                     role="tabpanel"
                     aria-labelledby="ride-car-editor-tab:FROM_EVENT"
-                    className="p-4"
+                    className={
+                      rideCarEditorPanelLocked
+                        ? "bg-gray-50/90 p-4 dark:bg-gray-900/35"
+                        : "p-4"
+                    }
                   >
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
@@ -1475,10 +1500,11 @@ export function RidesBoard({
                         </label>
                         <input
                           value={editor.fromTo}
+                          disabled={isPending || rideCarEditorPanelLocked}
                           onChange={(e) =>
                             setEditor((s) => ({ ...s, fromTo: e.target.value }))
                           }
-                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
+                          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:disabled:bg-gray-900/50 dark:disabled:text-gray-400"
                           placeholder="Bellevue"
                         />
                       </div>
@@ -1487,7 +1513,7 @@ export function RidesBoard({
                         id="ride-from-departs"
                         label="Departs (optional)"
                         value={editor.fromDepartsWall}
-                        disabled={isPending}
+                        disabled={isPending || rideCarEditorPanelLocked}
                         onChange={(next) => {
                           setEditor((s) => ({
                             ...s,
@@ -1505,7 +1531,7 @@ export function RidesBoard({
                         id="ride-from-arrives"
                         label="Arrives (optional)"
                         value={editor.fromArrivesWall}
-                        disabled={isPending}
+                        disabled={isPending || rideCarEditorPanelLocked}
                         onChange={(next) =>
                           setEditor((s) => ({
                             ...s,
@@ -1517,7 +1543,7 @@ export function RidesBoard({
                         <div className="flex flex-wrap items-center gap-3 text-sm">
                           <button
                             type="button"
-                            disabled={isPending}
+                            disabled={isPending || rideCarEditorPanelLocked}
                             onClick={() =>
                               setTzModalOpen({ open: true, leg: "FROM_EVENT" })
                             }
@@ -1563,7 +1589,7 @@ export function RidesBoard({
               <button
                 type="button"
                 onClick={saveCar}
-                disabled={isPending}
+                disabled={isPending || rideCarEditorPanelLocked}
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {isPending ? "Saving…" : "Save"}
