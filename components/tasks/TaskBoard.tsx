@@ -24,9 +24,10 @@ import {
   setMyTaskDone,
   unassignMembersFromTask,
   updateEventTask,
+  type EventTaskAssigneeCompletionMode,
   type EventTaskRow,
+  type TaskListUserFilter,
   type TaskMemberListItem,
-  type TaskView,
 } from "@/app/actions/event-tasks";
 
 type TaskBoardProps = {
@@ -36,9 +37,6 @@ type TaskBoardProps = {
   /** Default tz for interpreting due date wall times. */
   defaultTimeZone: string;
 };
-
-type ScopeId = "ME" | "GROUP";
-type BucketId = "OPEN" | "DONE";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -59,11 +57,6 @@ function statusPillClass(s: EventTaskStatus): string {
   return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
 }
 
-function viewFor(scope: ScopeId, bucket: BucketId): TaskView {
-  if (scope === "GROUP") return bucket === "OPEN" ? "GROUP_OPEN" : "GROUP_DONE";
-  return bucket === "OPEN" ? "USER_OPEN" : "USER_DONE";
-}
-
 function normalizeDueWall(v: string): string | null {
   const s = v.trim();
   if (!s) return null;
@@ -76,6 +69,7 @@ type EditorState = {
   taskId: string | null;
   title: string;
   status: EventTaskStatus;
+  assigneeCompletionMode: EventTaskAssigneeCompletionMode;
   dueDate: string;
   dueTimeZone: string;
   notes: string;
@@ -93,6 +87,7 @@ function emptyEditor(
     taskId: null,
     title: "",
     status: "TO_DO",
+    assigneeCompletionMode: "EACH",
     dueDate: "",
     dueTimeZone: defaultTimeZone,
     notes: "",
@@ -116,6 +111,7 @@ function editorFromTask(
     taskId: task.id,
     title: task.title,
     status: task.status,
+    assigneeCompletionMode: task.assigneeCompletionMode,
     dueDate:
       task.dueDate && task.dueDateTimeZone
         ? utcToWallDatetimeLocal(task.dueDate, task.dueDateTimeZone)
@@ -138,8 +134,11 @@ export function TaskBoard({
     [members, currentUserId],
   );
 
-  const [scope, setScope] = useState<ScopeId>("ME");
-  const [bucket, setBucket] = useState<BucketId>("OPEN");
+  const [userFilter, setUserFilter] = useState<TaskListUserFilter>(() => {
+    const me = members.find((m) => m.userId === currentUserId)?.membershipId;
+    return me ? { kind: "MEMBER", eventMemberId: me } : { kind: "ALL" };
+  });
+  const [statusFilter, setStatusFilter] = useState<"OPEN" | "DONE">("OPEN");
   const [tasks, setTasks] = useState<EventTaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,15 +149,20 @@ export function TaskBoard({
   const [tzModalOpen, setTzModalOpen] = useState(false);
 
   const refresh = useCallback(
-    (next?: { scope?: ScopeId; bucket?: BucketId }) => {
-      const s = next?.scope ?? scope;
-      const b = next?.bucket ?? bucket;
-      const view = viewFor(s, b);
+    (next?: {
+      userFilter?: TaskListUserFilter;
+      statusFilter?: "OPEN" | "DONE";
+    }) => {
+      const uf = next?.userFilter ?? userFilter;
+      const sf = next?.statusFilter ?? statusFilter;
 
       setLoading(true);
       setError(null);
       startTransition(async () => {
-        const r = await listEventTasks(eventId, { view });
+        const r = await listEventTasks(eventId, {
+          statusFilter: sf,
+          userFilter: uf,
+        });
         if (!r.ok) {
           setError(r.error);
           setTasks([]);
@@ -169,7 +173,7 @@ export function TaskBoard({
         setLoading(false);
       });
     },
-    [eventId, scope, bucket],
+    [eventId, userFilter, statusFilter],
   );
 
   useEffect(() => {
@@ -213,6 +217,8 @@ export function TaskBoard({
     const dueTz = normalizeTimeZone(editor.dueTimeZone, defaultTimeZone);
 
     const assigneeIds = selectedAssigneeIds();
+    const completionMode: EventTaskAssigneeCompletionMode =
+      assigneeIds.length >= 2 ? editor.assigneeCompletionMode : "EACH";
 
     startTransition(async () => {
       if (!editor.taskId) {
@@ -220,6 +226,7 @@ export function TaskBoard({
           eventId,
           title,
           status: editor.status,
+          assigneeCompletionMode: completionMode,
           dueWall,
           dueDateTimeZone: dueWall ? dueTz : null,
           notes: editor.notes || null,
@@ -239,6 +246,7 @@ export function TaskBoard({
         taskId,
         title,
         status: editor.status,
+        assigneeCompletionMode: completionMode,
         dueWall,
         dueDateTimeZone: dueWall ? dueTz : null,
         notes: editor.notes || null,
@@ -324,36 +332,61 @@ export function TaskBoard({
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(["ME", "GROUP"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setScope(s)}
-            className={
-              scope === s
-                ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+            User
+          </span>
+          <select
+            value={
+              userFilter.kind === "ALL"
+                ? "__all__"
+                : userFilter.eventMemberId
             }
+            onChange={(e) => {
+              const v = e.target.value;
+              const next: TaskListUserFilter =
+                v === "__all__"
+                  ? { kind: "ALL" }
+                  : { kind: "MEMBER", eventMemberId: v };
+              setUserFilter(next);
+            }}
+            className="min-w-[12rem] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
           >
-            {s === "ME" ? "Me" : "Group"}
-          </button>
-        ))}
-        <div className="mx-1 w-px bg-gray-200 dark:bg-gray-700" />
-        {(["OPEN", "DONE"] as const).map((b) => (
-          <button
-            key={b}
-            type="button"
-            onClick={() => setBucket(b)}
-            className={
-              bucket === b
-                ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            }
-          >
-            {b === "OPEN" ? "Open" : "Done"}
-          </button>
-        ))}
+            <option value="__all__">All</option>
+            {meMembershipId ? (
+              <option value={meMembershipId}>Me</option>
+            ) : null}
+            {members
+              .filter((m) => m.membershipId !== meMembershipId)
+              .map((m) => (
+                <option key={m.membershipId} value={m.membershipId}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+            Status
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {(["OPEN", "DONE"] as const).map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => setStatusFilter(b)}
+                className={
+                  statusFilter === b
+                    ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
+                    : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                }
+              >
+                {b === "OPEN" ? "Open" : "Done"}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -411,6 +444,10 @@ export function TaskBoard({
                   const myDone = myAssignment?.doneAt != null;
                   const hasAssignees = t.assignments.length > 0;
                   const showMyToggle = myAssignment != null;
+                  const multiAssignee = t.assignments.length >= 2;
+                  const completionMode: EventTaskAssigneeCompletionMode =
+                    !multiAssignee ? "EACH" : t.assigneeCompletionMode;
+                  const isAnyMode = completionMode === "ANY";
 
                   return (
                     <tr
@@ -455,11 +492,17 @@ export function TaskBoard({
                               <span
                                 key={a.id}
                                 className={
-                                  a.doneAt
-                                    ? "inline-flex size-7 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200"
-                                    : "inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+                                  isAnyMode
+                                    ? "inline-flex size-7 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                                    : a.doneAt
+                                      ? "inline-flex size-7 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                                      : "inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
                                 }
-                                title={`${a.eventMember.name}${a.doneAt ? " (done)" : ""}`}
+                                title={
+                                  isAnyMode
+                                    ? a.eventMember.name
+                                    : `${a.eventMember.name}${a.doneAt ? " (done)" : ""}`
+                                }
                               >
                                 {initials(a.eventMember.name)}
                               </span>
@@ -483,7 +526,9 @@ export function TaskBoard({
                                   toggleMyDone(t.id, e.target.checked)
                                 }
                               />
-                              Done for me
+                              {isAnyMode && multiAssignee
+                                ? "Mark complete"
+                                : "Done for me"}
                             </label>
                           ) : null}
                           <button
@@ -648,6 +693,58 @@ export function TaskBoard({
                   ))}
                 </div>
               </div>
+
+              {Object.values(editor.assignees).filter(Boolean).length >= 2 ? (
+                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                    How completion works
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    Each: everyone must mark done. Any: one person can complete
+                    for everyone.
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                      <input
+                        type="radio"
+                        name="task-assignee-mode"
+                        className="mt-1"
+                        checked={editor.assigneeCompletionMode === "EACH"}
+                        disabled={isPending}
+                        onChange={() =>
+                          setEditor((s) => ({
+                            ...s,
+                            assigneeCompletionMode: "EACH",
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">Each</span> — everyone
+                        must mark done
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                      <input
+                        type="radio"
+                        name="task-assignee-mode"
+                        className="mt-1"
+                        checked={editor.assigneeCompletionMode === "ANY"}
+                        disabled={isPending}
+                        onChange={() =>
+                          setEditor((s) => ({
+                            ...s,
+                            assigneeCompletionMode: "ANY",
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">Any</span> — one person
+                        can complete for everyone
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
