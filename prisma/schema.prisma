@@ -72,6 +72,8 @@ model EventTask {
   title           String
   notes           String?
   status          EventTaskStatus   @default(TO_DO)
+  /// * ANY = one assignee may complete for everyone (multi-assignee). EACH = all must mark done.
+  assigneeCompletionMode EventTaskAssigneeCompletionMode @default(EACH) @map("assignee_completion_mode")
   dueDate         DateTime?         @db.Timestamptz(3) @map("due_date")
   /// * IANA zone for interpreting/displaying `dueDate` (wall time).
   dueDateTimeZone String?           @map("due_date_time_zone")
@@ -409,4 +411,9 @@ enum EventTaskStatus {
   TO_DO
   IN_PROGRESS
   DONE
+}
+
+enum EventTaskAssigneeCompletionMode {
+  ANY
+  EACH
 }

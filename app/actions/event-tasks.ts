@@ -1,6 +1,12 @@
 "use server";
 
-import { EventTaskStatus, Prisma } from "@prisma/client";
+import {
+  EventTaskAssigneeCompletionMode,
+  EventTaskStatus,
+  Prisma,
+} from "@prisma/client";
+
+export type { EventTaskAssigneeCompletionMode } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getEventForUser } from "@/lib/events";
 import { enqueueNotification } from "@/lib/notifications";
@@ -27,6 +33,7 @@ export type EventTaskRow = {
   title: string;
   notes: string | null;
   status: EventTaskStatus;
+  assigneeCompletionMode: EventTaskAssigneeCompletionMode;
   /** ISO instant (UTC) or null. */
   dueDate: string | null;
   /** IANA zone used to interpret/display `dueDate` (wall time). */
@@ -38,7 +45,27 @@ export type EventTaskRow = {
   assignments: TaskAssignmentRow[];
 };
 
-export type TaskView = "GROUP_OPEN" | "GROUP_DONE" | "USER_OPEN" | "USER_DONE";
+/**
+ * Task status filter for the list. ALL = any status (same as all three checked).
+ * SET = task.status must be one of the listed values (non-empty).
+ */
+export type TaskListStatusFilter =
+  | { kind: "ALL" }
+  | { kind: "SET"; statuses: EventTaskStatus[] };
+
+/** Default list filter: To-do + In progress (same as legacy “Open”). */
+export const DEFAULT_TASK_LIST_OPEN_STATUS_FILTER = {
+  kind: "SET" as const,
+  statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+} satisfies TaskListStatusFilter;
+
+/**
+ * User slice for the task list. ALL = every event task (subject to status).
+ * MEMBERS = tasks tied to those event memberships (see spec §3.5).
+ */
+export type TaskListUserFilter =
+  | { kind: "ALL" }
+  | { kind: "MEMBERS"; eventMemberIds: string[] };
 
 export type ListEventTasksResult =
   | {
@@ -100,6 +127,7 @@ function taskToRow(t: {
   title: string;
   notes: string | null;
   status: EventTaskStatus;
+  assigneeCompletionMode: EventTaskAssigneeCompletionMode;
   dueDate: Date | null;
   dueDateTimeZone: string | null;
   sortOrder: number;
@@ -122,6 +150,7 @@ function taskToRow(t: {
     title: t.title,
     notes: t.notes,
     status: t.status,
+    assigneeCompletionMode: t.assigneeCompletionMode,
     dueDate: toIso(t.dueDate),
     dueDateTimeZone: t.dueDateTimeZone,
     sortOrder: t.sortOrder,
@@ -141,6 +170,37 @@ function taskToRow(t: {
   };
 }
 
+/** Single assignee or legacy rows: treat as EACH. */
+function effectiveAssigneeMode(
+  assigneeCount: number,
+  mode: EventTaskAssigneeCompletionMode,
+): EventTaskAssigneeCompletionMode {
+  return assigneeCount < 2 ? EventTaskAssigneeCompletionMode.EACH : mode;
+}
+
+async function normalizeAssigneeCompletionMode(
+  tx: Prisma.TransactionClient,
+  taskId: string,
+) {
+  const task = await tx.eventTask.findUnique({
+    where: { id: taskId },
+    select: {
+      assigneeCompletionMode: true,
+      assignments: { select: { id: true } },
+    },
+  });
+  if (!task) return;
+  if (
+    task.assignments.length < 2 &&
+    task.assigneeCompletionMode === EventTaskAssigneeCompletionMode.ANY
+  ) {
+    await tx.eventTask.update({
+      where: { id: taskId },
+      data: { assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH },
+    });
+  }
+}
+
 async function recomputeOverallStatus(
   tx: Prisma.TransactionClient,
   taskId: string,
@@ -150,79 +210,238 @@ async function recomputeOverallStatus(
     select: {
       id: true,
       status: true,
+      assigneeCompletionMode: true,
       assignments: { select: { doneAt: true } },
     },
   });
   if (!task) return;
 
   const assignedCount = task.assignments.length;
-  const allDone =
-    assignedCount === 0
-      ? null
-      : task.assignments.every((a) => a.doneAt != null);
+  const mode = effectiveAssigneeMode(
+    assignedCount,
+    task.assigneeCompletionMode,
+  );
 
-  if (assignedCount > 0 && allDone === true) {
-    if (task.status !== EventTaskStatus.DONE) {
+  if (mode === EventTaskAssigneeCompletionMode.EACH) {
+    const allDone =
+      assignedCount === 0
+        ? null
+        : task.assignments.every((a) => a.doneAt != null);
+
+    if (assignedCount > 0 && allDone === true) {
+      if (task.status !== EventTaskStatus.DONE) {
+        await tx.eventTask.update({
+          where: { id: taskId },
+          data: { status: EventTaskStatus.DONE },
+        });
+      }
+      await normalizeAssigneeCompletionMode(tx, taskId);
+      return;
+    }
+
+    if (task.status === EventTaskStatus.DONE && allDone === false) {
       await tx.eventTask.update({
         where: { id: taskId },
-        data: { status: EventTaskStatus.DONE },
+        data: { status: EventTaskStatus.IN_PROGRESS },
       });
     }
+    await normalizeAssigneeCompletionMode(tx, taskId);
     return;
   }
 
-  if (task.status === EventTaskStatus.DONE && allDone === false) {
-    await tx.eventTask.update({
-      where: { id: taskId },
-      data: { status: EventTaskStatus.IN_PROGRESS },
+  // ANY (multi-assignee): overall DONE is not derived from every doneAt; do not
+  // reopen DONE when a new assignee has no doneAt (spec §4, ANY).
+  await normalizeAssigneeCompletionMode(tx, taskId);
+}
+
+/** Resolved status constraint: null = no filter (all statuses). */
+function statusesForQuery(
+  statusFilter: TaskListStatusFilter,
+): EventTaskStatus[] | null {
+  if (statusFilter.kind === "ALL") return null;
+  const u = Array.from(
+    new Set((statusFilter.statuses ?? []).filter(Boolean)),
+  ) as EventTaskStatus[];
+  if (u.length === 0) {
+    return [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS];
+  }
+  const all = [
+    EventTaskStatus.TO_DO,
+    EventTaskStatus.IN_PROGRESS,
+    EventTaskStatus.DONE,
+  ];
+  if (u.length === all.length && all.every((s) => u.includes(s))) {
+    return null;
+  }
+  return u;
+}
+
+function isMemberOpenDefaultSet(statuses: EventTaskStatus[]): boolean {
+  return (
+    statuses.length === 2 &&
+    statuses.includes(EventTaskStatus.TO_DO) &&
+    statuses.includes(EventTaskStatus.IN_PROGRESS)
+  );
+}
+
+function isMemberDoneOnlySet(statuses: EventTaskStatus[]): boolean {
+  return statuses.length === 1 && statuses[0] === EventTaskStatus.DONE;
+}
+
+function taskListWhere(
+  eventId: string,
+  statusFilter: TaskListStatusFilter,
+  userFilter: TaskListUserFilter,
+  memberIds: string[],
+): Prisma.EventTaskWhereInput {
+  const statuses = statusesForQuery(statusFilter);
+
+  if (userFilter.kind === "ALL") {
+    if (statuses == null) {
+      return { eventId };
+    }
+    return { eventId, status: { in: statuses } };
+  }
+
+  const ids = Array.from(new Set(memberIds.filter(Boolean)));
+  if (ids.length === 0) {
+    return { eventId, id: { in: [] } };
+  }
+
+  const eachOpen: Prisma.EventTaskWhereInput = {
+    assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
+    assignments: {
+      some: { eventMemberId: { in: ids }, doneAt: null },
+    },
+  };
+  const anyOpen: Prisma.EventTaskWhereInput = {
+    assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
+    assignments: { some: { eventMemberId: { in: ids } } },
+  };
+
+  if (statuses == null) {
+    return {
+      eventId,
+      OR: [
+        { OR: [eachOpen, anyOpen] },
+        {
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
+          assignments: {
+            some: { eventMemberId: { in: ids }, doneAt: { not: null } },
+          },
+        },
+        {
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
+          status: EventTaskStatus.DONE,
+          assignments: { some: { eventMemberId: { in: ids } } },
+        },
+      ],
+    };
+  }
+
+  // Legacy “User + Open” / “User + Done” slices (spec §3.5) — keep exact semantics.
+  if (isMemberOpenDefaultSet(statuses)) {
+    return {
+      eventId,
+      status: {
+        in: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+      },
+      OR: [eachOpen, anyOpen],
+    };
+  }
+
+  if (isMemberDoneOnlySet(statuses)) {
+    return {
+      eventId,
+      OR: [
+        {
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
+          assignments: {
+            some: {
+              eventMemberId: { in: ids },
+              doneAt: { not: null },
+            },
+          },
+        },
+        {
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
+          status: EventTaskStatus.DONE,
+          assignments: { some: { eventMemberId: { in: ids } } },
+        },
+      ],
+    };
+  }
+
+  const openStatusIn = statuses.filter(
+    (s) => s === EventTaskStatus.TO_DO || s === EventTaskStatus.IN_PROGRESS,
+  );
+  const clauses: Prisma.EventTaskWhereInput[] = [];
+
+  if (openStatusIn.length > 0) {
+    clauses.push({
+      AND: [{ status: { in: openStatusIn } }, { OR: [eachOpen, anyOpen] }],
     });
   }
+
+  clauses.push({
+    AND: [
+      { assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH },
+      {
+        assignments: {
+          some: {
+            eventMemberId: { in: ids },
+            doneAt: { not: null },
+          },
+        },
+      },
+      { status: { in: statuses } },
+    ],
+  });
+
+  if (statuses.includes(EventTaskStatus.DONE)) {
+    clauses.push({
+      assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
+      status: EventTaskStatus.DONE,
+      assignments: { some: { eventMemberId: { in: ids } } },
+    });
+  }
+
+  return { eventId, OR: clauses };
 }
 
 export async function listEventTasks(
   eventId: string,
-  params: { view: TaskView; userId?: string | null } = { view: "GROUP_OPEN" },
+  params: {
+    statusFilter: TaskListStatusFilter;
+    userFilter: TaskListUserFilter;
+  } = {
+    statusFilter: DEFAULT_TASK_LIST_OPEN_STATUS_FILTER,
+    userFilter: { kind: "ALL" },
+  },
 ): Promise<ListEventTasksResult> {
   const r = await requireTaskBoardEnabled(eventId);
   if (!r.ok) return r;
 
-  const view = params.view;
-  const requestedUserId = (params.userId ?? null) || r.user.id;
-  const memberId =
-    requestedUserId === r.user.id
-      ? r.membershipId
-      : ((
-          await prisma.eventMember.findFirst({
-            where: { eventId, userId: requestedUserId },
-            select: { id: true },
-          })
-        )?.id ?? null);
+  let memberIds: string[] = [];
+  if (params.userFilter.kind === "MEMBERS") {
+    const requested = Array.from(
+      new Set((params.userFilter.eventMemberIds ?? []).filter(Boolean)),
+    );
+    if (requested.length) {
+      const rows = await prisma.eventMember.findMany({
+        where: { eventId, id: { in: requested } },
+        select: { id: true },
+      });
+      memberIds = rows.map((x) => x.id);
+    }
+  }
 
-  const where: Prisma.EventTaskWhereInput =
-    view === "GROUP_OPEN"
-      ? {
-          eventId,
-          status: { in: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS] },
-        }
-      : view === "GROUP_DONE"
-        ? { eventId, status: EventTaskStatus.DONE }
-        : view === "USER_OPEN"
-          ? memberId
-            ? {
-                eventId,
-                assignments: {
-                  some: { eventMemberId: memberId, doneAt: null },
-                },
-              }
-            : { eventId, id: { in: [] } }
-          : memberId
-            ? {
-                eventId,
-                assignments: {
-                  some: { eventMemberId: memberId, doneAt: { not: null } },
-                },
-              }
-            : { eventId, id: { in: [] } };
+  const where = taskListWhere(
+    eventId,
+    params.statusFilter,
+    params.userFilter,
+    memberIds,
+  );
 
   const tasks = await prisma.eventTask.findMany({
     where,
@@ -253,6 +472,7 @@ export async function createEventTask(params: {
   title: string;
   notes?: string | null;
   status?: EventTaskStatus;
+  assigneeCompletionMode?: EventTaskAssigneeCompletionMode;
   /** Wall-time `YYYY-MM-DDTHH:mm` in `dueDateTimeZone`. */
   dueWall?: string | null;
   /** IANA zone for interpreting `dueWall`. Defaults to event start tz. */
@@ -276,6 +496,12 @@ export async function createEventTask(params: {
 
   try {
     const created = await prisma.$transaction(async (tx) => {
+      const memberIds = (params.assignedEventMemberIds ?? []).filter(Boolean);
+      const rawMode =
+        params.assigneeCompletionMode ?? EventTaskAssigneeCompletionMode.EACH;
+      const assigneeMode =
+        memberIds.length < 2 ? EventTaskAssigneeCompletionMode.EACH : rawMode;
+
       const task = await tx.eventTask.create({
         data: {
           eventId: params.eventId,
@@ -284,12 +510,11 @@ export async function createEventTask(params: {
           dueDate,
           dueDateTimeZone: dueDate ? effectiveTz : null,
           status,
+          assigneeCompletionMode: assigneeMode,
           createdByUserId: r.user.id,
         },
         select: { id: true },
       });
-
-      const memberIds = (params.assignedEventMemberIds ?? []).filter(Boolean);
       if (memberIds.length) {
         const members = await tx.eventMember.findMany({
           where: { eventId: params.eventId, id: { in: memberIds } },
@@ -344,6 +569,7 @@ export async function updateEventTask(params: {
   title?: string;
   notes?: string | null;
   status?: EventTaskStatus;
+  assigneeCompletionMode?: EventTaskAssigneeCompletionMode;
   /** Wall-time `YYYY-MM-DDTHH:mm` in `dueDateTimeZone`. Empty/null clears due. */
   dueWall?: string | null;
   /** IANA zone for interpreting `dueWall`. Defaults to event start tz. */
@@ -395,12 +621,48 @@ export async function updateEventTask(params: {
 
   try {
     await prisma.$transaction(async (tx) => {
-      if (params.status === EventTaskStatus.DONE) {
-        const assignees = await tx.eventTaskAssignment.findMany({
+      const snap = await tx.eventTask.findUnique({
+        where: { id: params.taskId },
+        select: {
+          assigneeCompletionMode: true,
+          status: true,
+          assignments: { select: { doneAt: true } },
+        },
+      });
+      if (!snap) throw new Error("Task not found");
+
+      const anyToEachReopen =
+        params.assigneeCompletionMode ===
+          EventTaskAssigneeCompletionMode.EACH &&
+        snap.assigneeCompletionMode === EventTaskAssigneeCompletionMode.ANY &&
+        snap.status === EventTaskStatus.DONE;
+
+      if (anyToEachReopen) {
+        await tx.eventTaskAssignment.updateMany({
           where: { taskId: params.taskId },
-          select: { doneAt: true },
+          data: { doneAt: null, doneByUserId: null },
         });
-        if (assignees.length > 0 && assignees.some((a) => a.doneAt == null)) {
+        for (const a of snap.assignments) {
+          a.doneAt = null;
+        }
+      }
+
+      let statusToApply = params.status;
+      if (anyToEachReopen) {
+        statusToApply = EventTaskStatus.TO_DO;
+      }
+
+      const nextMode =
+        params.assigneeCompletionMode ?? snap.assigneeCompletionMode;
+      const assigneeCount = snap.assignments.length;
+      const effMode = effectiveAssigneeMode(assigneeCount, nextMode);
+
+      if (statusToApply === EventTaskStatus.DONE) {
+        if (
+          effMode === EventTaskAssigneeCompletionMode.EACH &&
+          assigneeCount > 0 &&
+          snap.assignments.some((a) => a.doneAt == null)
+        ) {
           throw new Error(
             "Cannot set Done until all assigned members have marked done.",
           );
@@ -414,7 +676,10 @@ export async function updateEventTask(params: {
         data.dueDate = nextDue.dueDate;
         data.dueDateTimeZone = nextDue.dueDateTimeZone;
       }
-      if (params.status !== undefined) data.status = params.status;
+      if (params.assigneeCompletionMode !== undefined) {
+        data.assigneeCompletionMode = params.assigneeCompletionMode;
+      }
+      if (statusToApply !== undefined) data.status = statusToApply;
 
       await tx.eventTask.update({
         where: { id: params.taskId },
@@ -721,6 +986,29 @@ export async function setMyTaskDone(params: {
         doneByUserId: params.done ? r.user.id : null,
       },
     });
+
+    const taskSnap = await tx.eventTask.findUnique({
+      where: { id: task.id },
+      select: {
+        assigneeCompletionMode: true,
+        assignments: { select: { doneAt: true } },
+      },
+    });
+    if (taskSnap) {
+      const n = taskSnap.assignments.length;
+      const eff = effectiveAssigneeMode(n, taskSnap.assigneeCompletionMode);
+      if (
+        eff === EventTaskAssigneeCompletionMode.ANY &&
+        params.done &&
+        n >= 2
+      ) {
+        await tx.eventTask.update({
+          where: { id: task.id },
+          data: { status: EventTaskStatus.DONE },
+        });
+      }
+    }
+
     await recomputeOverallStatus(tx, task.id);
   });
 

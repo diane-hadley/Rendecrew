@@ -8,10 +8,12 @@ import {
   normalizeTimeZone,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
+import { useDismissOnOutsidePointer } from "@/lib/use-dismiss-on-outside-pointer";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -19,14 +21,17 @@ import {
   assignEveryoneToTask,
   assignMembersToTask,
   createEventTask,
+  DEFAULT_TASK_LIST_OPEN_STATUS_FILTER,
   deleteEventTask,
   listEventTasks,
   setMyTaskDone,
   unassignMembersFromTask,
   updateEventTask,
+  type EventTaskAssigneeCompletionMode,
   type EventTaskRow,
+  type TaskListStatusFilter,
+  type TaskListUserFilter,
   type TaskMemberListItem,
-  type TaskView,
 } from "@/app/actions/event-tasks";
 
 type TaskBoardProps = {
@@ -36,9 +41,6 @@ type TaskBoardProps = {
   /** Default tz for interpreting due date wall times. */
   defaultTimeZone: string;
 };
-
-type ScopeId = "ME" | "GROUP";
-type BucketId = "OPEN" | "DONE";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -51,17 +53,14 @@ function statusLabel(s: EventTaskStatus): string {
   return s === "TO_DO" ? "To‑do" : s === "IN_PROGRESS" ? "In progress" : "Done";
 }
 
+const ALL_TASK_STATUSES: EventTaskStatus[] = ["TO_DO", "IN_PROGRESS", "DONE"];
+
 function statusPillClass(s: EventTaskStatus): string {
   if (s === "DONE")
     return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200";
   if (s === "IN_PROGRESS")
     return "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200";
   return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
-}
-
-function viewFor(scope: ScopeId, bucket: BucketId): TaskView {
-  if (scope === "GROUP") return bucket === "OPEN" ? "GROUP_OPEN" : "GROUP_DONE";
-  return bucket === "OPEN" ? "USER_OPEN" : "USER_DONE";
 }
 
 function normalizeDueWall(v: string): string | null {
@@ -76,6 +75,7 @@ type EditorState = {
   taskId: string | null;
   title: string;
   status: EventTaskStatus;
+  assigneeCompletionMode: EventTaskAssigneeCompletionMode;
   dueDate: string;
   dueTimeZone: string;
   notes: string;
@@ -93,6 +93,7 @@ function emptyEditor(
     taskId: null,
     title: "",
     status: "TO_DO",
+    assigneeCompletionMode: "EACH",
     dueDate: "",
     dueTimeZone: defaultTimeZone,
     notes: "",
@@ -116,6 +117,7 @@ function editorFromTask(
     taskId: task.id,
     title: task.title,
     status: task.status,
+    assigneeCompletionMode: task.assigneeCompletionMode,
     dueDate:
       task.dueDate && task.dueDateTimeZone
         ? utcToWallDatetimeLocal(task.dueDate, task.dueDateTimeZone)
@@ -138,8 +140,13 @@ export function TaskBoard({
     [members, currentUserId],
   );
 
-  const [scope, setScope] = useState<ScopeId>("ME");
-  const [bucket, setBucket] = useState<BucketId>("OPEN");
+  const [userFilter, setUserFilter] = useState<TaskListUserFilter>(() => {
+    const me = members.find((m) => m.userId === currentUserId)?.membershipId;
+    return me ? { kind: "MEMBERS", eventMemberIds: [me] } : { kind: "ALL" };
+  });
+  const [statusFilter, setStatusFilter] = useState<TaskListStatusFilter>(
+    DEFAULT_TASK_LIST_OPEN_STATUS_FILTER,
+  );
   const [tasks, setTasks] = useState<EventTaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,17 +155,125 @@ export function TaskBoard({
     emptyEditor(members, defaultTimeZone),
   );
   const [tzModalOpen, setTzModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  useDismissOnOutsidePointer(userMenuRef, userMenuOpen, setUserMenuOpen);
+  useDismissOnOutsidePointer(statusMenuRef, statusMenuOpen, setStatusMenuOpen);
+
+  const allMemberIds = useMemo(
+    () => members.map((m) => m.membershipId),
+    [members],
+  );
+
+  const selectedUserIds = useMemo(() => {
+    if (userFilter.kind === "ALL") return [];
+    return userFilter.eventMemberIds;
+  }, [userFilter]);
+
+  /** Whole-event slice (includes unassigned tasks); same as “everyone selected”. */
+  const isEveryoneSelected = useMemo(() => {
+    if (userFilter.kind === "ALL") return true;
+    if (allMemberIds.length === 0) return false;
+    const set = new Set(selectedUserIds);
+    return allMemberIds.every((id) => set.has(id));
+  }, [userFilter.kind, allMemberIds, selectedUserIds]);
+
+  /** Full member selection must query as ALL so unassigned tasks are included. */
+  const userFilterForList = useMemo((): TaskListUserFilter => {
+    if (userFilter.kind === "ALL") return userFilter;
+    if (
+      allMemberIds.length > 0 &&
+      selectedUserIds.length === allMemberIds.length &&
+      allMemberIds.every((id) => selectedUserIds.includes(id))
+    ) {
+      return { kind: "ALL" };
+    }
+    return userFilter;
+  }, [userFilter, allMemberIds, selectedUserIds]);
+
+  function applyUserMemberSelection(nextIds: string[]) {
+    const uniq = Array.from(new Set(nextIds.filter(Boolean)));
+    if (uniq.length === 0) {
+      if (meMembershipId) {
+        setUserFilter({ kind: "MEMBERS", eventMemberIds: [meMembershipId] });
+      } else if (allMemberIds.length) {
+        setUserFilter({ kind: "MEMBERS", eventMemberIds: [allMemberIds[0]!] });
+      } else {
+        setUserFilter({ kind: "ALL" });
+      }
+      return;
+    }
+    if (
+      allMemberIds.length > 0 &&
+      uniq.length === allMemberIds.length &&
+      allMemberIds.every((id) => uniq.includes(id))
+    ) {
+      setUserFilter({ kind: "ALL" });
+      return;
+    }
+    setUserFilter({ kind: "MEMBERS", eventMemberIds: uniq });
+  }
+
+  const selectedStatuses = useMemo((): EventTaskStatus[] => {
+    if (statusFilter.kind === "ALL") return [...ALL_TASK_STATUSES];
+    return statusFilter.statuses;
+  }, [statusFilter]);
+
+  const isAllStatusesSelected = useMemo(() => {
+    if (statusFilter.kind === "ALL") return true;
+    const s = new Set(statusFilter.statuses);
+    return ALL_TASK_STATUSES.every((x) => s.has(x));
+  }, [statusFilter]);
+
+  function applyStatusSelection(next: EventTaskStatus[]) {
+    const uniq = Array.from(new Set(next.filter(Boolean)));
+    if (uniq.length === 0) {
+      setStatusFilter(DEFAULT_TASK_LIST_OPEN_STATUS_FILTER);
+      return;
+    }
+    if (
+      uniq.length === ALL_TASK_STATUSES.length &&
+      ALL_TASK_STATUSES.every((s) => uniq.includes(s))
+    ) {
+      setStatusFilter({ kind: "ALL" });
+      return;
+    }
+    setStatusFilter({ kind: "SET", statuses: uniq });
+  }
+
+  function statusFilterTriggerLabel(): string {
+    if (statusFilter.kind === "ALL") return "All";
+    const s = statusFilter.statuses;
+    if (
+      s.length === 2 &&
+      s.includes("TO_DO") &&
+      s.includes("IN_PROGRESS") &&
+      !s.includes("DONE")
+    ) {
+      return "Open";
+    }
+    if (s.length === 1) return statusLabel(s[0]!);
+    return `${s.length} selected`;
+  }
 
   const refresh = useCallback(
-    (next?: { scope?: ScopeId; bucket?: BucketId }) => {
-      const s = next?.scope ?? scope;
-      const b = next?.bucket ?? bucket;
-      const view = viewFor(s, b);
+    (next?: {
+      userFilter?: TaskListUserFilter;
+      statusFilter?: TaskListStatusFilter;
+    }) => {
+      const uf = next?.userFilter ?? userFilterForList;
+      const sf = next?.statusFilter ?? statusFilter;
 
       setLoading(true);
       setError(null);
       startTransition(async () => {
-        const r = await listEventTasks(eventId, { view });
+        const r = await listEventTasks(eventId, {
+          statusFilter: sf,
+          userFilter: uf,
+        });
         if (!r.ok) {
           setError(r.error);
           setTasks([]);
@@ -169,7 +284,7 @@ export function TaskBoard({
         setLoading(false);
       });
     },
-    [eventId, scope, bucket],
+    [eventId, userFilterForList, statusFilter],
   );
 
   useEffect(() => {
@@ -213,6 +328,8 @@ export function TaskBoard({
     const dueTz = normalizeTimeZone(editor.dueTimeZone, defaultTimeZone);
 
     const assigneeIds = selectedAssigneeIds();
+    const completionMode: EventTaskAssigneeCompletionMode =
+      assigneeIds.length >= 2 ? editor.assigneeCompletionMode : "EACH";
 
     startTransition(async () => {
       if (!editor.taskId) {
@@ -220,6 +337,7 @@ export function TaskBoard({
           eventId,
           title,
           status: editor.status,
+          assigneeCompletionMode: completionMode,
           dueWall,
           dueDateTimeZone: dueWall ? dueTz : null,
           notes: editor.notes || null,
@@ -239,6 +357,7 @@ export function TaskBoard({
         taskId,
         title,
         status: editor.status,
+        assigneeCompletionMode: completionMode,
         dueWall,
         dueDateTimeZone: dueWall ? dueTz : null,
         notes: editor.notes || null,
@@ -324,36 +443,166 @@ export function TaskBoard({
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(["ME", "GROUP"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setScope(s)}
-            className={
-              scope === s
-                ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            }
-          >
-            {s === "ME" ? "Me" : "Group"}
-          </button>
-        ))}
-        <div className="mx-1 w-px bg-gray-200 dark:bg-gray-700" />
-        {(["OPEN", "DONE"] as const).map((b) => (
-          <button
-            key={b}
-            type="button"
-            onClick={() => setBucket(b)}
-            className={
-              bucket === b
-                ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            }
-          >
-            {b === "OPEN" ? "Open" : "Done"}
-          </button>
-        ))}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+            User
+          </span>
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              className="inline-flex w-full min-w-[14rem] items-center justify-between gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+              onClick={() => setUserMenuOpen((v) => !v)}
+            >
+              <span className="truncate">
+                {isEveryoneSelected
+                  ? "All"
+                  : selectedUserIds.length === 1 &&
+                      selectedUserIds[0] === meMembershipId
+                    ? "Me"
+                    : selectedUserIds.length
+                      ? `${selectedUserIds.length} selected`
+                      : "Choose…"}
+              </span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                ▾
+              </span>
+            </button>
+
+            {userMenuOpen ? (
+              <div className="absolute left-0 z-20 mt-2 w-full rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    if (isEveryoneSelected) {
+                      applyUserMemberSelection(
+                        meMembershipId
+                          ? [meMembershipId]
+                          : allMemberIds.slice(0, 1),
+                      );
+                    } else {
+                      setUserFilter({ kind: "ALL" });
+                    }
+                  }}
+                  disabled={allMemberIds.length === 0}
+                >
+                  <span className="truncate">All</span>
+                  <span className="text-sm">
+                    {isEveryoneSelected ? "✓" : ""}
+                  </span>
+                </button>
+
+                <div className="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+
+                {members
+                  .slice()
+                  .sort((a, b) => {
+                    if (a.membershipId === meMembershipId) return -1;
+                    if (b.membershipId === meMembershipId) return 1;
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map((m) => {
+                    const checked =
+                      userFilter.kind === "ALL" ||
+                      selectedUserIds.includes(m.membershipId);
+                    return (
+                      <button
+                        key={m.membershipId}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => {
+                          if (userFilter.kind === "ALL") {
+                            applyUserMemberSelection([m.membershipId]);
+                            return;
+                          }
+                          const next = new Set(selectedUserIds);
+                          if (next.has(m.membershipId))
+                            next.delete(m.membershipId);
+                          else next.add(m.membershipId);
+                          applyUserMemberSelection(Array.from(next));
+                        }}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="inline-flex size-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                            {initials(m.name)}
+                          </span>
+                          <span className="min-w-0 truncate">
+                            {m.membershipId === meMembershipId ? "Me" : m.name}
+                          </span>
+                        </span>
+                        <span className="text-sm">{checked ? "✓" : ""}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+            Status
+          </span>
+          <div className="relative" ref={statusMenuRef}>
+            <button
+              type="button"
+              className="inline-flex w-full min-w-[14rem] items-center justify-between gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+              onClick={() => setStatusMenuOpen((v) => !v)}
+            >
+              <span className="truncate">{statusFilterTriggerLabel()}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                ▾
+              </span>
+            </button>
+
+            {statusMenuOpen ? (
+              <div className="absolute left-0 z-20 mt-2 w-full rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    if (isAllStatusesSelected) {
+                      applyStatusSelection(["TO_DO", "IN_PROGRESS"]);
+                    } else {
+                      setStatusFilter({ kind: "ALL" });
+                    }
+                  }}
+                >
+                  <span className="truncate">All</span>
+                  <span className="text-sm">
+                    {isAllStatusesSelected ? "✓" : ""}
+                  </span>
+                </button>
+
+                <div className="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+
+                {ALL_TASK_STATUSES.map((st) => {
+                  const checked = selectedStatuses.includes(st);
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        if (statusFilter.kind === "ALL") {
+                          applyStatusSelection([st]);
+                          return;
+                        }
+                        const next = new Set(statusFilter.statuses);
+                        if (next.has(st)) next.delete(st);
+                        else next.add(st);
+                        applyStatusSelection(Array.from(next));
+                      }}
+                    >
+                      <span className="truncate">{statusLabel(st)}</span>
+                      <span className="text-sm">{checked ? "✓" : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -411,6 +660,10 @@ export function TaskBoard({
                   const myDone = myAssignment?.doneAt != null;
                   const hasAssignees = t.assignments.length > 0;
                   const showMyToggle = myAssignment != null;
+                  const multiAssignee = t.assignments.length >= 2;
+                  const completionMode: EventTaskAssigneeCompletionMode =
+                    !multiAssignee ? "EACH" : t.assigneeCompletionMode;
+                  const isAnyMode = completionMode === "ANY";
 
                   return (
                     <tr
@@ -455,11 +708,17 @@ export function TaskBoard({
                               <span
                                 key={a.id}
                                 className={
-                                  a.doneAt
-                                    ? "inline-flex size-7 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200"
-                                    : "inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+                                  isAnyMode
+                                    ? "inline-flex size-7 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                                    : a.doneAt
+                                      ? "inline-flex size-7 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                                      : "inline-flex size-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
                                 }
-                                title={`${a.eventMember.name}${a.doneAt ? " (done)" : ""}`}
+                                title={
+                                  isAnyMode
+                                    ? a.eventMember.name
+                                    : `${a.eventMember.name}${a.doneAt ? " (done)" : ""}`
+                                }
                               >
                                 {initials(a.eventMember.name)}
                               </span>
@@ -483,7 +742,9 @@ export function TaskBoard({
                                   toggleMyDone(t.id, e.target.checked)
                                 }
                               />
-                              Done for me
+                              {isAnyMode && multiAssignee
+                                ? "Mark complete"
+                                : "Done for me"}
                             </label>
                           ) : null}
                           <button
@@ -648,6 +909,58 @@ export function TaskBoard({
                   ))}
                 </div>
               </div>
+
+              {Object.values(editor.assignees).filter(Boolean).length >= 2 ? (
+                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                    How completion works
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    Each: everyone must mark done. Any: one person can complete
+                    for everyone.
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                      <input
+                        type="radio"
+                        name="task-assignee-mode"
+                        className="mt-1"
+                        checked={editor.assigneeCompletionMode === "EACH"}
+                        disabled={isPending}
+                        onChange={() =>
+                          setEditor((s) => ({
+                            ...s,
+                            assigneeCompletionMode: "EACH",
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">Each</span> — everyone
+                        must mark done
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+                      <input
+                        type="radio"
+                        name="task-assignee-mode"
+                        className="mt-1"
+                        checked={editor.assigneeCompletionMode === "ANY"}
+                        disabled={isPending}
+                        onChange={() =>
+                          setEditor((s) => ({
+                            ...s,
+                            assigneeCompletionMode: "ANY",
+                          }))
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">Any</span> — one person
+                        can complete for everyone
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
