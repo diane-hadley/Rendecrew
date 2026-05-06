@@ -8,10 +8,12 @@ import {
   normalizeTimeZone,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
+import { useDismissOnOutsidePointer } from "@/lib/use-dismiss-on-outside-pointer";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -19,6 +21,7 @@ import {
   assignEveryoneToTask,
   assignMembersToTask,
   createEventTask,
+  DEFAULT_TASK_LIST_OPEN_STATUS_FILTER,
   deleteEventTask,
   listEventTasks,
   setMyTaskDone,
@@ -26,6 +29,7 @@ import {
   updateEventTask,
   type EventTaskAssigneeCompletionMode,
   type EventTaskRow,
+  type TaskListStatusFilter,
   type TaskListUserFilter,
   type TaskMemberListItem,
 } from "@/app/actions/event-tasks";
@@ -48,6 +52,8 @@ function initials(name: string): string {
 function statusLabel(s: EventTaskStatus): string {
   return s === "TO_DO" ? "To‑do" : s === "IN_PROGRESS" ? "In progress" : "Done";
 }
+
+const ALL_TASK_STATUSES: EventTaskStatus[] = ["TO_DO", "IN_PROGRESS", "DONE"];
 
 function statusPillClass(s: EventTaskStatus): string {
   if (s === "DONE")
@@ -136,9 +142,11 @@ export function TaskBoard({
 
   const [userFilter, setUserFilter] = useState<TaskListUserFilter>(() => {
     const me = members.find((m) => m.userId === currentUserId)?.membershipId;
-    return me ? { kind: "MEMBER", eventMemberId: me } : { kind: "ALL" };
+    return me ? { kind: "MEMBERS", eventMemberIds: [me] } : { kind: "ALL" };
   });
-  const [statusFilter, setStatusFilter] = useState<"OPEN" | "DONE">("OPEN");
+  const [statusFilter, setStatusFilter] = useState<TaskListStatusFilter>(
+    DEFAULT_TASK_LIST_OPEN_STATUS_FILTER,
+  );
   const [tasks, setTasks] = useState<EventTaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,13 +155,116 @@ export function TaskBoard({
     emptyEditor(members, defaultTimeZone),
   );
   const [tzModalOpen, setTzModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  useDismissOnOutsidePointer(userMenuRef, userMenuOpen, setUserMenuOpen);
+  useDismissOnOutsidePointer(statusMenuRef, statusMenuOpen, setStatusMenuOpen);
+
+  const allMemberIds = useMemo(
+    () => members.map((m) => m.membershipId),
+    [members],
+  );
+
+  const selectedUserIds = useMemo(() => {
+    if (userFilter.kind === "ALL") return [];
+    return userFilter.eventMemberIds;
+  }, [userFilter]);
+
+  /** Whole-event slice (includes unassigned tasks); same as “everyone selected”. */
+  const isEveryoneSelected = useMemo(() => {
+    if (userFilter.kind === "ALL") return true;
+    if (allMemberIds.length === 0) return false;
+    const set = new Set(selectedUserIds);
+    return allMemberIds.every((id) => set.has(id));
+  }, [userFilter.kind, allMemberIds, selectedUserIds]);
+
+  /** Full member selection must query as ALL so unassigned tasks are included. */
+  const userFilterForList = useMemo((): TaskListUserFilter => {
+    if (userFilter.kind === "ALL") return userFilter;
+    if (
+      allMemberIds.length > 0 &&
+      selectedUserIds.length === allMemberIds.length &&
+      allMemberIds.every((id) => selectedUserIds.includes(id))
+    ) {
+      return { kind: "ALL" };
+    }
+    return userFilter;
+  }, [userFilter, allMemberIds, selectedUserIds]);
+
+  function applyUserMemberSelection(nextIds: string[]) {
+    const uniq = Array.from(new Set(nextIds.filter(Boolean)));
+    if (uniq.length === 0) {
+      if (meMembershipId) {
+        setUserFilter({ kind: "MEMBERS", eventMemberIds: [meMembershipId] });
+      } else if (allMemberIds.length) {
+        setUserFilter({ kind: "MEMBERS", eventMemberIds: [allMemberIds[0]!] });
+      } else {
+        setUserFilter({ kind: "ALL" });
+      }
+      return;
+    }
+    if (
+      allMemberIds.length > 0 &&
+      uniq.length === allMemberIds.length &&
+      allMemberIds.every((id) => uniq.includes(id))
+    ) {
+      setUserFilter({ kind: "ALL" });
+      return;
+    }
+    setUserFilter({ kind: "MEMBERS", eventMemberIds: uniq });
+  }
+
+  const selectedStatuses = useMemo((): EventTaskStatus[] => {
+    if (statusFilter.kind === "ALL") return [...ALL_TASK_STATUSES];
+    return statusFilter.statuses;
+  }, [statusFilter]);
+
+  const isAllStatusesSelected = useMemo(() => {
+    if (statusFilter.kind === "ALL") return true;
+    const s = new Set(statusFilter.statuses);
+    return ALL_TASK_STATUSES.every((x) => s.has(x));
+  }, [statusFilter]);
+
+  function applyStatusSelection(next: EventTaskStatus[]) {
+    const uniq = Array.from(new Set(next.filter(Boolean)));
+    if (uniq.length === 0) {
+      setStatusFilter(DEFAULT_TASK_LIST_OPEN_STATUS_FILTER);
+      return;
+    }
+    if (
+      uniq.length === ALL_TASK_STATUSES.length &&
+      ALL_TASK_STATUSES.every((s) => uniq.includes(s))
+    ) {
+      setStatusFilter({ kind: "ALL" });
+      return;
+    }
+    setStatusFilter({ kind: "SET", statuses: uniq });
+  }
+
+  function statusFilterTriggerLabel(): string {
+    if (statusFilter.kind === "ALL") return "All";
+    const s = statusFilter.statuses;
+    if (
+      s.length === 2 &&
+      s.includes("TO_DO") &&
+      s.includes("IN_PROGRESS") &&
+      !s.includes("DONE")
+    ) {
+      return "Open";
+    }
+    if (s.length === 1) return statusLabel(s[0]!);
+    return `${s.length} selected`;
+  }
 
   const refresh = useCallback(
     (next?: {
       userFilter?: TaskListUserFilter;
-      statusFilter?: "OPEN" | "DONE";
+      statusFilter?: TaskListStatusFilter;
     }) => {
-      const uf = next?.userFilter ?? userFilter;
+      const uf = next?.userFilter ?? userFilterForList;
       const sf = next?.statusFilter ?? statusFilter;
 
       setLoading(true);
@@ -173,7 +284,7 @@ export function TaskBoard({
         setLoading(false);
       });
     },
-    [eventId, userFilter, statusFilter],
+    [eventId, userFilterForList, statusFilter],
   );
 
   useEffect(() => {
@@ -337,54 +448,159 @@ export function TaskBoard({
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
             User
           </span>
-          <select
-            value={
-              userFilter.kind === "ALL"
-                ? "__all__"
-                : userFilter.eventMemberId
-            }
-            onChange={(e) => {
-              const v = e.target.value;
-              const next: TaskListUserFilter =
-                v === "__all__"
-                  ? { kind: "ALL" }
-                  : { kind: "MEMBER", eventMemberId: v };
-              setUserFilter(next);
-            }}
-            className="min-w-[12rem] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100"
-          >
-            <option value="__all__">All</option>
-            {meMembershipId ? (
-              <option value={meMembershipId}>Me</option>
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              className="inline-flex w-full min-w-[14rem] items-center justify-between gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+              onClick={() => setUserMenuOpen((v) => !v)}
+            >
+              <span className="truncate">
+                {isEveryoneSelected
+                  ? "All"
+                  : selectedUserIds.length === 1 &&
+                      selectedUserIds[0] === meMembershipId
+                    ? "Me"
+                    : selectedUserIds.length
+                      ? `${selectedUserIds.length} selected`
+                      : "Choose…"}
+              </span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                ▾
+              </span>
+            </button>
+
+            {userMenuOpen ? (
+              <div className="absolute left-0 z-20 mt-2 w-full rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    if (isEveryoneSelected) {
+                      applyUserMemberSelection(
+                        meMembershipId
+                          ? [meMembershipId]
+                          : allMemberIds.slice(0, 1),
+                      );
+                    } else {
+                      setUserFilter({ kind: "ALL" });
+                    }
+                  }}
+                  disabled={allMemberIds.length === 0}
+                >
+                  <span className="truncate">All</span>
+                  <span className="text-sm">
+                    {isEveryoneSelected ? "✓" : ""}
+                  </span>
+                </button>
+
+                <div className="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+
+                {members
+                  .slice()
+                  .sort((a, b) => {
+                    if (a.membershipId === meMembershipId) return -1;
+                    if (b.membershipId === meMembershipId) return 1;
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map((m) => {
+                    const checked =
+                      userFilter.kind === "ALL" ||
+                      selectedUserIds.includes(m.membershipId);
+                    return (
+                      <button
+                        key={m.membershipId}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => {
+                          if (userFilter.kind === "ALL") {
+                            applyUserMemberSelection([m.membershipId]);
+                            return;
+                          }
+                          const next = new Set(selectedUserIds);
+                          if (next.has(m.membershipId))
+                            next.delete(m.membershipId);
+                          else next.add(m.membershipId);
+                          applyUserMemberSelection(Array.from(next));
+                        }}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="inline-flex size-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                            {initials(m.name)}
+                          </span>
+                          <span className="min-w-0 truncate">
+                            {m.membershipId === meMembershipId ? "Me" : m.name}
+                          </span>
+                        </span>
+                        <span className="text-sm">{checked ? "✓" : ""}</span>
+                      </button>
+                    );
+                  })}
+              </div>
             ) : null}
-            {members
-              .filter((m) => m.membershipId !== meMembershipId)
-              .map((m) => (
-                <option key={m.membershipId} value={m.membershipId}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
+          </div>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
             Status
           </span>
-          <div className="flex flex-wrap gap-2">
-            {(["OPEN", "DONE"] as const).map((b) => (
-              <button
-                key={b}
-                type="button"
-                onClick={() => setStatusFilter(b)}
-                className={
-                  statusFilter === b
-                    ? "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
-                    : "rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                }
-              >
-                {b === "OPEN" ? "Open" : "Done"}
-              </button>
-            ))}
+          <div className="relative" ref={statusMenuRef}>
+            <button
+              type="button"
+              className="inline-flex w-full min-w-[14rem] items-center justify-between gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
+              onClick={() => setStatusMenuOpen((v) => !v)}
+            >
+              <span className="truncate">{statusFilterTriggerLabel()}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                ▾
+              </span>
+            </button>
+
+            {statusMenuOpen ? (
+              <div className="absolute left-0 z-20 mt-2 w-full rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    if (isAllStatusesSelected) {
+                      applyStatusSelection(["TO_DO", "IN_PROGRESS"]);
+                    } else {
+                      setStatusFilter({ kind: "ALL" });
+                    }
+                  }}
+                >
+                  <span className="truncate">All</span>
+                  <span className="text-sm">
+                    {isAllStatusesSelected ? "✓" : ""}
+                  </span>
+                </button>
+
+                <div className="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+
+                {ALL_TASK_STATUSES.map((st) => {
+                  const checked = selectedStatuses.includes(st);
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        if (statusFilter.kind === "ALL") {
+                          applyStatusSelection([st]);
+                          return;
+                        }
+                        const next = new Set(statusFilter.statuses);
+                        if (next.has(st)) next.delete(st);
+                        else next.add(st);
+                        applyStatusSelection(Array.from(next));
+                      }}
+                    >
+                      <span className="truncate">{statusLabel(st)}</span>
+                      <span className="text-sm">{checked ? "✓" : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

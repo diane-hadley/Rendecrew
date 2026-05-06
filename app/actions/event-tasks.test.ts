@@ -1,4 +1,7 @@
-import { EventTaskAssigneeCompletionMode, EventTaskStatus } from "@prisma/client";
+import {
+  EventTaskAssigneeCompletionMode,
+  EventTaskStatus,
+} from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { revalidatePath, transaction } = vi.hoisted(() => ({
@@ -60,29 +63,24 @@ describe("listEventTasks", () => {
       },
       role: "member",
     } as never);
-    vi.mocked(prisma.eventMember.findFirst).mockImplementation((args) => {
-      const w = args?.where as {
-        userId?: string;
-        id?: string;
-        eventId?: string;
-      };
-      if (w?.userId != null) {
-        return Promise.resolve({ id: "m-self" } as never);
-      }
-      if (w?.id === "m1") {
-        return Promise.resolve({ id: "m1" } as never);
-      }
-      if (w?.id === "ghost") {
-        return Promise.resolve(null);
-      }
-      return Promise.resolve(null);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+    vi.mocked(prisma.eventMember.findMany).mockImplementation((args) => {
+      const ids = ((args?.where as { id?: { in?: string[] } })?.id?.in ??
+        []) as string[];
+      if (ids.includes("m1")) return Promise.resolve([{ id: "m1" }] as never);
+      return Promise.resolve([] as never);
     });
     vi.mocked(prisma.eventTask.findMany).mockResolvedValue([] as never);
   });
 
   it("uses All + Open: event tasks not done", async () => {
     const r = await listEventTasks("e1", {
-      statusFilter: "OPEN",
+      statusFilter: {
+        kind: "SET",
+        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+      },
       userFilter: { kind: "ALL" },
     });
     expect(r.ok).toBe(true);
@@ -100,12 +98,15 @@ describe("listEventTasks", () => {
 
   it("uses member slice + Open with EACH/ANY OR (spec §3.5)", async () => {
     const r = await listEventTasks("e1", {
-      statusFilter: "OPEN",
-      userFilter: { kind: "MEMBER", eventMemberId: "m1" },
+      statusFilter: {
+        kind: "SET",
+        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+      },
+      userFilter: { kind: "MEMBERS", eventMemberIds: ["m1"] },
     });
     expect(r.ok).toBe(true);
-    expect(prisma.eventMember.findFirst).toHaveBeenCalledWith({
-      where: { id: "m1", eventId: "e1" },
+    expect(prisma.eventMember.findMany).toHaveBeenCalledWith({
+      where: { eventId: "e1", id: { in: ["m1"] } },
       select: { id: true },
     });
     expect(prisma.eventTask.findMany).toHaveBeenCalledWith(
@@ -119,12 +120,12 @@ describe("listEventTasks", () => {
             {
               assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
               assignments: {
-                some: { eventMemberId: "m1", doneAt: null },
+                some: { eventMemberId: { in: ["m1"] }, doneAt: null },
               },
             },
             {
               assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
-              assignments: { some: { eventMemberId: "m1" } },
+              assignments: { some: { eventMemberId: { in: ["m1"] } } },
             },
           ],
         },
@@ -134,8 +135,8 @@ describe("listEventTasks", () => {
 
   it("User + Done: EACH row-done vs ANY overall-done (spec §3.5)", async () => {
     const r = await listEventTasks("e1", {
-      statusFilter: "DONE",
-      userFilter: { kind: "MEMBER", eventMemberId: "m1" },
+      statusFilter: { kind: "SET", statuses: [EventTaskStatus.DONE] },
+      userFilter: { kind: "MEMBERS", eventMemberIds: ["m1"] },
     });
     expect(r.ok).toBe(true);
     expect(prisma.eventTask.findMany).toHaveBeenCalledWith(
@@ -146,13 +147,13 @@ describe("listEventTasks", () => {
             {
               assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
               assignments: {
-                some: { eventMemberId: "m1", doneAt: { not: null } },
+                some: { eventMemberId: { in: ["m1"] }, doneAt: { not: null } },
               },
             },
             {
               assigneeCompletionMode: EventTaskAssigneeCompletionMode.ANY,
               status: EventTaskStatus.DONE,
-              assignments: { some: { eventMemberId: "m1" } },
+              assignments: { some: { eventMemberId: { in: ["m1"] } } },
             },
           ],
         },
@@ -161,10 +162,12 @@ describe("listEventTasks", () => {
   });
 
   it("returns no tasks when member id is not in the event", async () => {
-    vi.mocked(prisma.eventMember.findFirst).mockResolvedValueOnce(null as never);
     const r = await listEventTasks("e1", {
-      statusFilter: "OPEN",
-      userFilter: { kind: "MEMBER", eventMemberId: "ghost" },
+      statusFilter: {
+        kind: "SET",
+        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+      },
+      userFilter: { kind: "MEMBERS", eventMemberIds: ["ghost"] },
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.tasks).toEqual([]);
