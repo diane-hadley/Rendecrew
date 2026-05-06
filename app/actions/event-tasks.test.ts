@@ -29,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
       delete: vi.fn(),
     },
     eventTaskAssignment: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       createMany: vi.fn(),
       update: vi.fn(),
@@ -49,7 +50,16 @@ vi.mock("@/lib/user", () => ({
 import { prisma } from "@/lib/prisma";
 import { getEventForUser } from "@/lib/events";
 import { getOrCreateUser } from "@/lib/user";
-import { listEventTasks, updateEventTask } from "./event-tasks";
+import {
+  assignEveryoneToTask,
+  assignMembersToTask,
+  createEventTask,
+  deleteEventTask,
+  listEventTasks,
+  setMyTaskDone,
+  unassignMembersFromTask,
+  updateEventTask,
+} from "./event-tasks";
 
 describe("listEventTasks", () => {
   beforeEach(() => {
@@ -176,6 +186,72 @@ describe("listEventTasks", () => {
         where: { eventId: "e1", id: { in: [] } },
       }),
     );
+  });
+
+  it("defaults to ALL users and open status when params omitted", async () => {
+    const r = await listEventTasks("e1");
+    expect(r.ok).toBe(true);
+    expect(prisma.eventTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          eventId: "e1",
+          status: {
+            in: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+          },
+        },
+      }),
+    );
+  });
+
+  it("ALL status + ALL users omits status predicate", async () => {
+    const r = await listEventTasks("e1", {
+      statusFilter: { kind: "ALL" },
+      userFilter: { kind: "ALL" },
+    });
+    expect(r.ok).toBe(true);
+    expect(prisma.eventTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: "e1" },
+      }),
+    );
+  });
+
+  it("ALL status + MEMBERS uses broad assignee OR", async () => {
+    const r = await listEventTasks("e1", {
+      statusFilter: { kind: "ALL" },
+      userFilter: { kind: "MEMBERS", eventMemberIds: ["m1"] },
+    });
+    expect(r.ok).toBe(true);
+    expect(prisma.eventTask.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          eventId: "e1",
+          OR: expect.any(Array),
+        }),
+      }),
+    );
+  });
+
+  it("returns error when event not found", async () => {
+    vi.mocked(getEventForUser).mockResolvedValue(null as never);
+    const r = await listEventTasks("e1");
+    expect(r).toEqual({ ok: false, error: "Event not found" });
+  });
+
+  it("returns error when task board is disabled", async () => {
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "UTC",
+        taskBoardEnabled: false,
+      },
+      role: "member",
+    } as never);
+    const r = await listEventTasks("e1");
+    expect(r).toEqual({
+      ok: false,
+      error: "Task board is disabled for this event",
+    });
   });
 });
 
@@ -325,5 +401,273 @@ describe("updateEventTask (assignee completion mode)", () => {
         }),
       }),
     );
+  });
+
+  it("rejects empty title", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValueOnce({
+      id: "t1",
+      eventId: "e1",
+    } as never);
+    const r = await updateEventTask({ taskId: "t1", title: "  " });
+    expect(r).toEqual({ ok: false, error: "Title is required" });
+  });
+});
+
+describe("createEventTask", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+  });
+
+  it("rejects empty title", async () => {
+    const r = await createEventTask({ eventId: "e1", title: "   " });
+    expect(r).toEqual({ ok: false, error: "Title is required" });
+  });
+
+  it("creates task without assignees and revalidates", async () => {
+    const mockTx = {
+      eventTask: {
+        create: vi.fn().mockResolvedValue({ id: "t-new" }),
+        findUnique: vi.fn().mockResolvedValue({
+          id: "t-new",
+          status: EventTaskStatus.TO_DO,
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
+          assignments: [],
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      eventMember: {
+        findMany: vi.fn(),
+      },
+      eventTaskAssignment: {
+        createMany: vi.fn(),
+      },
+    };
+    transaction.mockImplementation(
+      async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx),
+    );
+
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue({
+      title: "Hello",
+      event: { title: "Party" },
+      assignments: [],
+    } as never);
+
+    const r = await createEventTask({ eventId: "e1", title: "Hello" });
+    expect(r).toEqual({ ok: true, taskId: "t-new" });
+    expect(mockTx.eventTask.create).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
+    expect(mockTx.eventMember.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteEventTask", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+  });
+
+  it("returns error when task not found", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue(null);
+    const r = await deleteEventTask("missing");
+    expect(r).toEqual({ ok: false, error: "Task not found" });
+  });
+
+  it("deletes task and revalidates", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue({
+      id: "t1",
+      eventId: "e1",
+      title: "T",
+      event: { title: "E" },
+      assignments: [{ eventMember: { userId: "u2" } }],
+    } as never);
+    vi.mocked(prisma.eventTask.delete).mockResolvedValue({} as never);
+
+    const r = await deleteEventTask("t1");
+    expect(r).toEqual({ ok: true });
+    expect(prisma.eventTask.delete).toHaveBeenCalledWith({
+      where: { id: "t1" },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
+  });
+});
+
+describe("assignMembersToTask", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+  });
+
+  it("no-ops when member id list is empty", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue({
+      id: "t1",
+      eventId: "e1",
+    } as never);
+    const r = await assignMembersToTask({
+      taskId: "t1",
+      eventMemberIds: [],
+    });
+    expect(r).toEqual({ ok: true });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("unassignMembersFromTask", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+  });
+
+  it("no-ops when member id list is empty", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue({
+      id: "t1",
+      eventId: "e1",
+    } as never);
+    const r = await unassignMembersFromTask({
+      taskId: "t1",
+      eventMemberIds: [],
+    });
+    expect(r).toEqual({ ok: true });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("assignEveryoneToTask", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m-self",
+    } as never);
+  });
+
+  it("returns error when task not found", async () => {
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue(null);
+    const r = await assignEveryoneToTask("missing");
+    expect(r).toEqual({ ok: false, error: "Task not found" });
+  });
+});
+
+describe("setMyTaskDone", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as never);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: {
+        id: "e1",
+        startAtTimeZone: "America/Los_Angeles",
+        taskBoardEnabled: true,
+      },
+      role: "member",
+    } as never);
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m1",
+    } as never);
+    vi.mocked(prisma.eventTask.findUnique).mockResolvedValue({
+      id: "t1",
+      eventId: "e1",
+    } as never);
+  });
+
+  it("returns error when user has no membership", async () => {
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue(null);
+    const r = await setMyTaskDone({ taskId: "t1", done: true });
+    expect(r).toEqual({
+      ok: false,
+      error: "You are not a member of this event",
+    });
+  });
+
+  it("returns error when user is not assigned", async () => {
+    vi.mocked(prisma.eventTaskAssignment.findFirst).mockResolvedValue(null);
+    const r = await setMyTaskDone({ taskId: "t1", done: true });
+    expect(r).toEqual({
+      ok: false,
+      error: "You are not assigned to this task",
+    });
+  });
+
+  it("marks done for single-assignee EACH task", async () => {
+    vi.mocked(prisma.eventMember.findFirst).mockResolvedValue({
+      id: "m1",
+    } as never);
+    vi.mocked(prisma.eventTaskAssignment.findFirst).mockResolvedValue({
+      id: "a1",
+    } as never);
+
+    const mockTx = {
+      eventTaskAssignment: {
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      eventTask: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "t1",
+          status: EventTaskStatus.IN_PROGRESS,
+          assigneeCompletionMode: EventTaskAssigneeCompletionMode.EACH,
+          assignments: [{ doneAt: new Date() }],
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    transaction.mockImplementation(
+      async (fn: (tx: typeof mockTx) => Promise<void>) => fn(mockTx),
+    );
+
+    const r = await setMyTaskDone({ taskId: "t1", done: true });
+    expect(r).toEqual({ ok: true });
+    expect(mockTx.eventTaskAssignment.update).toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard/events/e1");
   });
 });

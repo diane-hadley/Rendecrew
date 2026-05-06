@@ -331,4 +331,124 @@ describe("TaskBoard", () => {
       userFilter: { kind: "ALL" },
     });
   });
+
+  it("updates a task from the edit dialog", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskBoard
+        eventId="e1"
+        currentUserId="u1"
+        members={members}
+        defaultTimeZone="UTC"
+      />,
+    );
+    await screen.findByText("Buy ice");
+    const row = screen.getByText("Buy ice").closest("tr");
+    expect(row).not.toBeNull();
+    await user.click(within(row!).getByRole("button", { name: "Edit" }));
+
+    const titleInput = screen.getByDisplayValue("Buy ice");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Restocked");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateEventTask).toHaveBeenCalledWith(
+        expect.objectContaining({ taskId: "t1", title: "Restocked" }),
+      );
+    });
+  });
+
+  it("does not delete when confirm is dismissed", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(
+        <TaskBoard
+          eventId="e1"
+          currentUserId="u1"
+          members={members}
+          defaultTimeZone="UTC"
+        />,
+      );
+      await screen.findByText("Buy ice");
+      const row = screen.getByText("Buy ice").closest("tr");
+      expect(row).not.toBeNull();
+      await user.click(within(row!).getByRole("button", { name: "Delete" }));
+      expect(deleteEventTask).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("closes the create dialog from Close", async () => {
+    const user = userEvent.setup();
+    listEventTasks.mockResolvedValue(okList([]));
+    render(
+      <TaskBoard
+        eventId="e1"
+        currentUserId="u1"
+        members={members}
+        defaultTimeZone="UTC"
+      />,
+    );
+    await screen.findByText("No tasks.");
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    expect(screen.getByPlaceholderText("Book groceries")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(
+      screen.queryByPlaceholderText("Book groceries"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("assigns everyone from the edit dialog", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskBoard
+        eventId="e1"
+        currentUserId="u1"
+        members={members}
+        defaultTimeZone="UTC"
+      />,
+    );
+    await screen.findByText("Buy ice");
+    const row = screen.getByText("Buy ice").closest("tr");
+    expect(row).not.toBeNull();
+    await user.click(within(row!).getByRole("button", { name: "Edit" }));
+    await user.click(
+      screen.getByRole("button", { name: "Assign to everyone" }),
+    );
+    await waitFor(() => {
+      expect(assignEveryoneToTask).toHaveBeenCalledWith("t1");
+    });
+  });
+
+  it("adds a second member to the user filter and refetches", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskBoard
+        eventId="e1"
+        currentUserId="u1"
+        members={members}
+        defaultTimeZone="UTC"
+      />,
+    );
+    await screen.findByText("Buy ice");
+    expect(listEventTasks).toHaveBeenCalledTimes(1);
+
+    const [userTrigger] = filterDropdownTriggers();
+    await user.click(userTrigger);
+    const danaRow = screen.getByRole("button", { name: /Dana Member/i });
+    await user.click(danaRow);
+
+    await waitFor(() => expect(listEventTasks).toHaveBeenCalledTimes(2));
+    // Selecting every member is sent to the server as ALL (includes unassigned tasks).
+    expect(listEventTasks).toHaveBeenLastCalledWith("e1", {
+      statusFilter: {
+        kind: "SET",
+        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+      },
+      userFilter: { kind: "ALL" },
+    });
+  });
 });
