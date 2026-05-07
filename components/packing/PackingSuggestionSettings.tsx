@@ -9,11 +9,13 @@ export function PackingSuggestionSettings({
   eventId,
   approvalRequired,
   packingListPath,
+  packingListAccessibleByNonUsers,
   pendingDraftCount,
 }: {
   eventId: string;
   approvalRequired: boolean;
   packingListPath: string | null;
+  packingListAccessibleByNonUsers: boolean;
   pendingDraftCount: number;
 }) {
   const router = useRouter();
@@ -60,7 +62,9 @@ export function PackingSuggestionSettings({
           Require admin approval before new suggestions are visible to the group
         </span>
       </label>
-      {pendingDraftCount > 0 && packingListPath ? (
+      {pendingDraftCount > 0 &&
+      packingListPath &&
+      packingListAccessibleByNonUsers ? (
         <p className="mt-3">
           <Link
             href={`${packingListPath}?tab=suggestions`}

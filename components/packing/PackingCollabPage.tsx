@@ -82,6 +82,7 @@ export function PackingCollabPage({
   draftSuggestions,
   personalItems,
   commitments,
+  embedded = false,
 }: {
   roomId: string;
   eventId: string;
@@ -97,6 +98,8 @@ export function PackingCollabPage({
   draftSuggestions: DraftSuggestionVM[];
   personalItems: PersonalItemVM[];
   commitments: PackingCommitmentForUser[];
+  /** Hide page chrome for embedding (e.g. Event detail Packing tab). */
+  embedded?: boolean;
 }) {
   const [guestDisplayName, setGuestDisplayName] = useState("");
   const [guestStarted, setGuestStarted] = useState(false);
@@ -245,36 +248,43 @@ export function PackingCollabPage({
       >
         <LiveblocksConnectionMessages />
         <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-              Packing list
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {eventTitle}
-            </p>
-            {authUser && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                Signed in — sign-ups are tied to your Rendecrew account.
+          {embedded ? null : (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Packing list
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {eventTitle}
               </p>
-            )}
-            {!authUser && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                Guest — you can sign up for items; sign in for a personal list
-                and suggestions.
-              </p>
-            )}
-            {canManageTemplate && (
-              <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-                You can edit the shared template (items, sections, quantities,
-                remove rows). Others manage sign-ups, including signing up
-                fellow members.
-              </p>
-            )}
-          </div>
+              {authUser && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                  Signed in — sign-ups are tied to your Rendecrew account.
+                </p>
+              )}
+              {!authUser && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+                  Guest — you can sign up for items; sign in for a personal list
+                  and suggestions.
+                </p>
+              )}
+              {canManageTemplate && (
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                  You can edit the shared template (items, sections, quantities,
+                  remove rows). Others manage sign-ups, including signing up
+                  fellow members.
+                </p>
+              )}
+            </div>
+          )}
 
           <PackingTabBar active={mainTab} onChange={setMainTab} />
 
-          <div className={mainTab === "shared" ? "block" : "hidden"}>
+          <div
+            id="packing-main-panel:shared"
+            role="tabpanel"
+            aria-labelledby="packing-main-tab:shared"
+            className={mainTab === "shared" ? "block p-4" : "hidden"}
+          >
             <PackingListEditor
               roomId={roomId}
               authUser={authUser}
@@ -286,23 +296,37 @@ export function PackingCollabPage({
           </div>
 
           {mainTab === "suggestions" ? (
-            <PackingSuggestionsTab
-              eventId={eventId}
-              isSignedIn={authUser != null}
-              canManageTemplate={canManageTemplate}
-              suggestionApprovalRequired={suggestionApprovalRequired}
-              published={publishedSuggestions}
-              drafts={draftSuggestions}
-            />
+            <div
+              id="packing-main-panel:suggestions"
+              role="tabpanel"
+              aria-labelledby="packing-main-tab:suggestions"
+              className="p-4"
+            >
+              <PackingSuggestionsTab
+                eventId={eventId}
+                isSignedIn={authUser != null}
+                canManageTemplate={canManageTemplate}
+                suggestionApprovalRequired={suggestionApprovalRequired}
+                published={publishedSuggestions}
+                drafts={draftSuggestions}
+              />
+            </div>
           ) : null}
 
           {mainTab === "my" ? (
-            <PackingMyPackingTab
-              eventId={eventId}
-              isSignedIn={authUser != null}
-              commitments={commitments}
-              personalItems={personalItems}
-            />
+            <div
+              id="packing-main-panel:my"
+              role="tabpanel"
+              aria-labelledby="packing-main-tab:my"
+              className="p-4"
+            >
+              <PackingMyPackingTab
+                eventId={eventId}
+                isSignedIn={authUser != null}
+                commitments={commitments}
+                personalItems={personalItems}
+              />
+            </div>
           ) : null}
         </div>
       </RoomProvider>

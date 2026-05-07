@@ -1,3 +1,4 @@
+import { PackingListVisibility } from "@prisma/client";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +24,13 @@ describe("PackingListPanel", () => {
   it("shows enable button when room id is missing", async () => {
     const user = userEvent.setup();
     enablePackingListForEvent.mockResolvedValue({ ok: true as const });
-    render(<PackingListPanel eventId="e1" liveblocksRoomId={null} />);
+    render(
+      <PackingListPanel
+        eventId="e1"
+        liveblocksRoomId={null}
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+      />,
+    );
     await user.click(
       screen.getByRole("button", { name: /Enable packing list/i }),
     );
@@ -39,7 +46,13 @@ describe("PackingListPanel", () => {
       ok: false as const,
       error: "No permission",
     });
-    render(<PackingListPanel eventId="e1" liveblocksRoomId={null} />);
+    render(
+      <PackingListPanel
+        eventId="e1"
+        liveblocksRoomId={null}
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+      />,
+    );
     await user.click(
       screen.getByRole("button", { name: /Enable packing list/i }),
     );
@@ -47,12 +60,29 @@ describe("PackingListPanel", () => {
   });
 
   it("shows share path and open link when room exists", () => {
-    render(<PackingListPanel eventId="e1" liveblocksRoomId="room-abc" />);
+    render(
+      <PackingListPanel
+        eventId="e1"
+        liveblocksRoomId="room-abc"
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+      />,
+    );
     expect(screen.getByText(/\/packing\/room-abc/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open list/i })).toHaveAttribute(
       "href",
       "/packing/room-abc",
     );
+  });
+
+  it("hides open link when list is members-only", () => {
+    const { container } = render(
+      <PackingListPanel
+        eventId="e1"
+        liveblocksRoomId="room-abc"
+        packingListVisibility={PackingListVisibility.MEMBERS_ONLY}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
   });
 
   it("copies full URL to clipboard when origin is set", async () => {
@@ -63,7 +93,13 @@ describe("PackingListPanel", () => {
       value: { writeText },
     });
 
-    render(<PackingListPanel eventId="e1" liveblocksRoomId="r1" />);
+    render(
+      <PackingListPanel
+        eventId="e1"
+        liveblocksRoomId="r1"
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+      />,
+    );
 
     await vi.waitFor(() => {
       expect(

@@ -24,6 +24,7 @@ describe("PackingSuggestionSettings", () => {
         eventId="ev1"
         approvalRequired={false}
         packingListPath="/packing/room"
+        packingListAccessibleByNonUsers
         pendingDraftCount={0}
       />,
     );
@@ -42,11 +43,27 @@ describe("PackingSuggestionSettings", () => {
         eventId="ev1"
         approvalRequired
         packingListPath="/packing/room"
+        packingListAccessibleByNonUsers
         pendingDraftCount={2}
       />,
     );
     expect(
       screen.getByRole("link", { name: /Review 2 pending suggestions/i }),
     ).toHaveAttribute("href", "/packing/room?tab=suggestions");
+  });
+
+  it("hides review link when packing list is not accessible by non-users", () => {
+    render(
+      <PackingSuggestionSettings
+        eventId="ev1"
+        approvalRequired
+        packingListPath="/packing/room"
+        packingListAccessibleByNonUsers={false}
+        pendingDraftCount={2}
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /Review 2 pending suggestions/i }),
+    ).not.toBeInTheDocument();
   });
 });

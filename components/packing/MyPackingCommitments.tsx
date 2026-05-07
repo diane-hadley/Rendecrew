@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { setMyPackingSignUpPacked } from "@/app/actions/packing-list";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
+import { PackingCollabListLink } from "./PackingCollabListLink";
 
 /** How many to bring (personal view: only their count, not the full item total). */
 function formatBrings(c: PackingCommitmentForUser): string {
@@ -16,6 +16,7 @@ export function MyPackingCommitments({
   eventId,
   commitments,
   packingListPath,
+  packingListAccessibleByNonUsers,
   embedded = false,
   showTopBorder = false,
   showOpenListLink = true,
@@ -23,6 +24,7 @@ export function MyPackingCommitments({
   eventId: string;
   commitments: PackingCommitmentForUser[];
   packingListPath: string | null;
+  packingListAccessibleByNonUsers: boolean;
   embedded?: boolean;
   /** When embedded with the collaborative section above, add a divider. */
   showTopBorder?: boolean;
@@ -89,14 +91,10 @@ export function MyPackingCommitments({
         </ul>
       )}
       {showOpenListLink && (
-        <Link
+        <PackingCollabListLink
           href={packingListPath}
-          className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open collaborative packing list
-        </Link>
+          isAccessibleByNonUsers={packingListAccessibleByNonUsers}
+        />
       )}
     </div>
   );

@@ -11,6 +11,11 @@ import {
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
 import {
+  buildPackingCollabPageData,
+  type PackingCollabAuthUser,
+  type PackingCollabPageData,
+} from "@/lib/packing-collab-page-data";
+import {
   formatEventDateRangeWithTimeZones,
   normalizeTimeZone,
 } from "@/lib/event-datetime";
@@ -83,6 +88,29 @@ export default async function EventDetailPage({
   );
   const tasksDefaultTimeZone = ridesDefaultTimeZone;
 
+  const packingCollab: PackingCollabPageData | null = packingList
+    ? await buildPackingCollabPageData({
+        list: {
+          liveblocksRoomId: packingList.liveblocksRoomId,
+          eventId: event.id,
+          sections: packingList.sections,
+          items: packingList.items,
+        },
+        eventTitle: event.title,
+        authUser: {
+          dbUserId: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+        } satisfies PackingCollabAuthUser,
+        canManageTemplate: editable,
+        packingSignupMembers: memberRows.map((m) => ({
+          userId: m.user.id,
+          name: m.user.name,
+        })),
+        suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
+      })
+    : null;
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-8 flex flex-wrap items-center gap-4 lg:grid lg:grid-cols-[12rem_1fr] lg:items-center lg:gap-10">
@@ -133,6 +161,7 @@ export default async function EventDetailPage({
             suggestionApprovalRequired:
               event.suggestionApprovalRequired ?? false,
             pendingSuggestionDraftCount,
+            collab: packingCollab,
           }}
           settings={{
             memberManagementPolicy: event.memberManagementPolicy,

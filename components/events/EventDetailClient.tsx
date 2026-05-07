@@ -15,6 +15,7 @@ import { MembersSection } from "./MembersSection";
 import { EventSettingsForm } from "@/components/event-settings/EventSettingsForm";
 import type { EventMemberListItem } from "@/app/actions/event-members";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
+import type { PackingCollabPageData } from "@/lib/packing-collab-page-data";
 import { formatEventRoleLabel } from "@/lib/event-role-utils";
 import {
   EVENT_DETAIL_TAB_IDS,
@@ -80,6 +81,7 @@ export type EventDetailClientProps = {
     packingListPath: string | null;
     suggestionApprovalRequired: boolean;
     pendingSuggestionDraftCount: number;
+    collab: PackingCollabPageData | null;
   };
   settings: {
     memberManagementPolicy: MemberManagementPolicy;
@@ -302,6 +304,8 @@ export function EventDetailClient({
               liveblocksRoomId={packing.liveblocksRoomId}
               commitments={packing.commitments}
               packingListPath={packing.packingListPath}
+              packingListVisibility={settings.packingListVisibility}
+              collab={packing.collab}
             />
           )}
 

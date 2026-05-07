@@ -112,7 +112,8 @@ const baseProps = {
     location: null,
     startAt: null,
     endAt: null,
-    timezone: "UTC",
+    startAtTimeZone: "UTC",
+    endAtTimeZone: "UTC",
   },
   packing: {
     canManagePacking: false,
@@ -121,6 +122,7 @@ const baseProps = {
     packingListPath: null,
     suggestionApprovalRequired: false,
     pendingSuggestionDraftCount: 0,
+    collab: null,
   },
   settings: {
     memberManagementPolicy: MemberManagementPolicy.ANY_MEMBER_CAN_INVITE,
@@ -131,6 +133,7 @@ const baseProps = {
     taskBoardEnabled: false,
   },
   ridesDefaultTimeZone: "UTC",
+  tasksDefaultTimeZone: "UTC",
   membersInitial: [],
 };
 

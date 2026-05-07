@@ -47,26 +47,35 @@ export function PackingTabBar({
   active: PackingMainTab;
   onChange: (t: PackingMainTab) => void;
 }) {
-  const tabBtn = (key: PackingMainTab, label: string) => (
-    <button
-      key={key}
-      type="button"
-      aria-pressed={active === key}
-      onClick={() => onChange(key)}
-      className={`rounded-md px-3 py-2 text-sm font-medium ${
-        active === key
-          ? "bg-blue-600 text-white dark:bg-blue-500"
-          : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const tabBtn = (key: PackingMainTab, label: string) => {
+    const selected = active === key;
+    const id = `packing-main-tab:${key}`;
+    const panelId = `packing-main-panel:${key}`;
+    return (
+      <button
+        key={key}
+        id={id}
+        type="button"
+        role="tab"
+        aria-selected={selected}
+        aria-controls={panelId}
+        tabIndex={selected ? 0 : -1}
+        onClick={() => onChange(key)}
+        className={
+          selected
+            ? "relative z-10 -mb-px rounded-t-md border border-gray-200 border-b-white bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm dark:border-gray-700 dark:border-b-gray-900 dark:bg-gray-900 dark:text-gray-100"
+            : "rounded-t-md bg-gray-200/70 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-50"
+        }
+      >
+        {label}
+      </button>
+    );
+  };
   return (
     <div
-      className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-700"
       role="tablist"
       aria-label="Packing views"
+      className="flex items-end gap-1 border-b border-gray-200 bg-gray-200/70 px-2 pt-2 dark:border-gray-700 dark:bg-gray-800/70"
     >
       {tabBtn("shared", "Shared list")}
       {tabBtn("suggestions", "Suggestions")}
