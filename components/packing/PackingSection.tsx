@@ -1,6 +1,25 @@
 import { MyPackingCommitments } from "./MyPackingCommitments";
 import { PackingListPanel } from "./PackingListPanel";
+import type { PackingListVisibility } from "@prisma/client";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
+import type { PackingCollabPageData } from "@/lib/packing-collab-page-data";
+import dynamic from "next/dynamic";
+
+const PackingCollabPage = dynamic(
+  () =>
+    import("./PackingCollabPage").then((m) => ({
+      default: m.PackingCollabPage,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="min-h-[12rem] animate-pulse rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900"
+        aria-hidden
+      />
+    ),
+  },
+);
 
 export function PackingSection({
   eventId,
@@ -8,14 +27,21 @@ export function PackingSection({
   liveblocksRoomId,
   commitments,
   packingListPath,
+  packingListVisibility,
+  collab,
 }: {
   eventId: string;
   canManagePacking: boolean;
   liveblocksRoomId: string | null;
   commitments: PackingCommitmentForUser[];
   packingListPath: string | null;
+  packingListVisibility: PackingListVisibility;
+  collab: PackingCollabPageData | null;
 }) {
   const hasList = packingListPath != null;
+  const showEmbeddedCollab = collab != null;
+  const packingListAccessibleByNonUsers =
+    packingListVisibility !== "MEMBERS_ONLY";
 
   if (!hasList && !canManagePacking) {
     return null;
@@ -31,9 +57,20 @@ export function PackingSection({
           embedded
           eventId={eventId}
           liveblocksRoomId={liveblocksRoomId}
+          packingListVisibility={packingListVisibility}
         />
       )}
-      {hasList && (
+      {showEmbeddedCollab ? (
+        <div
+          className={
+            canManagePacking
+              ? "border-t border-gray-200 pt-4 dark:border-gray-700"
+              : ""
+          }
+        >
+          <PackingCollabPage {...collab} embedded />
+        </div>
+      ) : hasList ? (
         <MyPackingCommitments
           embedded
           showTopBorder={canManagePacking && hasList}
@@ -41,8 +78,9 @@ export function PackingSection({
           eventId={eventId}
           commitments={commitments}
           packingListPath={packingListPath}
+          packingListAccessibleByNonUsers={packingListAccessibleByNonUsers}
         />
-      )}
+      ) : null}
     </section>
   );
 }

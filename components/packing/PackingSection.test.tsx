@@ -1,3 +1,4 @@
+import { PackingListVisibility } from "@prisma/client";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PackingSection } from "./PackingSection";
@@ -21,6 +22,8 @@ describe("PackingSection", () => {
         liveblocksRoomId={null}
         commitments={[]}
         packingListPath={null}
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+        collab={null}
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -34,6 +37,8 @@ describe("PackingSection", () => {
         liveblocksRoomId={null}
         commitments={[]}
         packingListPath={null}
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+        collab={null}
       />,
     );
     expect(
@@ -51,6 +56,8 @@ describe("PackingSection", () => {
         liveblocksRoomId={null}
         commitments={[]}
         packingListPath="/packing/room"
+        packingListVisibility={PackingListVisibility.URL_PUBLIC}
+        collab={null}
       />,
     );
     expect(screen.getByTestId("commitments")).toBeInTheDocument();

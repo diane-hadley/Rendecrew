@@ -26,6 +26,7 @@ describe("MyPackingCommitments", () => {
         eventId="e1"
         commitments={[]}
         packingListPath={null}
+        packingListAccessibleByNonUsers
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -36,6 +37,7 @@ describe("MyPackingCommitments", () => {
       <MyPackingCommitments
         eventId="e1"
         packingListPath="/p"
+        packingListAccessibleByNonUsers
         commitments={[
           {
             signUpId: "s1",
@@ -55,6 +57,7 @@ describe("MyPackingCommitments", () => {
       <MyPackingCommitments
         eventId="e1"
         packingListPath="/packing/x"
+        packingListAccessibleByNonUsers
         commitments={[]}
       />,
     );
@@ -70,8 +73,23 @@ describe("MyPackingCommitments", () => {
       <MyPackingCommitments
         eventId="e1"
         packingListPath="/packing/x"
+        packingListAccessibleByNonUsers
         commitments={[]}
         showOpenListLink={false}
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /Open collaborative packing list/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides open list when packing is members-only", () => {
+    render(
+      <MyPackingCommitments
+        eventId="e1"
+        packingListPath="/packing/x"
+        packingListAccessibleByNonUsers={false}
+        commitments={[]}
       />,
     );
     expect(
@@ -86,6 +104,7 @@ describe("MyPackingCommitments", () => {
       <MyPackingCommitments
         eventId="e1"
         packingListPath="/p"
+        packingListAccessibleByNonUsers
         commitments={[
           {
             signUpId: "s1",

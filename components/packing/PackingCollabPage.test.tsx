@@ -170,9 +170,10 @@ describe("PackingCollabPage", () => {
       />,
     );
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "My packing" }),
-      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("tab", { name: "My packing" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
     });
   });
 
@@ -193,7 +194,7 @@ describe("PackingCollabPage", () => {
         eventId="ev-sug"
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Suggestions" }));
+    await user.click(screen.getByRole("tab", { name: "Suggestions" }));
     await waitFor(() => {
       expect(vi.mocked(markSuggestionsCatalogSeen)).toHaveBeenCalledWith(
         "ev-sug",

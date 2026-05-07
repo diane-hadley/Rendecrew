@@ -43,11 +43,11 @@ describe("PackingTabBar", () => {
     const onChange = vi.fn();
     render(<PackingTabBar active="shared" onChange={onChange} />);
 
-    await user.click(screen.getByRole("button", { name: "Suggestions" }));
+    await user.click(screen.getByRole("tab", { name: "Suggestions" }));
     expect(onChange).toHaveBeenCalledWith("suggestions");
-    await user.click(screen.getByRole("button", { name: "My packing" }));
+    await user.click(screen.getByRole("tab", { name: "My packing" }));
     expect(onChange).toHaveBeenCalledWith("my");
-    await user.click(screen.getByRole("button", { name: "Shared list" }));
+    await user.click(screen.getByRole("tab", { name: "Shared list" }));
     expect(onChange).toHaveBeenCalledWith("shared");
   });
 });
