@@ -5,23 +5,37 @@ import {
   createPersonalPackingItem,
   deletePersonalPackingItem,
   moderatePackingSuggestion,
+  reorderPersonalPackingItems,
   suggestPackingItem,
   updatePersonalPackingItem,
 } from "@/app/actions/packing-advanced";
+import { setMyPackingSignUpPacked } from "@/app/actions/packing-list";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildPersonalItemSectionGroups,
   PackingMyPackingTab,
   PackingSuggestionsTab,
   PackingTabBar,
+  type PersonalItemVM,
 } from "./PackingAdvancedViews";
 
 vi.mock("@/app/actions/packing-advanced", () => ({
   moderatePackingSuggestion: vi.fn().mockResolvedValue({ ok: true }),
-  suggestPackingItem: vi.fn().mockResolvedValue({ ok: true }),
-  copySuggestionToPersonal: vi.fn().mockResolvedValue({ ok: true }),
-  createPersonalPackingItem: vi.fn().mockResolvedValue({ ok: true }),
+  suggestPackingItem: vi.fn().mockResolvedValue({ ok: true, id: "sug-mock" }),
+  copySuggestionToPersonal: vi.fn().mockResolvedValue({
+    ok: true,
+    id: "personal-copy-mock",
+  }),
+  createPersonalPackingItem: vi
+    .fn()
+    .mockResolvedValue({ ok: true, id: "new-id" }),
   updatePersonalPackingItem: vi.fn().mockResolvedValue({ ok: true }),
   deletePersonalPackingItem: vi.fn().mockResolvedValue({ ok: true }),
+  reorderPersonalPackingItems: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
+vi.mock("@/app/actions/packing-list", () => ({
+  setMyPackingSignUpPacked: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -30,11 +44,19 @@ vi.mock("next/navigation", () => ({
 
 beforeEach(() => {
   vi.mocked(moderatePackingSuggestion).mockResolvedValue({ ok: true });
-  vi.mocked(suggestPackingItem).mockResolvedValue({ ok: true });
-  vi.mocked(copySuggestionToPersonal).mockResolvedValue({ ok: true });
-  vi.mocked(createPersonalPackingItem).mockResolvedValue({ ok: true });
+  vi.mocked(suggestPackingItem).mockResolvedValue({ ok: true, id: "sug-mock" });
+  vi.mocked(copySuggestionToPersonal).mockResolvedValue({
+    ok: true,
+    id: "personal-copy-mock",
+  });
+  vi.mocked(createPersonalPackingItem).mockResolvedValue({
+    ok: true,
+    id: "new-id",
+  });
   vi.mocked(updatePersonalPackingItem).mockResolvedValue({ ok: true });
   vi.mocked(deletePersonalPackingItem).mockResolvedValue({ ok: true });
+  vi.mocked(reorderPersonalPackingItems).mockResolvedValue({ ok: true });
+  vi.mocked(setMyPackingSignUpPacked).mockResolvedValue({ ok: true });
 });
 
 describe("PackingTabBar", () => {
@@ -226,6 +248,36 @@ describe("PackingSuggestionsTab", () => {
   });
 });
 
+describe("buildPersonalItemSectionGroups", () => {
+  const item = (
+    p: Partial<PersonalItemVM> & Pick<PersonalItemVM, "id" | "name">,
+  ): PersonalItemVM => ({
+    section: null,
+    quantity: 1,
+    packed: false,
+    sortOrder: 0,
+    ...p,
+  });
+
+  it("orders shared titles first, then extras A–Z, then Uncategorized", () => {
+    const groups = buildPersonalItemSectionGroups(
+      [
+        item({ id: "d", name: "Book", section: null }),
+        item({ id: "c", name: "Mints", section: "Snacks" }),
+        item({ id: "b", name: "Hat", section: "Gear" }),
+        item({ id: "a", name: "Knife", section: "Kitchen" }),
+      ],
+      ["Kitchen", "Gear"],
+    );
+    expect(groups.map((g) => g.heading)).toEqual([
+      "Kitchen",
+      "Gear",
+      "Snacks",
+      "Uncategorized",
+    ]);
+  });
+});
+
 describe("PackingMyPackingTab", () => {
   it("prompts sign-in when anonymous", () => {
     render(
@@ -264,15 +316,46 @@ describe("PackingMyPackingTab", () => {
             section: null,
             quantity: 1,
             packed: false,
+            sortOrder: 0,
           },
         ]}
       />,
     );
     expect(screen.getByText("Plates")).toBeInTheDocument();
+    expect(screen.getByText("Uncategorized")).toBeInTheDocument();
     expect(screen.getByText("Sunscreen")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => {
       expect(vi.mocked(deletePersonalPackingItem)).toHaveBeenCalledWith("p1");
+    });
+  });
+
+  it("updates group commitment packed from checkbox", async () => {
+    const user = userEvent.setup();
+    render(
+      <PackingMyPackingTab
+        eventId="e-commit"
+        isSignedIn
+        commitments={[
+          {
+            signUpId: "su1",
+            itemId: "i1",
+            itemName: "Plates",
+            itemQuantity: 10,
+            signUpQuantity: 2,
+            signUpPacked: false,
+          },
+        ]}
+        personalItems={[]}
+      />,
+    );
+    await user.click(screen.getByLabelText(/Packed: Plates/i));
+    await waitFor(() => {
+      expect(vi.mocked(setMyPackingSignUpPacked)).toHaveBeenCalledWith(
+        "e-commit",
+        "su1",
+        true,
+      );
     });
   });
 
@@ -326,11 +409,13 @@ describe("PackingMyPackingTab", () => {
             section: "Gear",
             quantity: 2,
             packed: false,
+            sortOrder: 0,
           },
         ]}
       />,
     );
     await user.click(screen.getByRole("checkbox"));
+    expect(screen.getByText("Gear")).toBeInTheDocument();
     await waitFor(() => {
       expect(vi.mocked(updatePersonalPackingItem)).toHaveBeenCalledWith("p2", {
         packed: true,
@@ -352,10 +437,12 @@ describe("PackingMyPackingTab", () => {
             section: null,
             quantity: 2,
             packed: true,
+            sortOrder: 0,
           },
         ]}
       />,
     );
+    expect(screen.getByText("Uncategorized")).toBeInTheDocument();
     const qty = screen.getByLabelText("Quantity");
     await user.clear(qty);
     await user.type(qty, "5");

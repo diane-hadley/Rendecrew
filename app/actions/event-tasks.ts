@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { getEventForUser } from "@/lib/events";
 import { enqueueNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_TASK_LIST_OPEN_STATUS_FILTER } from "@/lib/task-list-filters";
 import { getOrCreateUser } from "@/lib/user";
 import { normalizeTimeZone, parseEventDateTime } from "@/lib/event-datetime";
 
@@ -52,12 +53,6 @@ export type EventTaskRow = {
 export type TaskListStatusFilter =
   | { kind: "ALL" }
   | { kind: "SET"; statuses: EventTaskStatus[] };
-
-/** Default list filter: To-do + In progress (same as legacy “Open”). */
-export const DEFAULT_TASK_LIST_OPEN_STATUS_FILTER = {
-  kind: "SET" as const,
-  statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
-} satisfies TaskListStatusFilter;
 
 /**
  * User slice for the task list. ALL = every event task (subject to status).

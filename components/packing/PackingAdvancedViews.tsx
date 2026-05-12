@@ -5,12 +5,16 @@ import { useState, useTransition } from "react";
 import {
   copySuggestionToPersonal,
   createPersonalPackingItem,
-  deletePersonalPackingItem,
   moderatePackingSuggestion,
   suggestPackingItem,
-  updatePersonalPackingItem,
 } from "@/app/actions/packing-advanced";
+import { setMyPackingSignUpPacked } from "@/app/actions/packing-list";
 import type { PackingCommitmentForUser } from "@/lib/packing-list";
+import type { PersonalItemVM } from "@/lib/personal-packing-sections";
+import { PersonalPackingDnDList } from "./PersonalPackingDnDList";
+
+export type { PersonalItemVM } from "@/lib/personal-packing-sections";
+export { buildPersonalItemSectionGroups } from "@/lib/personal-packing-sections";
 
 export type PublishedSuggestionVM = {
   id: string;
@@ -28,14 +32,6 @@ export type DraftSuggestionVM = {
   section: string | null;
   defaultQuantity: number | null;
   createdByName: string;
-};
-
-export type PersonalItemVM = {
-  id: string;
-  name: string;
-  section: string | null;
-  quantity: number;
-  packed: boolean;
 };
 
 export type PackingMainTab = "shared" | "suggestions" | "my";
@@ -318,11 +314,14 @@ export function PackingMyPackingTab({
   isSignedIn,
   commitments,
   personalItems,
+  sharedSectionTitles = [],
 }: {
   eventId: string;
   isSignedIn: boolean;
   commitments: PackingCommitmentForUser[];
   personalItems: PersonalItemVM[];
+  /** Shared list section titles in display order (for grouping personal rows). */
+  sharedSectionTitles?: readonly string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -330,6 +329,20 @@ export function PackingMyPackingTab({
   const [newName, setNewName] = useState("");
   const [newSection, setNewSection] = useState("");
   const [newQty, setNewQty] = useState("1");
+
+  const sectionOptions = (() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const add = (raw: string | null | undefined) => {
+      const t = raw?.trim() ?? "";
+      if (t === "" || seen.has(t)) return;
+      seen.add(t);
+      out.push(t);
+    };
+    for (const it of personalItems) add(it.section);
+    out.sort((a, b) => a.localeCompare(b));
+    return out;
+  })();
 
   if (!isSignedIn) {
     return (
@@ -367,18 +380,35 @@ export function PackingMyPackingTab({
             {commitments.map((c) => (
               <li
                 key={c.signUpId}
-                className="rounded border border-gray-200 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/40"
+                className="flex flex-wrap items-center gap-2 rounded border border-gray-200 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/40"
               >
-                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase text-violet-900 dark:bg-violet-950 dark:text-violet-200">
-                  Group
-                </span>{" "}
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {c.itemName}
-                </span>
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={c.signUpPacked}
+                    disabled={pending}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      startTransition(async () => {
+                        setError(null);
+                        const r = await setMyPackingSignUpPacked(
+                          eventId,
+                          c.signUpId,
+                          next,
+                        );
+                        if (!r.ok) setError(r.error);
+                        else router.refresh();
+                      });
+                    }}
+                    aria-label={`Packed: ${c.itemName}`}
+                    className="rounded border-gray-300 dark:border-gray-600"
+                  />
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {c.itemName}
+                  </span>
+                </label>
                 <span className="text-gray-500">
-                  {" "}
-                  · you: {c.signUpQuantity ?? "—"} packed:{" "}
-                  {c.signUpPacked ? "yes" : "no"}
+                  · {c.signUpQuantity ?? "—"}
                 </span>
               </li>
             ))}
@@ -390,123 +420,88 @@ export function PackingMyPackingTab({
         <h3 className="font-semibold text-gray-900 dark:text-gray-100">
           Personal items
         </h3>
-        <form
-          className="mt-2 flex flex-wrap gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setError(null);
-            const q = Math.max(1, parseInt(newQty, 10) || 1);
-            startTransition(async () => {
-              const r = await createPersonalPackingItem(eventId, {
-                name: newName,
-                section: newSection.trim() || null,
-                quantity: q,
+        <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 shadow-sm dark:border-gray-600 dark:bg-gray-950">
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setError(null);
+              const q = Math.max(1, parseInt(newQty, 10) || 1);
+              startTransition(async () => {
+                const r = await createPersonalPackingItem(eventId, {
+                  name: newName,
+                  section: newSection.trim() || null,
+                  quantity: q,
+                });
+                if (!r.ok) setError(r.error);
+                else {
+                  setNewName("");
+                  setNewSection("");
+                  setNewQty("1");
+                  router.refresh();
+                }
               });
-              if (!r.ok) setError(r.error);
-              else {
-                setNewName("");
-                setNewSection("");
-                setNewQty("1");
-                router.refresh();
-              }
-            });
-          }}
-        >
-          <input
-            required
-            maxLength={200}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Add personal item"
-            className="min-w-48 flex-1 rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <input
-            maxLength={120}
-            value={newSection}
-            onChange={(e) => setNewSection(e.target.value)}
-            placeholder="Section"
-            className="w-32 rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <input
-            type="number"
-            min={1}
-            value={newQty}
-            onChange={(e) => setNewQty(e.target.value)}
-            className="w-20 rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500"
+            }}
           >
-            Add
-          </button>
-        </form>
+            <div className="min-w-56 flex-1">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Item
+              </label>
+              <input
+                required
+                maxLength={200}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Add personal item"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+            <div className="w-40">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Section
+              </label>
+              <input
+                maxLength={120}
+                value={newSection}
+                onChange={(e) => setNewSection(e.target.value)}
+                placeholder="Section"
+                list="personal-packing-section-options"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+            <datalist id="personal-packing-section-options">
+              {sectionOptions.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+            <div className="w-28">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Qty
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={newQty}
+                onChange={(e) => setNewQty(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500"
+            >
+              Add
+            </button>
+          </form>
+        </div>
 
-        {personalItems.length === 0 ? (
-          <p className="mt-3 text-gray-500">No personal rows yet.</p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {personalItems.map((it) => (
-              <li
-                key={it.id}
-                className="flex flex-wrap items-center gap-2 rounded border border-gray-200 px-3 py-2 dark:border-gray-700 dark:bg-gray-900/40"
-              >
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={it.packed}
-                    onChange={(e) => {
-                      startTransition(async () => {
-                        await updatePersonalPackingItem(it.id, {
-                          packed: e.target.checked,
-                        });
-                        router.refresh();
-                      });
-                    }}
-                  />
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                    Personal
-                  </span>
-                </label>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {it.name}
-                </span>
-                {it.section ? (
-                  <span className="text-gray-500">· {it.section}</span>
-                ) : null}
-                <input
-                  type="number"
-                  min={1}
-                  defaultValue={it.quantity}
-                  key={it.id + String(it.quantity)}
-                  className="w-16 rounded border border-gray-300 px-1 py-0.5 text-center dark:border-gray-600 dark:bg-gray-950"
-                  onBlur={(e) => {
-                    const n = Math.max(1, parseInt(e.target.value, 10) || 1);
-                    if (n === it.quantity) return;
-                    startTransition(async () => {
-                      await updatePersonalPackingItem(it.id, { quantity: n });
-                      router.refresh();
-                    });
-                  }}
-                  aria-label="Quantity"
-                />
-                <button
-                  type="button"
-                  className="ml-auto text-xs text-red-600 hover:underline dark:text-red-400"
-                  onClick={() => {
-                    startTransition(async () => {
-                      await deletePersonalPackingItem(it.id);
-                      router.refresh();
-                    });
-                  }}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <PersonalPackingDnDList
+          eventId={eventId}
+          personalItems={personalItems}
+          sharedSectionTitles={sharedSectionTitles}
+          onServerError={(message) => setError(message)}
+        />
       </section>
     </div>
   );

@@ -6,8 +6,9 @@ import {
   type PackingItemPayload,
   type PackingSectionPayload,
 } from "@/lib/packing-list";
+import type { PersonalItemVM } from "@/lib/personal-packing-sections";
 
-// Keep this module server-only (no imports from client components).
+export type { PersonalItemVM };
 export type PublishedSuggestionVM = {
   id: string;
   name: string;
@@ -24,14 +25,6 @@ export type DraftSuggestionVM = {
   section: string | null;
   defaultQuantity: number | null;
   createdByName: string;
-};
-
-export type PersonalItemVM = {
-  id: string;
-  name: string;
-  section: string | null;
-  quantity: number;
-  packed: boolean;
 };
 
 export type PackingSignupMemberOption = {
@@ -125,6 +118,7 @@ export async function buildPackingCollabPageData({
         section: true,
         quantity: true,
         packed: true,
+        sortOrder: true,
         sourceSuggestionId: true,
       },
     });
