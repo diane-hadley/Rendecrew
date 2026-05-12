@@ -97,6 +97,16 @@ const UNCATEGORIZED_SENTINEL = "__uncategorized__";
 /** Must stay aligned with `MAX_SECTIONS` in `@/lib/packing-list`. */
 const MAX_PACKING_SECTIONS = 100;
 
+const PACKING_VIEW_TOGGLE_SHELL =
+  "inline-flex overflow-hidden rounded-lg border border-gray-200 bg-gray-200/70 dark:border-gray-700 dark:bg-gray-800/70";
+const PACKING_VIEW_TOGGLE_BTN_PAD = "px-3 py-1.5 text-sm";
+const PACKING_VIEW_TOGGLE_SELECTED =
+  "bg-white font-semibold text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100";
+const PACKING_VIEW_TOGGLE_UNSELECTED =
+  "bg-gray-200/70 font-medium text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/70 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-50";
+const PACKING_VIEW_TOGGLE_DIVIDER =
+  "border-l border-gray-200 dark:border-gray-700";
+
 const packingListDndAccessibility = {
   announcements: {
     onDragStart({ active }: { active: { id: string | number } }) {
@@ -2333,40 +2343,6 @@ export function PackingListEditor({
         </button>
       </div>
 
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label="Packing list view"
-      >
-        <span className="text-sm text-gray-600 dark:text-gray-400">View:</span>
-        <div className="inline-flex overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600">
-          <button
-            type="button"
-            aria-pressed={listView === "all"}
-            onClick={() => setListView("all")}
-            className={`px-3 py-1.5 text-sm font-medium ${
-              listView === "all"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
-            }`}
-          >
-            All items
-          </button>
-          <button
-            type="button"
-            aria-pressed={listView === "needsSignUps"}
-            onClick={() => setListView("needsSignUps")}
-            className={`border-l border-gray-300 px-3 py-1.5 text-sm font-medium dark:border-gray-600 ${
-              listView === "needsSignUps"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
-            }`}
-          >
-            Needs sign-ups
-          </button>
-        </div>
-      </div>
-
       {canManageTemplate ? (
         <section className="rounded-lg border border-gray-300 bg-white p-3 shadow-sm dark:border-gray-600 dark:bg-gray-950">
           <form
@@ -2435,6 +2411,40 @@ export function PackingListEditor({
           </form>
         </section>
       ) : null}
+
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Packing list view"
+      >
+        <span className="text-sm text-gray-600 dark:text-gray-400">View:</span>
+        <div className={PACKING_VIEW_TOGGLE_SHELL}>
+          <button
+            type="button"
+            aria-pressed={listView === "all"}
+            onClick={() => setListView("all")}
+            className={`${PACKING_VIEW_TOGGLE_BTN_PAD} ${
+              listView === "all"
+                ? PACKING_VIEW_TOGGLE_SELECTED
+                : PACKING_VIEW_TOGGLE_UNSELECTED
+            }`}
+          >
+            All items
+          </button>
+          <button
+            type="button"
+            aria-pressed={listView === "needsSignUps"}
+            onClick={() => setListView("needsSignUps")}
+            className={`${PACKING_VIEW_TOGGLE_DIVIDER} ${PACKING_VIEW_TOGGLE_BTN_PAD} ${
+              listView === "needsSignUps"
+                ? PACKING_VIEW_TOGGLE_SELECTED
+                : PACKING_VIEW_TOGGLE_UNSELECTED
+            }`}
+          >
+            Needs sign-ups
+          </button>
+        </div>
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-950">
         <DndContext
