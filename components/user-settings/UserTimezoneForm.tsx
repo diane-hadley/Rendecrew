@@ -102,9 +102,9 @@ export function UserTimezoneForm({ initialTimeZone }: UserTimezoneFormProps) {
         disabled={isPending}
       />
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        Start and end times you pick when creating an event use this zone unless
-        you choose another on the form. Event pages always show times in that
-        event&apos;s zone.
+        When creating a new event, the start and end times will default to this
+        timezone unless you choose another. Event pages always show times in
+        that event&apos;s zone.
       </p>
       <button
         type="submit"
