@@ -2,7 +2,7 @@
 
 import { updateUserTimezone } from "@/app/actions/user-settings";
 import { getTimezoneSelectChoices } from "@/lib/event-datetime";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 type UserTimezoneFormProps = {
   initialTimeZone: string;
@@ -60,15 +60,22 @@ function TimezoneSelect({
 
 export function UserTimezoneForm({ initialTimeZone }: UserTimezoneFormProps) {
   const [timeZone, setTimeZone] = useState(initialTimeZone);
+  const [savedTimeZone, setSavedTimeZone] = useState(initialTimeZone);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const isDirty = timeZone !== savedTimeZone;
+
+  useEffect(() => {
+    if (isDirty) setSaved(false);
+  }, [isDirty]);
 
   return (
     <form
       className="flex max-w-xl flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!isDirty) return;
         setError(null);
         setSaved(false);
         startTransition(async () => {
@@ -76,6 +83,7 @@ export function UserTimezoneForm({ initialTimeZone }: UserTimezoneFormProps) {
           if (!result.ok) {
             setError(result.error);
           } else {
+            setSavedTimeZone(timeZone);
             setSaved(true);
           }
         });
@@ -87,11 +95,6 @@ export function UserTimezoneForm({ initialTimeZone }: UserTimezoneFormProps) {
           role="alert"
         >
           {error}
-        </p>
-      )}
-      {saved && !error && (
-        <p className="text-sm text-green-700 dark:text-green-400" role="status">
-          Saved.
         </p>
       )}
       <TimezoneSelect
@@ -106,13 +109,29 @@ export function UserTimezoneForm({ initialTimeZone }: UserTimezoneFormProps) {
         timezone unless you choose another. Event pages always show times in
         that event&apos;s zone.
       </p>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="inline-flex w-fit items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-800"
-      >
-        {isPending ? "Saving…" : "Save"}
-      </button>
+      <div className="flex flex-wrap items-center gap-4">
+        <button
+          type="submit"
+          disabled={isPending || !isDirty}
+          className="inline-flex w-fit items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:focus:ring-offset-gray-800"
+        >
+          {isPending ? "Saving…" : "Save"}
+        </button>
+        {isDirty && (
+          <span
+            className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-medium text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+            role="status"
+            aria-live="polite"
+          >
+            Unsaved changes
+          </span>
+        )}
+        {saved && !error && (
+          <span className="text-sm text-green-700 dark:text-green-400">
+            Saved.
+          </span>
+        )}
+      </div>
     </form>
   );
 }
