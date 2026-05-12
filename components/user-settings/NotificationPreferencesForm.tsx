@@ -79,22 +79,24 @@ export function NotificationPreferencesForm(props: {
             <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
               {rows.map((row) => {
                 const on = !disabled.has(row.kind);
+                const fieldId = `user-notif-${row.kind}`;
                 return (
-                  <li
-                    key={row.kind}
-                    className="flex items-start justify-between gap-4 px-4 py-3"
-                  >
-                    <span className="text-sm text-gray-700 dark:text-gray-200">
-                      {row.label}
-                    </span>
-                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li key={row.kind}>
+                    <label className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3">
+                      <span className="text-sm text-gray-700 dark:text-gray-200">
+                        {row.label}
+                      </span>
                       <input
+                        id={fieldId}
                         type="checkbox"
                         checked={on}
                         onChange={(e) => toggle(row.kind, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+                        className="peer sr-only"
                       />
-                      On
+                      <span
+                        className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-200 transition after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-in-out peer-checked:bg-blue-600 peer-checked:after:translate-x-5 peer-disabled:cursor-not-allowed peer-disabled:opacity-60 dark:bg-gray-700 dark:after:bg-gray-100 dark:peer-checked:bg-blue-500"
+                        aria-hidden="true"
+                      />
                     </label>
                   </li>
                 );
