@@ -112,7 +112,7 @@ export function PackingSuggestionsTab({
       <p className="text-gray-600 dark:text-gray-400">
         {suggestionApprovalRequired
           ? "New ideas from participants may need admin approval before everyone sees them."
-          : "Suggestions from signed-in participants appear in the catalog for everyone to browse."}
+          : "Suggestions of personal items to pack appear in the catalog for everyone to browse."}
       </p>
 
       {canManageTemplate && drafts.length > 0 ? (
@@ -185,65 +185,83 @@ export function PackingSuggestionsTab({
       ) : null}
 
       {isSignedIn ? (
-        <form
-          className="space-y-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setError(null);
-            startTransition(async () => {
-              const dq =
-                defQty.trim() === ""
-                  ? null
-                  : Math.max(1, parseInt(defQty, 10) || 0);
-              const r = await suggestPackingItem(eventId, {
-                name,
-                section: section.trim() || null,
-                defaultQuantity: dq,
-              });
-              if (!r.ok) setError(r.error);
-              else {
-                setName("");
-                setSection("");
-                setDefQty("");
-                router.refresh();
-              }
-            });
-          }}
-        >
+        <section>
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             Suggest an item
           </h3>
-          <input
-            required
-            maxLength={200}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Item name"
-            className="w-full rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <input
-            maxLength={120}
-            value={section}
-            onChange={(e) => setSection(e.target.value)}
-            placeholder="Section (optional)"
-            className="w-full rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <input
-            type="number"
-            min={1}
-            value={defQty}
-            onChange={(e) => setDefQty(e.target.value)}
-            placeholder="Default quantity (optional)"
-            className="w-full max-w-xs rounded border border-gray-300 px-2 py-1.5 dark:border-gray-600 dark:bg-gray-950"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500"
-          >
-            Submit suggestion
-          </button>
-        </form>
+          <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 shadow-sm dark:border-gray-600 dark:bg-gray-950">
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setError(null);
+                startTransition(async () => {
+                  const dq =
+                    defQty.trim() === ""
+                      ? null
+                      : Math.max(1, parseInt(defQty, 10) || 0);
+                  const r = await suggestPackingItem(eventId, {
+                    name,
+                    section: section.trim() || null,
+                    defaultQuantity: dq,
+                  });
+                  if (!r.ok) setError(r.error);
+                  else {
+                    setName("");
+                    setSection("");
+                    setDefQty("");
+                    router.refresh();
+                  }
+                });
+              }}
+            >
+              <div className="min-w-56 flex-1">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                  Item
+                </label>
+                <input
+                  required
+                  maxLength={200}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Suggest item"
+                  className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+                />
+              </div>
+              <div className="w-40">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                  Section
+                </label>
+                <input
+                  maxLength={120}
+                  value={section}
+                  onChange={(e) => setSection(e.target.value)}
+                  placeholder="Section"
+                  className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+                />
+              </div>
+              <div className="w-28">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                  Qty
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={defQty}
+                  onChange={(e) => setDefQty(e.target.value)}
+                  className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Suggest
+              </button>
+            </form>
+          </div>
+        </section>
       ) : (
         <p className="text-gray-600 dark:text-gray-400">
           Sign in to suggest items for the catalog. You can still read published

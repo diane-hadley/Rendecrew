@@ -173,18 +173,10 @@ describe("PackingSuggestionsTab", () => {
         drafts={[]}
       />,
     );
-    await user.type(screen.getByPlaceholderText("Item name"), "Napkins");
-    await user.type(
-      screen.getByPlaceholderText("Section (optional)"),
-      "Picnic",
-    );
-    await user.type(
-      screen.getByPlaceholderText("Default quantity (optional)"),
-      "3",
-    );
-    await user.click(
-      screen.getByRole("button", { name: /Submit suggestion/i }),
-    );
+    await user.type(screen.getByPlaceholderText("Suggest item"), "Napkins");
+    await user.type(screen.getByPlaceholderText("Section"), "Picnic");
+    await user.type(screen.getByRole("spinbutton"), "3");
+    await user.click(screen.getByRole("button", { name: /^Suggest$/i }));
     await waitFor(() => {
       expect(vi.mocked(suggestPackingItem)).toHaveBeenCalledWith("e1", {
         name: "Napkins",
