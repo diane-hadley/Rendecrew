@@ -25,7 +25,6 @@ import {
   useRedo,
   useRoom,
   useStorage,
-  useSyncStatus,
   useUndo,
 } from "@liveblocks/react";
 import {
@@ -1183,7 +1182,6 @@ export function PackingListEditor({
   }));
   const rawItems = storageSnap?.items;
   const rawSections = storageSnap?.sections;
-  const syncStatus = useSyncStatus({ smooth: true });
   const undo = useUndo();
   const redo = useRedo();
   const canUndo = useCanUndo();
@@ -1466,26 +1464,6 @@ export function PackingListEditor({
           sectionId,
           name,
           quantity,
-          quantityMax: null,
-          signUps,
-        }),
-        insertAt,
-      );
-    },
-    [],
-  );
-
-  const addItemInSection = useMutation(
-    ({ storage }, sectionId: string | null) => {
-      const items = storage.get("items");
-      const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
-      const insertAt = lastIndexForSectionBucket(items, sectionId) + 1;
-      items.insert(
-        new LiveObject<PackingItemStorage>({
-          id: crypto.randomUUID(),
-          sectionId,
-          name: "New item",
-          quantity: null,
           quantityMax: null,
           signUps,
         }),
@@ -2021,7 +1999,7 @@ export function PackingListEditor({
           <svg
             aria-hidden
             viewBox="0 0 24 24"
-            className="h-5 w-5"
+            className="size-5"
             fill="none"
             stroke="currentColor"
             strokeWidth="2.5"
@@ -2042,7 +2020,7 @@ export function PackingListEditor({
           <svg
             aria-hidden
             viewBox="0 0 24 24"
-            className="h-5 w-5"
+            className="size-5"
             fill="none"
             stroke="currentColor"
             strokeWidth="2.5"
