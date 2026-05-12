@@ -18,8 +18,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type CSSProperties,
@@ -194,9 +196,22 @@ export function PersonalPackingDnDList({
   const sortKeys = localKeys ?? serverKeys;
 
   const [editSectionsOpen, setEditSectionsOpen] = useState(false);
+  const editSectionsOpenRef = useRef(editSectionsOpen);
+  editSectionsOpenRef.current = editSectionsOpen;
+  const [editSectionsError, setEditSectionsError] = useState<string | null>(
+    null,
+  );
   const [editSectionsDraft, setEditSectionsDraft] = useState<
     { id: string; title: string }[]
   >([]);
+
+  const reportReorderError = useCallback(
+    (message: string) => {
+      if (editSectionsOpenRef.current) setEditSectionsError(message);
+      else onServerError(message);
+    },
+    [onServerError],
+  );
 
   const serverSig = useMemo(
     () =>
@@ -217,11 +232,14 @@ export function PersonalPackingDnDList({
     }),
   );
 
-  const applyReorderAndPersist = (nextKeys: string[]) => {
+  const applyReorderAndPersist = (
+    nextKeys: string[],
+    opts?: { onReorderSuccess?: () => void },
+  ) => {
     const ordered = parsePersonalPackingSortKeys(nextKeys);
     if (ordered.length !== personalItems.length) {
       setLocalKeys(null);
-      onServerError("Could not save order");
+      reportReorderError("Could not save order");
       return;
     }
     setLocalKeys(nextKeys);
@@ -229,9 +247,10 @@ export function PersonalPackingDnDList({
       const r = await reorderPersonalPackingItems(eventId, ordered);
       if (!r.ok) {
         setLocalKeys(null);
-        onServerError(r.error);
+        reportReorderError(r.error);
         return;
       }
+      opts?.onReorderSuccess?.();
       router.refresh();
     });
   };
@@ -250,6 +269,7 @@ export function PersonalPackingDnDList({
   };
 
   const applySectionEditsFromModal = () => {
+    setEditSectionsError(null);
     const rows = editSectionsDraft
       .map((r) => ({ id: r.id, title: r.title.trim() }))
       .filter((r) => r.title !== "");
@@ -295,11 +315,15 @@ export function PersonalPackingDnDList({
     // Validate and persist.
     const parsed = parsePersonalPackingSortKeys(nextKeys);
     if (parsed.length !== personalItems.length) {
-      onServerError("Could not save order");
+      reportReorderError("Could not save order");
       return;
     }
-    setEditSectionsOpen(false);
-    applyReorderAndPersist(nextKeys);
+    applyReorderAndPersist(nextKeys, {
+      onReorderSuccess: () => {
+        setEditSectionsError(null);
+        setEditSectionsOpen(false);
+      },
+    });
   };
 
   if (personalItems.length === 0) {
@@ -375,6 +399,7 @@ export function PersonalPackingDnDList({
           type="button"
           disabled={pending}
           onClick={() => {
+            setEditSectionsError(null);
             setEditSectionsDraft(
               namedSectionKeys.map((k) => ({ id: k, title: k })),
             );
@@ -390,7 +415,11 @@ export function PersonalPackingDnDList({
         <PersonalPackingEditSectionsModal
           rows={editSectionsDraft}
           setRows={setEditSectionsDraft}
-          onCancel={() => setEditSectionsOpen(false)}
+          inlineError={editSectionsError}
+          onCancel={() => {
+            setEditSectionsError(null);
+            setEditSectionsOpen(false);
+          }}
           onDone={applySectionEditsFromModal}
         />
       ) : null}

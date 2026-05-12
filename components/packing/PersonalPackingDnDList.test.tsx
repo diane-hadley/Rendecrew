@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   deletePersonalPackingItem,
@@ -175,7 +175,7 @@ describe("PersonalPackingDnDList", () => {
     );
   });
 
-  it("invokes onServerError when reorder returns not ok", async () => {
+  it("shows reorder failure inside the edit-sections dialog when Done returns not ok", async () => {
     const user = userEvent.setup();
     const onServerError = vi.fn();
     vi.mocked(reorderPersonalPackingItems).mockResolvedValue({
@@ -193,9 +193,11 @@ describe("PersonalPackingDnDList", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: "Edit sections" }));
-    await user.click(screen.getByRole("button", { name: "Done" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
     await waitFor(() => {
-      expect(onServerError).toHaveBeenCalledWith("nope");
+      expect(within(dialog).getByRole("alert")).toHaveTextContent("nope");
     });
+    expect(onServerError).not.toHaveBeenCalled();
   });
 });

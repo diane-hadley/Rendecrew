@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -173,5 +173,24 @@ describe("EditSectionsModal", () => {
     expect(titles()).toEqual(["First", "Second"]);
     await user.click(screen.getByRole("button", { name: "Move First down" }));
     expect(titles()).toEqual(["Second", "First"]);
+  });
+
+  it("renders inlineError as an alert inside the dialog", () => {
+    render(
+      <EditSectionsModal
+        titleId="edit-sections-test-title"
+        title="Edit sections"
+        rows={[{ id: "s1", title: "Alpha" }]}
+        setRows={() => {}}
+        maxTitleLength={120}
+        inlineError="Could not sync."
+        onCancel={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Could not sync.",
+    );
   });
 });

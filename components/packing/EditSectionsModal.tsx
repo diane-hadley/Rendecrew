@@ -32,6 +32,7 @@ export function EditSectionsModal({
   rows,
   setRows,
   maxTitleLength,
+  inlineError,
   onCancel,
   onDone,
 }: {
@@ -40,6 +41,8 @@ export function EditSectionsModal({
   rows: EditSectionRow[];
   setRows: Dispatch<SetStateAction<EditSectionRow[]>>;
   maxTitleLength: number;
+  /** Shown inside the dialog (e.g. save/sync failures while this modal is open). */
+  inlineError?: string | null;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -94,6 +97,15 @@ export function EditSectionsModal({
         >
           {title}
         </h3>
+
+        {inlineError ? (
+          <p
+            className="mt-3 text-sm text-red-600 dark:text-red-400"
+            role="alert"
+          >
+            {inlineError}
+          </p>
+        ) : null}
 
         <DndContext
           sensors={sensors}

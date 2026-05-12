@@ -41,6 +41,14 @@ type RidesBoardProps = {
 
 type DirectionId = "TO_EVENT" | "FROM_EVENT";
 
+function isAlreadyInAnotherCarMessage(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("already in another car") ||
+    lower.includes("already driving another car")
+  );
+}
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const a = parts[0]?.[0] ?? "";
@@ -429,6 +437,7 @@ function CarDetailsModal({
   leg,
   displayTimeZone,
   isPending,
+  actionError,
   onClose,
   onEditCar,
   onDeleteCar,
@@ -439,6 +448,7 @@ function CarDetailsModal({
   leg: DirectionId;
   displayTimeZone: string;
   isPending: boolean;
+  actionError?: string | null;
   onClose: () => void;
   onEditCar: () => void;
   onDeleteCar: () => void;
@@ -516,6 +526,14 @@ function CarDetailsModal({
         </div>
 
         <div className="max-h-[min(70vh,560px)] overflow-y-auto px-5 py-4">
+          {actionError ? (
+            <p
+              className="mb-4 text-sm text-red-600 dark:text-red-400"
+              role="alert"
+            >
+              {actionError}
+            </p>
+          ) : null}
           {!car ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">
               This car is no longer available.
@@ -626,6 +644,8 @@ export function RidesBoard({
   const [cars, setCars] = useState<RideCarRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [carDetailsError, setCarDetailsError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const [carDetails, setCarDetails] = useState<
@@ -675,11 +695,7 @@ export function RidesBoard({
   const setErrorOrToast = useCallback(
     (next: string) => {
       const msg = next.trim();
-      const lower = msg.toLowerCase();
-      const isAlreadyInAnotherCar =
-        lower.includes("already in another car") ||
-        lower.includes("already driving another car");
-      if (isAlreadyInAnotherCar) {
+      if (isAlreadyInAnotherCarMessage(msg)) {
         setError(null);
         showToast(msg);
         return;
@@ -688,6 +704,27 @@ export function RidesBoard({
     },
     [showToast],
   );
+
+  const setCarEditorFeedback = useCallback(
+    (next: string) => {
+      const msg = next.trim();
+      if (isAlreadyInAnotherCarMessage(msg)) {
+        setEditorError(null);
+        showToast(msg);
+        return;
+      }
+      setEditorError(msg);
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    if (!editor.open) setEditorError(null);
+  }, [editor.open]);
+
+  useEffect(() => {
+    if (!carDetails.open) setCarDetailsError(null);
+  }, [carDetails.open]);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -774,6 +811,7 @@ export function RidesBoard({
   }
 
   function openCreate(tab: DirectionId) {
+    setEditorError(null);
     setEditor(() => {
       const next = emptyEditor(members, tab, defaultTimeZone);
       next.open = true;
@@ -782,6 +820,7 @@ export function RidesBoard({
   }
 
   function openEdit(car: RideCarRow, tab: DirectionId) {
+    setEditorError(null);
     setEditor(() => {
       const next = editorFromCar(car, displayTimeZone, members, tab);
       next.open = true;
@@ -790,6 +829,7 @@ export function RidesBoard({
   }
 
   async function saveCar() {
+    setEditorError(null);
     setError(null);
     const direction = directionFromEnabled(
       editor.toEnabled,
@@ -798,7 +838,7 @@ export function RidesBoard({
     if (!direction) return;
     const cap = Number(editor.passengerCapacity);
     if (!Number.isInteger(cap) || cap < 0) {
-      setErrorOrToast("Passenger capacity must be an integer ≥ 0.");
+      setCarEditorFeedback("Passenger capacity must be an integer ≥ 0.");
       return;
     }
 
@@ -866,7 +906,7 @@ export function RidesBoard({
         },
       });
       if (!r.ok) {
-        setErrorOrToast(r.error);
+        setCarEditorFeedback(r.error);
         return;
       }
       setEditor((e) => ({ ...e, open: false }));
@@ -949,6 +989,7 @@ export function RidesBoard({
     d: DirectionId,
     membershipId: string,
   ) {
+    setCarDetailsError(null);
     setError(null);
     startTransition(async () => {
       const r = await removeRidePassenger({
@@ -958,7 +999,7 @@ export function RidesBoard({
         eventMemberId: membershipId,
       });
       if (!r.ok) {
-        setErrorOrToast(r.error);
+        setCarDetailsError(r.error);
         return;
       }
       let nextCars = cars;
@@ -1192,7 +1233,7 @@ export function RidesBoard({
         </div>
       )}
 
-      {error && (
+      {error && !editor.open && !carDetails.open && (
         <p
           className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           role="alert"
@@ -1250,6 +1291,14 @@ export function RidesBoard({
             </div>
 
             <div className="space-y-6 px-5 py-4">
+              {editorError ? (
+                <p
+                  className="text-sm text-red-600 dark:text-red-400"
+                  role="alert"
+                >
+                  {editorError}
+                </p>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
@@ -1857,6 +1906,7 @@ export function RidesBoard({
         leg={carDetails.open ? carDetails.leg : "TO_EVENT"}
         displayTimeZone={displayTimeZone}
         isPending={isPending}
+        actionError={carDetailsError}
         onClose={() => setCarDetails({ open: false })}
         onEditCar={() => {
           const c = carDetailsCar;
