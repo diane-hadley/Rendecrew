@@ -65,7 +65,7 @@ describe("PersonalPackingDnDList", () => {
       />,
     );
     expect(screen.getByText("Uncategorized")).toBeInTheDocument();
-    expect(screen.getByText("Soap")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Soap")).toBeInTheDocument();
   });
 
   it("renders a named section heading from shared titles", () => {
@@ -79,8 +79,38 @@ describe("PersonalPackingDnDList", () => {
         onServerError={vi.fn()}
       />,
     );
-    expect(screen.getByText("Kitchen")).toBeInTheDocument();
-    expect(screen.getByText("Knife")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Kitchen")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Knife")).toBeInTheDocument();
+  });
+
+  it("persists item name when the name field is blurred", async () => {
+    const user = userEvent.setup();
+    render(
+      <PersonalPackingDnDList
+        eventId="e1"
+        personalItems={[
+          item({
+            id: "p1",
+            name: "Mug",
+            section: null,
+            packed: false,
+            sortOrder: 0,
+          }),
+        ]}
+        sharedSectionTitles={[]}
+        onServerError={vi.fn()}
+      />,
+    );
+    const nameField = screen.getByRole("textbox", { name: "Item name" });
+    await user.clear(nameField);
+    await user.type(nameField, "Travel mug");
+    await user.tab();
+    await waitFor(() => {
+      expect(updatePersonalPackingItem).toHaveBeenCalledWith("p1", {
+        name: "Travel mug",
+      });
+    });
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("persists packed state when the checkbox is toggled", async () => {
@@ -124,6 +154,35 @@ describe("PersonalPackingDnDList", () => {
     await waitFor(() => {
       expect(deletePersonalPackingItem).toHaveBeenCalledWith("p9");
     });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("persists section name when the section field is blurred", async () => {
+    const user = userEvent.setup();
+    render(
+      <PersonalPackingDnDList
+        eventId="e1"
+        personalItems={[
+          item({ id: "p1", name: "Mug", section: "Gear", sortOrder: 0 }),
+        ]}
+        sharedSectionTitles={["Gear"]}
+        onServerError={vi.fn()}
+      />,
+    );
+    const sectionField = screen.getByRole("textbox", { name: "Section name" });
+    await user.clear(sectionField);
+    await user.type(sectionField, "Camping");
+    await user.tab();
+    await waitFor(() => {
+      expect(reorderPersonalPackingItems).toHaveBeenCalled();
+    });
+    const call = vi.mocked(reorderPersonalPackingItems).mock.calls[0];
+    expect(call[0]).toBe("e1");
+    expect(call[1]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "p1", section: "Camping" }),
+      ]),
+    );
     expect(refresh).toHaveBeenCalled();
   });
 

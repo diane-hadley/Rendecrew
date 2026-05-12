@@ -36,6 +36,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type FocusEvent,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -532,6 +533,13 @@ type PackingSortableSectionHeaderProps = {
   colCount: number;
   label: string;
   trailing: ReactNode;
+  /** When true, named sections render an inline title field (not used for Uncategorized). */
+  canEditTitle?: boolean;
+  onCommitSectionTitle?: (
+    sectionId: string,
+    raw: string,
+    previousTitle: string,
+  ) => boolean;
 };
 
 /**
@@ -543,6 +551,8 @@ function PackingSortableSectionHeader({
   colCount,
   label,
   trailing,
+  canEditTitle = false,
+  onCommitSectionTitle,
 }: PackingSortableSectionHeaderProps) {
   const { setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortId,
@@ -553,6 +563,35 @@ function PackingSortableSectionHeader({
     transition,
     opacity: isDragging ? 0.65 : undefined,
   };
+
+  const body = sortId.startsWith("s:") ? sortId.slice(2) : "";
+  const sectionIdForEdit =
+    body && body !== UNCATEGORIZED_SENTINEL ? body : null;
+  const showField = Boolean(
+    canEditTitle && sectionIdForEdit && onCommitSectionTitle,
+  );
+
+  const titleControl = showField ? (
+    <input
+      type="text"
+      key={`${sectionIdForEdit}:${label}`}
+      defaultValue={label}
+      maxLength={MAX_SECTION_LEN}
+      aria-label="Section name"
+      onBlur={(e: FocusEvent<HTMLInputElement>) => {
+        const el = e.currentTarget;
+        const ok =
+          onCommitSectionTitle?.(sectionIdForEdit!, el.value, label) ?? true;
+        if (!ok) el.value = label;
+      }}
+      className="w-full min-w-32 border-0 bg-transparent px-0 py-0.5 text-xs font-semibold uppercase tracking-wide text-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400"
+    />
+  ) : (
+    <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
+      {label}
+    </span>
+  );
+
   return (
     <tr
       ref={setNodeRef}
@@ -565,9 +604,7 @@ function PackingSortableSectionHeader({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
-              {label}
-            </span>
+            {titleControl}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {trailing}
@@ -1529,6 +1566,25 @@ export function PackingListEditor({
     [],
   );
 
+  const updateSectionTitle = useMutation(
+    (
+      { storage },
+      { sectionId, title }: { sectionId: string; title: string },
+    ) => {
+      const sections = storage.get("sections");
+      const next = title.trim().slice(0, MAX_SECTION_LEN);
+      if (!next) return;
+      for (let i = 0; i < sections.length; i++) {
+        const s = sections.get(i);
+        if (!s) continue;
+        if (String(s.get("id")) !== sectionId) continue;
+        s.set("title", next);
+        return;
+      }
+    },
+    [],
+  );
+
   const removeItem = useMutation(({ storage }, index: number) => {
     const items = storage.get("items");
     items.delete(index);
@@ -1901,6 +1957,28 @@ export function PackingListEditor({
     [sectionsOrdered],
   );
 
+  const commitSectionTitle = useCallback(
+    (sectionId: string, raw: string, previousTitle: string): boolean => {
+      const t = raw.trim().slice(0, MAX_SECTION_LEN);
+      if (t === previousTitle.trim()) return true;
+      if (!t) {
+        setSaveError("Section name cannot be empty.");
+        return false;
+      }
+      const dup = sectionsOrdered.some(
+        (s) => s.id !== sectionId && s.title.trim() === t,
+      );
+      if (dup) {
+        setSaveError("A section with that name already exists.");
+        return false;
+      }
+      setSaveError(null);
+      updateSectionTitle({ sectionId, title: t });
+      return true;
+    },
+    [sectionsOrdered, updateSectionTitle],
+  );
+
   const openEditSectionsDialog = useCallback(() => {
     setEditSectionsDraft(
       sectionsOrdered.map((s) => ({ id: s.id, title: s.title })),
@@ -2232,6 +2310,8 @@ export function PackingListEditor({
                             colCount={colCount}
                             label={secTitle}
                             trailing={null}
+                            canEditTitle={canManageTemplate}
+                            onCommitSectionTitle={commitSectionTitle}
                           />
                         );
                       }
@@ -2282,6 +2362,8 @@ export function PackingListEditor({
                           colCount={colCount}
                           label={headerTitle}
                           trailing={null}
+                          canEditTitle={canManageTemplate}
+                          onCommitSectionTitle={commitSectionTitle}
                         />
                       );
                       const rows = g.rows.map(({ item, index }) => (

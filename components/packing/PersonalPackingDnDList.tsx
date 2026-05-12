@@ -25,6 +25,7 @@ import {
   useState,
   useTransition,
   type CSSProperties,
+  type FocusEvent,
 } from "react";
 import {
   deletePersonalPackingItem,
@@ -32,11 +33,11 @@ import {
   updatePersonalPackingItem,
 } from "@/app/actions/packing-advanced";
 import {
-  PERSONAL_SORT_UNC,
   applyPersonalPackingDrag,
   buildPersonalPackingSortKeys,
   buildPersonalPackingSortKeysAfterSectionReorder,
   parsePersonalPackingSortKeys,
+  sectionSortIdToSectionKey,
 } from "@/lib/personal-packing-sort-keys";
 import {
   buildPersonalItemSectionGroups,
@@ -45,13 +46,24 @@ import {
 } from "@/lib/personal-packing-sections";
 import { PersonalPackingEditSectionsModal } from "./PersonalPackingReorderSectionsModal";
 
+const MAX_PERSONAL_SECTION_TITLE_LEN = 120;
+
 /** Section bars stay in SortableContext for item drops but are not draggable (same as Group Packing). */
-function PersonalSectionHeaderStatic({
+function PersonalSectionHeaderRow({
   id,
   label,
+  sectionKey,
+  pending,
+  onServerError,
+  onRenameSection,
 }: {
   id: string;
   label: string;
+  /** Storage key; empty string means Uncategorized (not editable as a name). */
+  sectionKey: string;
+  pending: boolean;
+  onServerError: (message: string) => void;
+  onRenameSection: (sectionKey: string, nextTitle: string) => void;
 }) {
   const { setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -62,15 +74,47 @@ function PersonalSectionHeaderStatic({
     transition,
     opacity: isDragging ? 0.55 : undefined,
   };
+
+  const editable = sectionKey !== "";
+
+  const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
+    if (!editable) return;
+    const el = e.currentTarget;
+    const trimmed = el.value.trim().slice(0, MAX_PERSONAL_SECTION_TITLE_LEN);
+    if (trimmed === sectionKey) {
+      el.value = sectionKey;
+      return;
+    }
+    if (!trimmed) {
+      el.value = sectionKey;
+      onServerError("Section name cannot be empty.");
+      return;
+    }
+    onRenameSection(sectionKey, trimmed);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className="rounded border border-gray-200 bg-gray-200/90 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
     >
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
-        {label}
-      </span>
+      {editable ? (
+        <input
+          type="text"
+          key={id}
+          defaultValue={sectionKey}
+          maxLength={MAX_PERSONAL_SECTION_TITLE_LEN}
+          disabled={pending}
+          onBlur={handleBlur}
+          aria-label="Section name"
+          className="w-full min-w-0 border-0 bg-transparent p-0 text-xs font-semibold uppercase tracking-wide text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-100 dark:focus:ring-blue-400"
+        />
+      ) : (
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-800 dark:text-gray-100">
+          {label}
+        </span>
+      )}
     </div>
   );
 }
@@ -82,6 +126,8 @@ function SortableItemRow({
   onQuantityBlur,
   onDelete,
   onPackedChange,
+  onServerError,
+  onNameSaveSuccess,
   disabled,
 }: {
   id: string;
@@ -90,8 +136,13 @@ function SortableItemRow({
   onQuantityBlur: (n: number) => void;
   onDelete: () => void;
   onPackedChange: (checked: boolean) => void;
+  onServerError: (message: string) => void;
+  onNameSaveSuccess: () => void;
   disabled?: boolean;
 }) {
+  const [nameSavePending, startNameSave] = useTransition();
+  const rowBusy = pending || nameSavePending;
+
   const {
     attributes,
     listeners,
@@ -105,6 +156,30 @@ function SortableItemRow({
     transition,
     opacity: isDragging ? 0.55 : undefined,
   };
+
+  const handleNameBlur = (e: FocusEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    const trimmed = el.value.trim();
+    if (trimmed === item.name) {
+      el.value = item.name;
+      return;
+    }
+    if (!trimmed) {
+      el.value = item.name;
+      onServerError("Item name cannot be empty.");
+      return;
+    }
+    startNameSave(async () => {
+      const r = await updatePersonalPackingItem(item.id, { name: trimmed });
+      if (!r.ok) {
+        onServerError(r.error);
+        el.value = item.name;
+        return;
+      }
+      onNameSaveSuccess();
+    });
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -123,19 +198,25 @@ function SortableItemRow({
           ⋮⋮
         </span>
       </button>
-      <label className="inline-flex cursor-pointer items-center gap-2">
+      <div className="flex min-w-0 flex-1 basis-40 items-center gap-2">
         <input
           type="checkbox"
           checked={item.packed}
-          disabled={pending || disabled}
+          disabled={rowBusy || disabled}
           onChange={(e) => onPackedChange(e.target.checked)}
           aria-label={`Packed: ${item.name}`}
-          className="rounded border-gray-300 dark:border-gray-600"
+          className="shrink-0 rounded border-gray-300 dark:border-gray-600"
         />
-        <span className="font-medium text-gray-900 dark:text-gray-100">
-          {item.name}
-        </span>
-      </label>
+        <input
+          type="text"
+          defaultValue={item.name}
+          key={`${item.id}:${item.name}`}
+          disabled={rowBusy}
+          onBlur={handleNameBlur}
+          className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 font-medium text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 dark:focus:border-blue-400 dark:focus:ring-blue-400"
+          aria-label="Item name"
+        />
+      </div>
       <input
         type="number"
         min={1}
@@ -146,14 +227,14 @@ function SortableItemRow({
           const n = Math.max(1, parseInt(e.target.value, 10) || 1);
           onQuantityBlur(n);
         }}
-        disabled={pending}
+        disabled={rowBusy}
         aria-label="Quantity"
       />
       <button
         type="button"
         className="ml-auto text-xs text-red-600 hover:underline dark:text-red-400"
         onClick={onDelete}
-        disabled={pending}
+        disabled={rowBusy}
       >
         Delete
       </button>
@@ -216,7 +297,7 @@ export function PersonalPackingDnDList({
   const serverSig = useMemo(
     () =>
       personalItems
-        .map((it) => `${it.id}:${it.section}:${it.sortOrder}`)
+        .map((it) => `${it.id}:${it.section}:${it.sortOrder}:${it.name}`)
         .join("|"),
     [personalItems],
   );
@@ -326,6 +407,48 @@ export function PersonalPackingDnDList({
     });
   };
 
+  const applyPersonalSectionRename = (
+    oldSectionKey: string,
+    rawNext: string,
+  ) => {
+    const next = rawNext.trim().slice(0, MAX_PERSONAL_SECTION_TITLE_LEN);
+    if (!next) {
+      onServerError("Section name cannot be empty.");
+      return;
+    }
+    if (next === oldSectionKey) return;
+    if (namedSectionKeys.some((k) => k !== oldSectionKey && k === next)) {
+      onServerError("A section with that name already exists.");
+      return;
+    }
+
+    const itemsNext = personalItems.map((it) =>
+      storageKeyForPersonalSection(it.section) === oldSectionKey
+        ? { ...it, section: next }
+        : it,
+    );
+
+    const nextOrderTitles = namedSectionKeys.map((k) =>
+      k === oldSectionKey ? next : k,
+    );
+
+    const orderWithItems = nextOrderTitles.filter((t) =>
+      itemsNext.some((it) => storageKeyForPersonalSection(it.section) === t),
+    );
+
+    const nextKeys = buildPersonalPackingSortKeysAfterSectionReorder(
+      orderWithItems,
+      itemsNext,
+    );
+
+    const parsed = parsePersonalPackingSortKeys(nextKeys);
+    if (parsed.length !== personalItems.length) {
+      reportReorderError("Could not save section name.");
+      return;
+    }
+    applyReorderAndPersist(nextKeys);
+  };
+
   if (personalItems.length === 0) {
     return <p className="mt-3 text-gray-500">No personal rows yet.</p>;
   }
@@ -346,15 +469,17 @@ export function PersonalPackingDnDList({
               if (key == null || typeof key !== "string") return null;
               if (key.startsWith("s:")) {
                 const body = key.slice(2);
-                const label =
-                  body === PERSONAL_SORT_UNC
-                    ? "Uncategorized"
-                    : decodeURIComponent(body);
+                const sectionKey = sectionSortIdToSectionKey(body);
+                const label = sectionKey === "" ? "Uncategorized" : sectionKey;
                 return (
-                  <PersonalSectionHeaderStatic
+                  <PersonalSectionHeaderRow
                     key={key}
                     id={key}
                     label={label}
+                    sectionKey={sectionKey}
+                    pending={pending}
+                    onServerError={onServerError}
+                    onRenameSection={applyPersonalSectionRename}
                   />
                 );
               }
@@ -368,6 +493,8 @@ export function PersonalPackingDnDList({
                   item={item}
                   pending={pending}
                   disabled={pending}
+                  onServerError={onServerError}
+                  onNameSaveSuccess={() => router.refresh()}
                   onPackedChange={(packed) => {
                     startTransition(async () => {
                       await updatePersonalPackingItem(item.id, { packed });

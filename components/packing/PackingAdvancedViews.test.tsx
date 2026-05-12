@@ -315,7 +315,7 @@ describe("PackingMyPackingTab", () => {
     );
     expect(screen.getByText("Plates")).toBeInTheDocument();
     expect(screen.getByText("Uncategorized")).toBeInTheDocument();
-    expect(screen.getByText("Sunscreen")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Sunscreen")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => {
       expect(vi.mocked(deletePersonalPackingItem)).toHaveBeenCalledWith("p1");
@@ -407,7 +407,7 @@ describe("PackingMyPackingTab", () => {
       />,
     );
     await user.click(screen.getByRole("checkbox"));
-    expect(screen.getByText("Gear")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Gear")).toBeInTheDocument();
     await waitFor(() => {
       expect(vi.mocked(updatePersonalPackingItem)).toHaveBeenCalledWith("p2", {
         packed: true,
