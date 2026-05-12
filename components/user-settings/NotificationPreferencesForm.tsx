@@ -111,11 +111,6 @@ export function NotificationPreferencesForm(props: {
           {error}
         </p>
       )}
-
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        New kinds default to on. You can override per event from each event’s
-        Settings tab.
-      </p>
     </div>
   );
 }
