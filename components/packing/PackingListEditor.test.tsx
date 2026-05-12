@@ -131,6 +131,44 @@ describe("PackingListEditor", () => {
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
   });
 
+  it("renders list view toggle after template form when managing template", () => {
+    editorStorage.items = [];
+    editorStorage.sections = [];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+        canManageTemplate
+      />,
+    );
+    const viewGroup = screen.getByRole("group", { name: "Packing list view" });
+    const addButton = screen.getByRole("button", { name: "Add" });
+    expect(
+      addButton.compareDocumentPosition(viewGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders list view toggle after undo controls when not managing template", () => {
+    editorStorage.items = [];
+    editorStorage.sections = [];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+        canManageTemplate={false}
+      />,
+    );
+    const viewGroup = screen.getByRole("group", { name: "Packing list view" });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(
+      undo.compareDocumentPosition(viewGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("renders a row for each storage item", () => {
     editorStorage.sections = [];
     editorStorage.items = [
