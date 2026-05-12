@@ -150,6 +150,7 @@ export function TaskBoard({
   const [tasks, setTasks] = useState<EventTaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [editor, setEditor] = useState<EditorState>(() =>
     emptyEditor(members, defaultTimeZone),
@@ -291,7 +292,16 @@ export function TaskBoard({
     refresh();
   }, [refresh]);
 
+  const editorAlert = editor.open ? editorError : null;
+  const pageBanner = !editor.open ? error : null;
+
+  function closeEditor() {
+    setEditorError(null);
+    setEditor((e) => ({ ...e, open: false }));
+  }
+
   function openCreate() {
+    setEditorError(null);
     setEditor(() => {
       const next = emptyEditor(members, defaultTimeZone);
       next.open = true;
@@ -300,6 +310,7 @@ export function TaskBoard({
   }
 
   function openEdit(t: EventTaskRow) {
+    setEditorError(null);
     setEditor(() => {
       const next = editorFromTask(t, members, defaultTimeZone);
       next.open = true;
@@ -314,15 +325,15 @@ export function TaskBoard({
   }
 
   async function saveTask() {
-    setError(null);
+    setEditorError(null);
     const title = editor.title.trim();
     if (!title) {
-      setError("Title is required.");
+      setEditorError("Title is required.");
       return;
     }
     const dueWall = editor.dueDate ? normalizeDueWall(editor.dueDate) : null;
     if (editor.dueDate && !dueWall) {
-      setError("Due time must be a valid date and time.");
+      setEditorError("Due time must be a valid date and time.");
       return;
     }
     const dueTz = normalizeTimeZone(editor.dueTimeZone, defaultTimeZone);
@@ -344,10 +355,10 @@ export function TaskBoard({
           assignedEventMemberIds: assigneeIds,
         });
         if (!r.ok) {
-          setError(r.error);
+          setEditorError(r.error);
           return;
         }
-        setEditor((e) => ({ ...e, open: false }));
+        closeEditor();
         refresh();
         return;
       }
@@ -363,7 +374,7 @@ export function TaskBoard({
         notes: editor.notes || null,
       });
       if (!r.ok) {
-        setError(r.error);
+        setEditorError(r.error);
         return;
       }
 
@@ -381,7 +392,7 @@ export function TaskBoard({
       if (toAdd.length) {
         const a = await assignMembersToTask({ taskId, eventMemberIds: toAdd });
         if (!a.ok) {
-          setError(a.error);
+          setEditorError(a.error);
           return;
         }
       }
@@ -391,12 +402,12 @@ export function TaskBoard({
           eventMemberIds: toRemove,
         });
         if (!u.ok) {
-          setError(u.error);
+          setEditorError(u.error);
           return;
         }
       }
 
-      setEditor((e) => ({ ...e, open: false }));
+      closeEditor();
       refresh();
     });
   }
@@ -605,14 +616,14 @@ export function TaskBoard({
         </div>
       </div>
 
-      {error && (
+      {pageBanner ? (
         <p
           className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           role="alert"
         >
-          {error}
+          {pageBanner}
         </p>
-      )}
+      ) : null}
 
       {loading ? (
         <div className="text-sm text-gray-600 dark:text-gray-300">
@@ -784,13 +795,21 @@ export function TaskBoard({
               <button
                 type="button"
                 className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                onClick={() => setEditor((e) => ({ ...e, open: false }))}
+                onClick={closeEditor}
               >
                 Close
               </button>
             </div>
 
             <div className="space-y-6 px-5 py-4">
+              {editorAlert ? (
+                <p
+                  className="text-sm text-red-600 dark:text-red-400"
+                  role="alert"
+                >
+                  {editorAlert}
+                </p>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
@@ -868,10 +887,11 @@ export function TaskBoard({
                       onClick={() => {
                         const taskId = editor.taskId;
                         if (!taskId) return;
+                        setEditorError(null);
                         startTransition(async () => {
                           const r = await assignEveryoneToTask(taskId);
                           if (!r.ok) {
-                            setError(r.error);
+                            setEditorError(r.error);
                             return;
                           }
                           refresh();
@@ -980,7 +1000,7 @@ export function TaskBoard({
             <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
               <button
                 type="button"
-                onClick={() => setEditor((e) => ({ ...e, open: false }))}
+                onClick={closeEditor}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:hover:bg-gray-900/50"
               >
                 Cancel

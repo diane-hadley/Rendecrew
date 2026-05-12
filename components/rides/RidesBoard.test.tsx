@@ -4,6 +4,7 @@ import {
   screen,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -336,6 +337,69 @@ describe("RidesBoard", () => {
     expect(
       screen.queryByText("Add to other direction?"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows upsert errors inside the add-car editor", async () => {
+    const user = userEvent.setup();
+    upsertRideCar.mockResolvedValue({
+      ok: false as const,
+      error: "Duplicate driver",
+    });
+    render(
+      <RidesBoard
+        eventId="e1"
+        currentUserId="u1"
+        defaultTimeZone="America/Los_Angeles"
+        members={members}
+      />,
+    );
+    await screen.findByText("To Event");
+    await user.click(screen.getByRole("button", { name: "Add car" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Duplicate driver")).toBeInTheDocument();
+  });
+
+  it("shows remove-passenger errors inside car details", async () => {
+    const user = userEvent.setup();
+    const carWithPassenger = sampleCar({
+      passengers: {
+        TO_EVENT: [
+          {
+            membershipId: "m1",
+            userId: "u1",
+            name: "Casey Organizer",
+            email: "c@example.com",
+          },
+        ],
+        FROM_EVENT: [],
+      },
+    });
+    listEventRides.mockResolvedValue({
+      ok: true as const,
+      event: { id: "e1", timezone: "America/Los_Angeles" },
+      cars: [carWithPassenger],
+    });
+    removeRidePassenger.mockResolvedValue({
+      ok: false as const,
+      error: "Cannot remove passenger",
+    });
+    render(
+      <RidesBoard
+        eventId="e1"
+        currentUserId="u1"
+        defaultTimeZone="America/Los_Angeles"
+        members={members}
+      />,
+    );
+    expect(await screen.findByText("Dana’s Subaru")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Details" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+    await waitFor(() => {
+      expect(within(dialog).getByRole("alert")).toHaveTextContent(
+        "Cannot remove passenger",
+      );
+    });
   });
 
   it("shows 'already in another car' as a bottom-left toast that auto-dismisses", async () => {

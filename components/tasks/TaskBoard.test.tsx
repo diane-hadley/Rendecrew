@@ -265,6 +265,32 @@ describe("TaskBoard", () => {
     expect(createEventTask).not.toHaveBeenCalled();
   });
 
+  it("shows API errors from save inside the task editor", async () => {
+    const user = userEvent.setup();
+    listEventTasks.mockResolvedValue(okList([]));
+    createEventTask.mockResolvedValue({
+      ok: false as const,
+      error: "Server rejected title",
+    });
+    render(
+      <TaskBoard
+        eventId="e1"
+        currentUserId="u1"
+        members={members}
+        defaultTimeZone="UTC"
+      />,
+    );
+    await screen.findByText("No tasks.");
+    await user.click(screen.getByRole("button", { name: "Add task" }));
+    const titleInput = screen.getByPlaceholderText("Book groceries");
+    await user.type(titleInput, "New one");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText("Server rejected title"),
+    ).toBeInTheDocument();
+    expect(createEventTask).toHaveBeenCalled();
+  });
+
   it("toggles Done for me via setMyTaskDone", async () => {
     const user = userEvent.setup();
     render(

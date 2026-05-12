@@ -1978,7 +1978,7 @@ export function PackingListEditor({
 
   return (
     <div className="space-y-4">
-      {saveError ? (
+      {saveError && !editSectionsOpen ? (
         <div className="text-sm text-red-600 dark:text-red-400" role="alert">
           {saveError}
         </div>
@@ -2338,6 +2338,7 @@ export function PackingListEditor({
           rows={editSectionsDraft}
           setRows={setEditSectionsDraft}
           maxTitleLength={MAX_SECTION_LEN}
+          inlineError={saveError}
           onCancel={() => setEditSectionsOpen(false)}
           onDone={() => {
             room.batch(() => {

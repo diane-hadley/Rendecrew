@@ -8,11 +8,13 @@ import { EditSectionsModal, type EditSectionRow } from "./EditSectionsModal";
 export function PersonalPackingEditSectionsModal({
   rows,
   setRows,
+  inlineError,
   onCancel,
   onDone,
 }: {
   rows: EditSectionRow[];
   setRows: Dispatch<SetStateAction<EditSectionRow[]>>;
+  inlineError?: string | null;
   onCancel: () => void;
   onDone: () => void;
 }) {
@@ -22,6 +24,7 @@ export function PersonalPackingEditSectionsModal({
       rows={rows}
       setRows={setRows}
       maxTitleLength={120}
+      inlineError={inlineError}
       onCancel={onCancel}
       onDone={onDone}
     />
