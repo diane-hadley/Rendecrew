@@ -40,6 +40,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { createPortal } from "react-dom";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
 import type {
   PackingItemPayload,
@@ -507,6 +508,156 @@ function findMySignUp(
   );
 }
 
+/** Maps UI / mutation desired quantity into a capped sign-up row quantity, or null if none left. */
+function resolvedNewSignUpQuantity(
+  desiredQty: number | undefined,
+  rem: number | null,
+): number | null {
+  const raw =
+    typeof desiredQty === "number" &&
+    Number.isFinite(desiredQty) &&
+    desiredQty >= 1
+      ? Math.floor(desiredQty)
+      : 1;
+  const q = rem != null ? Math.min(raw, rem) : raw;
+  return q >= 1 ? q : null;
+}
+
+type PackingItemSignUpModalProps = {
+  titleId: string;
+  itemName: string;
+  onClose: () => void;
+  isGuest: boolean;
+  showMemberSelect: boolean;
+  mySu: boolean;
+  memberValue: string;
+  onMemberChange: (v: string) => void;
+  quantityStr: string;
+  onQuantityChange: (v: string) => void;
+  otherMembers: readonly PackingSignupMemberOption[];
+  quantityMax: number | undefined;
+  onConfirm: () => void;
+  confirmDisabled: boolean;
+};
+
+function PackingItemSignUpModal({
+  titleId,
+  itemName,
+  onClose,
+  isGuest,
+  showMemberSelect,
+  mySu,
+  memberValue,
+  onMemberChange,
+  quantityStr,
+  onQuantityChange,
+  otherMembers,
+  quantityMax,
+  onConfirm,
+  confirmDisabled,
+}: PackingItemSignUpModalProps) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3
+          id={titleId}
+          className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100"
+          title={itemName}
+        >
+          Sign up to bring
+          <span className="font-normal text-gray-600 dark:text-gray-400">
+            {" "}
+            — {itemName}
+          </span>
+        </h3>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          {!isGuest && showMemberSelect ? (
+            <label className="min-w-0 flex-1 basis-[12rem]">
+              <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Member
+              </span>
+              <select
+                value={memberValue}
+                onChange={(e) => onMemberChange(e.target.value)}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+                aria-label="Who will bring this"
+              >
+                {mySu ? (
+                  <option value="">Choose...</option>
+                ) : (
+                  <option value="__me__">Me</option>
+                )}
+                {otherMembers.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : !isGuest ? (
+            <div className="min-w-0 flex-1 basis-[12rem]">
+              <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Member
+              </span>
+              <div className="rounded-md border border-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+                Me
+              </div>
+            </div>
+          ) : null}
+
+          <label
+            className={
+              isGuest ? "w-full sm:w-32" : "w-full shrink-0 sm:w-32 sm:basis-32"
+            }
+          >
+            <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Quantity
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={quantityMax}
+              value={quantityStr}
+              onChange={(e) => onQuantityChange(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm tabular-nums text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+              aria-label="How many to bring"
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={confirmDisabled}
+            onClick={onConfirm}
+            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function TrashIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -634,8 +785,12 @@ type PackingSortableItemRowProps = {
   updateQuantity: (a: { index: number; quantity: number | null }) => void;
   updateQuantityMax: (a: { index: number; quantityMax: number | null }) => void;
   setItemOptionalMode: (a: { index: number; optional: boolean }) => void;
-  addMySignUp: (index: number) => void;
-  addMemberSignUp: (a: { index: number; forUserId: string }) => void;
+  addMySignUp: (a: { index: number; quantity?: number }) => void;
+  addMemberSignUp: (a: {
+    index: number;
+    forUserId: string;
+    quantity?: number;
+  }) => void;
   removeSignUpIfAllowed: (a: { itemIndex: number; signUpId: string }) => void;
   signupMembers: readonly PackingSignupMemberOption[];
   updateSignUpQuantity: (a: {
@@ -710,7 +865,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
       ? cap == null || (remCap != null && remCap >= 1)
       : false;
 
-  const eligibleMembersToAdd = useMemo(() => {
+  const otherMembersEligible = useMemo(() => {
     if (!authUser || signupMembers.length === 0) return [];
     return signupMembers.filter(
       (m) =>
@@ -718,6 +873,73 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
         !signUps.some((s) => s.userId === m.userId),
     );
   }, [authUser, signupMembers, signUps]);
+
+  const [signUpModalOpen, setSignUpModalOpen] = useState(false);
+  const [signUpModalMember, setSignUpModalMember] = useState("");
+  const [signUpModalQty, setSignUpModalQty] = useState("1");
+
+  useEffect(() => {
+    if (!signUpModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSignUpModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [signUpModalOpen]);
+
+  const showSignUpModalButton =
+    canSignUpMore &&
+    Boolean(authUser || guestDisplayName) &&
+    (!mySu || otherMembersEligible.length > 0);
+
+  const showMemberSelect = Boolean(
+    authUser &&
+    signupMembers.length > 0 &&
+    (!mySu || otherMembersEligible.length > 0),
+  );
+
+  const parsedSignUpQty = parseInt(signUpModalQty.trim(), 10);
+  const qtyOk =
+    Number.isFinite(parsedSignUpQty) &&
+    parsedSignUpQty >= 1 &&
+    (remCap == null || parsedSignUpQty <= remCap);
+
+  let signUpConfirmDisabled = !qtyOk || !canSignUpMore;
+  if (authUser && showMemberSelect && mySu) {
+    signUpConfirmDisabled = signUpConfirmDisabled || !signUpModalMember;
+  }
+
+  const openSignUpModal = () => {
+    setSignUpModalMember(mySu ? "" : authUser ? "__me__" : "");
+    setSignUpModalQty("1");
+    setSignUpModalOpen(true);
+  };
+
+  const confirmSignUpModal = () => {
+    if (!qtyOk || !canSignUpMore) return;
+    const q = parsedSignUpQty;
+    if (!authUser) {
+      addMySignUp({ index, quantity: q });
+    } else if (mySu) {
+      if (!signUpModalMember) return;
+      addMemberSignUp({
+        index,
+        forUserId: signUpModalMember,
+        quantity: q,
+      });
+    } else if (!showMemberSelect || signUpModalMember === "__me__") {
+      addMySignUp({ index, quantity: q });
+    } else {
+      addMemberSignUp({
+        index,
+        forUserId: signUpModalMember,
+        quantity: q,
+      });
+    }
+    setSignUpModalOpen(false);
+  };
+
+  const signUpModalTitleId = `packing-signup-modal-${item.id}`;
 
   const cellBorder = "border border-gray-300 dark:border-gray-600 align-middle";
 
@@ -977,48 +1199,18 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
             <span>{signUps.length ? `${signUps.length} signed up` : "—"}</span>
           )}
         </td>
-        <td className={`${cellBorder} px-2 py-1.5`}>
-          <div className="flex flex-col gap-1.5">
-            {!mySu ? (
-              <button
-                type="button"
-                onClick={() => addMySignUp(index)}
-                disabled={(!authUser && !guestDisplayName) || !canSignUpMore}
-                className="w-full rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-              >
-                Sign up to bring
-              </button>
-            ) : null}
-            {eligibleMembersToAdd.length > 0 && canSignUpMore ? (
-              <label className="block text-[0.65rem] leading-tight text-gray-600 dark:text-gray-400">
-                <span className="sr-only">
-                  Sign up an event member to bring this
-                </span>
-                <span className="mb-0.5 block font-medium text-gray-700 dark:text-gray-300">
-                  Sign up a member
-                </span>
-                <select
-                  key={`member-pick-${item.id}-${signUps.length}`}
-                  defaultValue=""
-                  className="mt-0.5 w-full max-w-full rounded border border-gray-300 bg-white p-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-                  aria-label="Choose an event member to sign up for this item"
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) return;
-                    addMemberSignUp({ index, forUserId: v });
-                    e.target.value = "";
-                  }}
-                >
-                  <option value="">Choose…</option>
-                  {eligibleMembersToAdd.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-          </div>
+        <td className={`${cellBorder} px-2 py-1.5 text-center`}>
+          {showSignUpModalButton ? (
+            <button
+              type="button"
+              onClick={openSignUpModal}
+              className="w-full whitespace-nowrap rounded border border-transparent bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              Sign up to bring
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
+          )}
         </td>
         <td className={`${cellBorder} p-2 text-gray-600 dark:text-gray-400`}>
           {signUps.length === 0 ? (
@@ -1176,6 +1368,24 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
           </td>
         </tr>
       )}
+      {signUpModalOpen ? (
+        <PackingItemSignUpModal
+          titleId={signUpModalTitleId}
+          itemName={item.name}
+          onClose={() => setSignUpModalOpen(false)}
+          isGuest={!authUser}
+          showMemberSelect={showMemberSelect}
+          mySu={Boolean(mySu)}
+          memberValue={signUpModalMember}
+          onMemberChange={setSignUpModalMember}
+          quantityStr={signUpModalQty}
+          onQuantityChange={setSignUpModalQty}
+          otherMembers={otherMembersEligible}
+          quantityMax={remCap ?? undefined}
+          onConfirm={confirmSignUpModal}
+          confirmDisabled={signUpConfirmDisabled}
+        />
+      ) : null}
     </Fragment>
   );
 }
@@ -1685,55 +1895,66 @@ export function PackingListEditor({
     [],
   );
 
-  const addMySignUp = useMutation(({ storage }, index: number) => {
-    const { authUser: au, guestDisplayName: gn } = ctxRef.current;
-    if (!au && !gn?.trim()) return;
-    const items = storage.get("items");
-    const row = items.get(index);
-    if (!row) return;
-    let signUps = row.get("signUps");
-    if (!signUps) {
-      const list = new LiveList<LiveObject<PackingSignUpStorage>>([]);
-      row.set("signUps", list as never);
-      signUps = list as never;
-    }
-    const g = gn?.trim() ?? null;
-    for (let i = 0; i < signUps.length; i++) {
-      const s = signUps.get(i);
-      if (!s) continue;
-      if (au && s.get("userId") === au.dbUserId) return;
-      if (!au && g && !s.get("userId") && s.get("displayName") === g) return;
-    }
-    const itemQty = row.get("quantity") as number | null;
-    const itemMax = row.get("quantityMax") as number | null | undefined;
-    const cap = itemQuantityCap(itemQty, itemMax ?? null);
-    let sum = 0;
-    for (let i = 0; i < signUps.length; i++) {
-      const s = signUps.get(i);
-      if (!s) continue;
-      sum += (s.get("quantity") as number | null) ?? 0;
-    }
-    const rem = cap != null ? Math.max(0, cap - sum) : null;
-    if (cap != null && rem != null && rem < 1) return;
+  const addMySignUp = useMutation(
+    (
+      { storage },
+      { index, quantity: desiredQty }: { index: number; quantity?: number },
+    ) => {
+      const { authUser: au, guestDisplayName: gn } = ctxRef.current;
+      if (!au && !gn?.trim()) return;
+      const items = storage.get("items");
+      const row = items.get(index);
+      if (!row) return;
+      let signUps = row.get("signUps");
+      if (!signUps) {
+        const list = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+        row.set("signUps", list as never);
+        signUps = list as never;
+      }
+      const g = gn?.trim() ?? null;
+      for (let i = 0; i < signUps.length; i++) {
+        const s = signUps.get(i);
+        if (!s) continue;
+        if (au && s.get("userId") === au.dbUserId) return;
+        if (!au && g && !s.get("userId") && s.get("displayName") === g) return;
+      }
+      const itemQty = row.get("quantity") as number | null;
+      const itemMax = row.get("quantityMax") as number | null | undefined;
+      const cap = itemQuantityCap(itemQty, itemMax ?? null);
+      let sum = 0;
+      for (let i = 0; i < signUps.length; i++) {
+        const s = signUps.get(i);
+        if (!s) continue;
+        sum += (s.get("quantity") as number | null) ?? 0;
+      }
+      const rem = cap != null ? Math.max(0, cap - sum) : null;
+      if (cap != null && rem != null && rem < 1) return;
 
-    const newQuantity = rem != null ? Math.min(1, rem) : 1;
+      const newQuantity = resolvedNewSignUpQuantity(desiredQty, rem);
+      if (newQuantity == null) return;
 
-    signUps.push(
-      new LiveObject({
-        id: crypto.randomUUID(),
-        quantity: newQuantity,
-        displayName: au ? au.name : g!,
-        email: au ? au.email.trim().toLowerCase() : null,
-        userId: au ? au.dbUserId : null,
-        packed: false,
-      }),
-    );
-  }, []);
+      signUps.push(
+        new LiveObject({
+          id: crypto.randomUUID(),
+          quantity: newQuantity,
+          displayName: au ? au.name : g!,
+          email: au ? au.email.trim().toLowerCase() : null,
+          userId: au ? au.dbUserId : null,
+          packed: false,
+        }),
+      );
+    },
+    [],
+  );
 
   const addMemberSignUp = useMutation(
     (
       { storage },
-      { index, forUserId }: { index: number; forUserId: string },
+      {
+        index,
+        forUserId,
+        quantity: desiredQty,
+      }: { index: number; forUserId: string; quantity?: number },
     ) => {
       const { authUser: au, signupMembers: members } = ctxRef.current;
       if (!au) return;
@@ -1765,7 +1986,8 @@ export function PackingListEditor({
       const rem = cap != null ? Math.max(0, cap - sum) : null;
       if (cap != null && rem != null && rem < 1) return;
 
-      const newQuantity = rem != null ? Math.min(1, rem) : 1;
+      const newQuantity = resolvedNewSignUpQuantity(desiredQty, rem);
+      if (newQuantity == null) return;
 
       signUps.push(
         new LiveObject({

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildInitialStorage, PackingListEditor } from "./PackingListEditor";
@@ -154,6 +154,40 @@ describe("PackingListEditor", () => {
     expect(screen.getByDisplayValue("Lantern")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Sign up to bring/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens a sign-up dialog from the row action", async () => {
+    const user = userEvent.setup();
+    editorStorage.sections = [];
+    editorStorage.items = [
+      {
+        id: "row-modal",
+        name: "Stakes",
+        quantity: 3,
+        quantityMax: null,
+        sectionId: null,
+        signUps: [],
+      },
+    ];
+    render(
+      <PackingListEditor
+        roomId="r1"
+        authUser={{ dbUserId: "u1", name: "A", email: "a@b.c" }}
+        guestDisplayName={null}
+        canManageTemplate
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Sign up to bring/i }));
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", {
+        name: /Sign up to bring.*Stakes/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Confirm" }),
     ).toBeInTheDocument();
   });
 
