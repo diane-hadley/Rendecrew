@@ -31,11 +31,13 @@ vi.mock("@/lib/prisma", () => ({
     userSuggestionState: { upsert: vi.fn() },
     personalPackingItem: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       aggregate: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -48,6 +50,7 @@ import {
   deletePersonalPackingItem,
   markSuggestionsCatalogSeen,
   moderatePackingSuggestion,
+  reorderPersonalPackingItems,
   setSuggestionApprovalRequired,
   suggestPackingItem,
   updatePersonalPackingItem,
@@ -430,6 +433,42 @@ describe("updatePersonalPackingItem", () => {
     expect(prisma.personalPackingItem.update).toHaveBeenCalledWith({
       where: { id: "pi-1" },
       data: { packed: true },
+    });
+  });
+});
+
+describe("reorderPersonalPackingItems", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrCreateUser).mockResolvedValue({ id: "u1" } as Awaited<
+      ReturnType<typeof getOrCreateUser>
+    >);
+    vi.mocked(getEventForUser).mockResolvedValue({
+      event: { id: "e1" },
+      role: "member",
+    } as Awaited<ReturnType<typeof getEventForUser>>);
+    vi.mocked(prisma.personalPackingItem.findMany).mockResolvedValue([
+      { id: "a" },
+      { id: "b" },
+    ] as never);
+    vi.mocked(prisma.$transaction).mockResolvedValue(undefined as never);
+    vi.mocked(prisma.packingList.findUnique).mockResolvedValue(null);
+  });
+
+  it("applies stable indices and section updates", async () => {
+    const r = await reorderPersonalPackingItems("e1", [
+      { id: "b", section: "Kitchen" },
+      { id: "a", section: null },
+    ]);
+    expect(r).toEqual({ ok: true });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.personalPackingItem.update).toHaveBeenCalledWith({
+      where: { id: "b" },
+      data: { sortOrder: 0, section: "Kitchen" },
+    });
+    expect(prisma.personalPackingItem.update).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { sortOrder: 1, section: null },
     });
   });
 });

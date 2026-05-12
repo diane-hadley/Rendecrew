@@ -325,6 +325,7 @@ export function PackingCollabPage({
                 isSignedIn={authUser != null}
                 commitments={commitments}
                 personalItems={personalItems}
+                sharedSectionTitles={initialSections.map((s) => s.title)}
               />
             </div>
           ) : null}

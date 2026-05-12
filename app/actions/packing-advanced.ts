@@ -215,6 +215,44 @@ export async function copySuggestionToPersonal(
   }
 }
 
+export async function reorderPersonalPackingItems(
+  eventId: string,
+  ordered: { id: string; section: string | null }[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const user = await getOrCreateUser();
+    const row = await getEventForUser(eventId, user.id);
+    if (!row) return { ok: false, error: "Event not found" };
+    const existing = await prisma.personalPackingItem.findMany({
+      where: { eventId, userId: user.id },
+      select: { id: true },
+    });
+    const idSet = new Set(existing.map((e) => e.id));
+    if (ordered.length !== idSet.size) {
+      return { ok: false, error: "Invalid order" };
+    }
+    for (const o of ordered) {
+      if (!idSet.has(o.id)) return { ok: false, error: "Invalid order" };
+    }
+    await prisma.$transaction(
+      ordered.map((o, sortOrder) => {
+        const raw = o.section?.trim() ?? "";
+        const section = raw === "" ? null : raw.slice(0, 120);
+        return prisma.personalPackingItem.update({
+          where: { id: o.id },
+          data: { sortOrder, section },
+        });
+      }),
+    );
+    await revalidatePackingForEvent(eventId);
+    return { ok: true };
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "Could not reorder personal items";
+    return { ok: false, error: message };
+  }
+}
+
 export async function createPersonalPackingItem(
   eventId: string,
   input: { name: string; section?: string | null; quantity?: number },

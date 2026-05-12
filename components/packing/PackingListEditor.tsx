@@ -46,6 +46,7 @@ import type {
   PackingListSyncPayload,
   PackingSectionPayload,
 } from "@/lib/packing-list";
+import { EditSectionsModal, type EditSectionRow } from "./EditSectionsModal";
 import {
   isOptionalPackingMin,
   itemQuantityCap,
@@ -198,8 +199,11 @@ function buildCompositeKeys(
     keys.push(`s:${sid}`);
     for (const it of bySec.get(sid) ?? []) keys.push(`i:${it.id}`);
   }
-  keys.push(`s:${UNCATEGORIZED_SENTINEL}`);
-  for (const it of unc) keys.push(`i:${it.id}`);
+  // Only render Uncategorized when it actually has rows.
+  if (unc.length > 0) {
+    keys.push(`s:${UNCATEGORIZED_SENTINEL}`);
+    for (const it of unc) keys.push(`i:${it.id}`);
+  }
   return keys;
 }
 
@@ -503,6 +507,27 @@ function findMySignUp(
   );
 }
 
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
 type PackingSortableSectionHeaderProps = {
   sortId: string;
   colCount: number;
@@ -554,191 +579,7 @@ function PackingSortableSectionHeader({
   );
 }
 
-type ReorderSectionSortableRowProps = {
-  id: string;
-  title: string;
-  index: number;
-  total: number;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-};
-
-function ReorderSectionSortableRow({
-  id,
-  title,
-  index,
-  total,
-  onMoveUp,
-  onMoveDown,
-}: ReorderSectionSortableRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.65 : undefined,
-  };
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white p-2 dark:border-gray-600 dark:bg-gray-950"
-    >
-      <button
-        type="button"
-        className="shrink-0 cursor-grab touch-none rounded border border-transparent p-1.5 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        aria-label={`Drag to reorder ${title}`}
-        {...attributes}
-        {...listeners}
-      >
-        ⣿
-      </button>
-      <span className="min-w-0 flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-        {title}
-      </span>
-      <div className="flex shrink-0 gap-1">
-        <button
-          type="button"
-          disabled={index <= 0}
-          onClick={onMoveUp}
-          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-          aria-label={`Move ${title} up`}
-        >
-          Up
-        </button>
-        <button
-          type="button"
-          disabled={index >= total - 1}
-          onClick={onMoveDown}
-          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-          aria-label={`Move ${title} down`}
-        >
-          Down
-        </button>
-      </div>
-    </li>
-  );
-}
-
-type PackingReorderSectionsModalProps = {
-  orderedIds: string[];
-  setOrderedIds: Dispatch<SetStateAction<string[]>>;
-  titleById: Map<string, string>;
-  onCancel: () => void;
-  onDone: () => void;
-};
-
-function PackingReorderSectionsModal({
-  orderedIds,
-  setOrderedIds,
-  titleById,
-  onCancel,
-  onDone,
-}: PackingReorderSectionsModalProps) {
-  const modalSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const onModalDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      const a = String(active.id);
-      const o = String(over.id);
-      setOrderedIds((prev) => {
-        const oldIndex = prev.indexOf(a);
-        const newIndex = prev.indexOf(o);
-        if (oldIndex < 0 || newIndex < 0) return prev;
-        return arrayMove(prev, oldIndex, newIndex);
-      });
-    },
-    [setOrderedIds],
-  );
-
-  const moveBy = useCallback(
-    (id: string, delta: number) => {
-      setOrderedIds((prev) => {
-        const i = prev.indexOf(id);
-        const j = i + delta;
-        if (i < 0 || j < 0 || j >= prev.length) return prev;
-        return arrayMove(prev, i, j);
-      });
-    },
-    [setOrderedIds],
-  );
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="packing-reorder-sections-title"
-    >
-      <div className="max-h-[min(90vh,32rem)] w-full max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
-        <h3
-          id="packing-reorder-sections-title"
-          className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-        >
-          Reorder sections
-        </h3>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Uncategorized always stays at the bottom of the packing list. Only
-          named sections appear here. Changing order moves every item in a
-          section with that section.
-        </p>
-        <DndContext
-          sensors={modalSensors}
-          collisionDetection={closestCenter}
-          onDragEnd={onModalDragEnd}
-        >
-          <SortableContext
-            items={orderedIds}
-            strategy={verticalListSortingStrategy}
-          >
-            <ul className="mt-4 list-none space-y-2 p-0">
-              {orderedIds.map((sid, index) => (
-                <ReorderSectionSortableRow
-                  key={sid}
-                  id={sid}
-                  title={titleById.get(sid) ?? "Section"}
-                  index={index}
-                  total={orderedIds.length}
-                  onMoveUp={() => moveBy(sid, -1)}
-                  onMoveDown={() => moveBy(sid, 1)}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+type PackingEditSectionsModalRow = EditSectionRow;
 
 type PackingSortableItemRowProps = {
   sortId: string;
@@ -1168,7 +1009,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                 return (
                   <li
                     key={su.id}
-                    className="grid grid-cols-[minmax(0,1fr)_4rem_4rem] items-center gap-x-2"
+                    className="grid grid-cols-[minmax(0,1fr)_4rem_1.5rem] items-center gap-x-1"
                   >
                     <span
                       className={`min-w-0 truncate ${
@@ -1221,7 +1062,8 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                       {showRemoveSignUp ? (
                         <button
                           type="button"
-                          className="shrink-0 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                          className="shrink-0 text-sm font-semibold leading-none text-red-600 hover:underline dark:text-red-400"
+                          aria-label="Remove"
                           onClick={() =>
                             removeSignUpIfAllowed({
                               itemIndex: index,
@@ -1229,7 +1071,7 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
                             })
                           }
                         >
-                          Remove
+                          ×
                         </button>
                       ) : null}
                     </div>
@@ -1244,9 +1086,11 @@ function PackingSortableItemRow(props: PackingSortableItemRowProps) {
             <button
               type="button"
               onClick={() => setPendingRemoveIndex(index)}
-              className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+              className="inline-flex items-center justify-center text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+              aria-label="Remove item"
+              title="Remove item"
             >
-              Remove
+              <TrashIcon className="size-4" />
             </button>
           ) : (
             <span className="text-xs text-gray-400 dark:text-gray-600">—</span>
@@ -1565,6 +1409,72 @@ export function PackingListEditor({
     return last;
   }
 
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemSection, setNewItemSection] = useState("");
+  const [newItemQty, setNewItemQty] = useState("1");
+
+  function findSectionIdByTitle(
+    sections: LiveList<LiveObject<PackingSectionStorage>>,
+    title: string,
+  ): string | null {
+    const want = title.trim();
+    if (want === "") return null;
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections.get(i);
+      if (!s) continue;
+      const t = String(s.get("title") ?? "").trim();
+      if (t === want) return String(s.get("id"));
+    }
+    return null;
+  }
+
+  const addItemFromTopForm = useMutation(
+    (
+      { storage },
+      input: { name: string; sectionTitle: string; quantityRaw: string },
+    ) => {
+      const items = storage.get("items");
+      const sections = storage.get("sections");
+
+      const name = input.name.trim().slice(0, 200);
+      if (name === "") return;
+
+      const sectionTitle = input.sectionTitle.trim().slice(0, MAX_SECTION_LEN);
+      let sectionId = findSectionIdByTitle(sections, sectionTitle);
+      if (sectionTitle !== "" && !sectionId) {
+        sectionId = crypto.randomUUID();
+        sections.push(
+          new LiveObject<PackingSectionStorage>({
+            id: sectionId,
+            title: sectionTitle,
+          }),
+        );
+      }
+
+      const qRaw = input.quantityRaw.trim();
+      let quantity: number | null = null;
+      if (qRaw !== "") {
+        const n = parseInt(qRaw, 10);
+        quantity = Number.isFinite(n) && n > 0 ? n : null;
+      }
+
+      const signUps = new LiveList<LiveObject<PackingSignUpStorage>>([]);
+      const insertAt = lastIndexForSectionBucket(items, sectionId) + 1;
+      items.insert(
+        new LiveObject<PackingItemStorage>({
+          id: crypto.randomUUID(),
+          sectionId,
+          name,
+          quantity,
+          quantityMax: null,
+          signUps,
+        }),
+        insertAt,
+      );
+    },
+    [],
+  );
+
   const addItemInSection = useMutation(
     ({ storage }, sectionId: string | null) => {
       const items = storage.get("items");
@@ -1585,92 +1495,53 @@ export function PackingListEditor({
     [],
   );
 
-  const addSection = useMutation(({ storage }) => {
-    const sections = storage.get("sections");
-    if (sections.length >= MAX_PACKING_SECTIONS) return;
-    sections.push(
-      new LiveObject<PackingSectionStorage>({
-        id: crypto.randomUUID(),
-        title: "New section",
-      }),
-    );
-  }, []);
-
   const applyCompositeReorder = useMutation(({ storage }, keys: string[]) => {
     const sectionsList = storage.get("sections");
     const itemsList = storage.get("items");
     applyReorderFromKeys(sectionsList, itemsList, keys);
   }, []);
 
-  const applySectionListOrder = useMutation(
-    ({ storage }, orderedSectionIds: string[]) => {
-      const sectionsList = storage.get("sections");
-      if (orderedSectionIds.length !== sectionsList.length) return;
-      const current = new Set<string>();
-      for (let i = 0; i < sectionsList.length; i++) {
-        const s = sectionsList.get(i);
-        if (!s) return;
-        current.add(String(s.get("id")));
-      }
-      for (const id of orderedSectionIds) {
-        if (!current.has(id)) return;
-      }
-      reorderLiveListByIds(sectionsList, orderedSectionIds, (el) =>
-        String(el.get("id")),
-      );
-    },
-    [],
-  );
-
-  const renameSectionTitle = useMutation(
-    (
-      { storage },
-      { sectionId, title }: { sectionId: string; title: string },
-    ) => {
-      const sections = storage.get("sections");
-      for (let i = 0; i < sections.length; i++) {
-        const s = sections.get(i);
-        if (!s) continue;
-        if (String(s.get("id")) === sectionId) {
-          s.set("title", title);
-          return;
-        }
-      }
-    },
-    [],
-  );
-
-  const removeEmptySection = useMutation(({ storage }, sectionId: string) => {
-    const sections = storage.get("sections");
-    for (let i = 0; i < sections.length; i++) {
-      const s = sections.get(i);
-      if (!s) continue;
-      if (String(s.get("id")) === sectionId) {
-        sections.delete(i);
-        return;
-      }
-    }
-  }, []);
-
-  const deleteSectionMoveItemsToUncategorized = useMutation(
-    ({ storage }, sectionId: string) => {
+  const applySectionEdits = useMutation(
+    ({ storage }, nextRows: PackingEditSectionsModalRow[]) => {
       const items = storage.get("items");
       const sections = storage.get("sections");
-      for (let i = 0; i < items.length; i++) {
-        const row = items.get(i);
-        if (!row) continue;
-        if (String(row.get("sectionId")) === sectionId) {
-          row.set("sectionId", null);
-        }
-      }
+
+      const cleaned = nextRows
+        .map((r) => ({ id: String(r.id), title: String(r.title).trim() }))
+        .filter((r) => r.title !== "");
+
+      if (cleaned.length > MAX_PACKING_SECTIONS) return;
+
+      const nextIdSet = new Set(cleaned.map((r) => r.id));
+      const deletedIds = new Set<string>();
       for (let i = 0; i < sections.length; i++) {
         const s = sections.get(i);
         if (!s) continue;
-        if (String(s.get("id")) === sectionId) {
-          sections.delete(i);
-          break;
+        const id = String(s.get("id"));
+        if (!nextIdSet.has(id)) deletedIds.add(id);
+      }
+
+      if (deletedIds.size > 0) {
+        for (let i = 0; i < items.length; i++) {
+          const row = items.get(i);
+          if (!row) continue;
+          const sid = row.get("sectionId");
+          if (sid != null && deletedIds.has(String(sid))) {
+            row.set("sectionId", null);
+          }
         }
       }
+
+      while (sections.length > 0) sections.delete(0);
+      for (const r of cleaned) {
+        sections.push(
+          new LiveObject<PackingSectionStorage>({
+            id: r.id,
+            title: r.title.slice(0, MAX_SECTION_LEN),
+          }),
+        );
+      }
+
       const keys = buildCompositeKeys(
         snapshotSectionIds(sections),
         snapshotItemMeta(items),
@@ -2020,43 +1891,20 @@ export function PackingListEditor({
     [],
   );
 
-  const [renameTarget, setRenameTarget] = useState<{
-    id: string;
-    title: string;
-  } | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
-  const [pendingDeleteSection, setPendingDeleteSection] = useState<{
-    id: string;
-    title: string;
-    itemCount: number;
-  } | null>(null);
-  const [reorderSectionsOpen, setReorderSectionsOpen] = useState(false);
-  const [reorderSectionsDraft, setReorderSectionsDraft] = useState<string[]>(
-    [],
-  );
+  const [editSectionsOpen, setEditSectionsOpen] = useState(false);
+  const [editSectionsDraft, setEditSectionsDraft] = useState<
+    PackingEditSectionsModalRow[]
+  >([]);
 
   useEffect(() => {
-    if (
-      renameTarget == null &&
-      pendingDeleteSection == null &&
-      !reorderSectionsOpen
-    )
-      return;
+    if (!editSectionsOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (reorderSectionsOpen) {
-        setReorderSectionsOpen(false);
-        return;
-      }
-      if (renameTarget != null) {
-        setRenameTarget(null);
-        setRenameDraft("");
-      }
-      if (pendingDeleteSection != null) setPendingDeleteSection(null);
+      setEditSectionsOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [renameTarget, pendingDeleteSection, reorderSectionsOpen]);
+  }, [editSectionsOpen]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -2075,9 +1923,11 @@ export function PackingListEditor({
     [sectionsOrdered],
   );
 
-  const openReorderSectionsDialog = useCallback(() => {
-    setReorderSectionsDraft(sectionsOrdered.map((s) => s.id));
-    setReorderSectionsOpen(true);
+  const openEditSectionsDialog = useCallback(() => {
+    setEditSectionsDraft(
+      sectionsOrdered.map((s) => ({ id: s.id, title: s.title })),
+    );
+    setEditSectionsOpen(true);
   }, [sectionsOrdered]);
 
   const orderedKeys = useMemo(() => {
@@ -2148,24 +1998,13 @@ export function PackingListEditor({
     sectionsOrdered.map((s) => [s.id, s.title] as const),
   );
 
-  function countItemsInSection(sectionId: string): number {
-    return items.filter(
-      (it) => readPersistedSectionId(it, sectionIdSet) === sectionId,
-    ).length;
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600 dark:text-gray-400">
-        <span>
-          {syncStatus === "synchronizing" ? "Syncing…" : "Up to date"}
-        </span>
-        {saveError && (
-          <span className="text-red-600 dark:text-red-400" role="alert">
-            {saveError}
-          </span>
-        )}
-      </div>
+      {saveError ? (
+        <div className="text-sm text-red-600 dark:text-red-400" role="alert">
+          {saveError}
+        </div>
+      ) : null}
 
       <div
         className="flex flex-wrap items-center gap-2"
@@ -2174,23 +2013,46 @@ export function PackingListEditor({
       >
         <button
           type="button"
+          aria-label="Undo"
           disabled={!canUndo}
           onClick={undo}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         >
-          Undo
+          <svg
+            aria-hidden
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 15l-6-6 6-6" />
+            <path d="M3 9h12a6 6 0 1 1 0 12h-3" />
+          </svg>
         </button>
         <button
           type="button"
+          aria-label="Redo"
           disabled={!canRedo}
           onClick={redo}
           className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         >
-          Redo
+          <svg
+            aria-hidden
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M15 15l6-6-6-6" />
+            <path d="M21 9H9a6 6 0 1 0 0 12h3" />
+          </svg>
         </button>
-        <span className="text-xs text-gray-500 dark:text-gray-500">
-          Applies to edits you made on this device.
-        </span>
       </div>
 
       <div
@@ -2226,6 +2088,75 @@ export function PackingListEditor({
           </button>
         </div>
       </div>
+
+      {canManageTemplate ? (
+        <section className="rounded-lg border border-gray-300 bg-white p-3 shadow-sm dark:border-gray-600 dark:bg-gray-950">
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addItemFromTopForm({
+                name: newItemName,
+                sectionTitle: newItemSection,
+                quantityRaw: newItemQty,
+              });
+              setNewItemName("");
+              setNewItemSection("");
+              setNewItemQty("1");
+            }}
+          >
+            <div className="min-w-56 flex-1">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Item
+              </label>
+              <input
+                required
+                maxLength={200}
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                placeholder="Add group item"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+            <div className="w-40">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Section
+              </label>
+              <input
+                maxLength={MAX_SECTION_LEN}
+                value={newItemSection}
+                onChange={(e) => setNewItemSection(e.target.value)}
+                placeholder="Section"
+                list="packing-group-section-options"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+              <datalist id="packing-group-section-options">
+                {sectionsOrdered.map((s) => (
+                  <option key={s.id} value={s.title} />
+                ))}
+              </datalist>
+            </div>
+            <div className="w-28">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                Qty
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={newItemQty}
+                onChange={(e) => setNewItemQty(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-900"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              Add
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-950">
         <DndContext
@@ -2311,17 +2242,7 @@ export function PackingListEditor({
                               sortId={key}
                               colCount={colCount}
                               label="Uncategorized"
-                              trailing={
-                                canManageTemplate ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => addItemInSection(null)}
-                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                  >
-                                    Add item
-                                  </button>
-                                ) : null
-                              }
+                              trailing={null}
                             />
                           );
                         }
@@ -2332,45 +2253,7 @@ export function PackingListEditor({
                             sortId={key}
                             colCount={colCount}
                             label={secTitle}
-                            trailing={
-                              canManageTemplate ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => addItemInSection(sid)}
-                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                  >
-                                    Add item
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRenameTarget({
-                                        id: sid,
-                                        title: secTitle,
-                                      });
-                                      setRenameDraft(secTitle);
-                                    }}
-                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                  >
-                                    Rename
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setPendingDeleteSection({
-                                        id: sid,
-                                        title: secTitle,
-                                        itemCount: countItemsInSection(sid),
-                                      })
-                                    }
-                                    className="shrink-0 rounded-md border border-red-400/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-white dark:border-red-500/50 dark:bg-gray-900/80 dark:text-red-300 dark:hover:bg-gray-900"
-                                  >
-                                    Delete
-                                  </button>
-                                </>
-                              ) : null
-                            }
+                            trailing={null}
                           />
                         );
                       }
@@ -2420,59 +2303,7 @@ export function PackingListEditor({
                           sortId={hid}
                           colCount={colCount}
                           label={headerTitle}
-                          trailing={
-                            canManageTemplate ? (
-                              g.sectionId != null ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      addItemInSection(g.sectionId!)
-                                    }
-                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                  >
-                                    Add item
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRenameTarget({
-                                        id: g.sectionId!,
-                                        title: g.label,
-                                      });
-                                      setRenameDraft(g.label);
-                                    }}
-                                    className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                  >
-                                    Rename
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setPendingDeleteSection({
-                                        id: g.sectionId!,
-                                        title: g.label,
-                                        itemCount: countItemsInSection(
-                                          g.sectionId!,
-                                        ),
-                                      })
-                                    }
-                                    className="shrink-0 rounded-md border border-red-400/60 bg-white/90 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-white dark:border-red-500/50 dark:bg-gray-900/80 dark:text-red-300 dark:hover:bg-gray-900"
-                                  >
-                                    Delete
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => addItemInSection(null)}
-                                  className="shrink-0 rounded-md border border-gray-400/80 bg-white/90 px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-white dark:border-gray-500 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
-                                >
-                                  Add item
-                                </button>
-                              )
-                            ) : null
-                          }
+                          trailing={null}
                         />
                       );
                       const rows = g.rows.map(({ item, index }) => (
@@ -2515,146 +2346,28 @@ export function PackingListEditor({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => addSection()}
-            className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Add section
-          </button>
-          <button
-            type="button"
-            disabled={sectionsOrdered.length < 2}
-            onClick={openReorderSectionsDialog}
             className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            onClick={openEditSectionsDialog}
           >
-            Reorder sections
-          </button>
-          <button
-            type="button"
-            onClick={() => addItemInSection(null)}
-            className="rounded-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Add item
+            Edit sections
           </button>
         </div>
       ) : null}
 
-      {reorderSectionsOpen && canManageTemplate ? (
-        <PackingReorderSectionsModal
-          orderedIds={reorderSectionsDraft}
-          setOrderedIds={setReorderSectionsDraft}
-          titleById={titleBySectionId}
-          onCancel={() => setReorderSectionsOpen(false)}
+      {editSectionsOpen && canManageTemplate ? (
+        <EditSectionsModal
+          titleId="packing-edit-sections-title"
+          rows={editSectionsDraft}
+          setRows={setEditSectionsDraft}
+          maxTitleLength={MAX_SECTION_LEN}
+          onCancel={() => setEditSectionsOpen(false)}
           onDone={() => {
-            applySectionListOrder(reorderSectionsDraft);
-            setReorderSectionsOpen(false);
+            room.batch(() => {
+              applySectionEdits(editSectionsDraft);
+            });
+            setEditSectionsOpen(false);
           }}
         />
-      ) : null}
-
-      {renameTarget != null && canManageTemplate ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="packing-rename-section-title"
-        >
-          <div className="max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
-            <h3
-              id="packing-rename-section-title"
-              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-            >
-              Rename section
-            </h3>
-            <label
-              htmlFor="packing-rename-section-input"
-              className="mt-3 block text-sm text-gray-600 dark:text-gray-400"
-            >
-              Section title
-            </label>
-            <input
-              id="packing-rename-section-input"
-              key={renameTarget.id}
-              type="text"
-              maxLength={MAX_SECTION_LEN}
-              value={renameDraft}
-              autoFocus
-              onChange={(e) => setRenameDraft(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-            />
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRenameTarget(null);
-                  setRenameDraft("");
-                }}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={renameDraft.trim().length === 0}
-                onClick={() => {
-                  const t = renameDraft.trim();
-                  if (!t || t.length > MAX_SECTION_LEN) return;
-                  const id = renameTarget.id;
-                  setRenameTarget(null);
-                  setRenameDraft("");
-                  renameSectionTitle({ sectionId: id, title: t });
-                }}
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {pendingDeleteSection != null && canManageTemplate ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="packing-delete-section-title"
-        >
-          <div className="max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-600 dark:bg-gray-900">
-            <h3
-              id="packing-delete-section-title"
-              className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-            >
-              Remove section &quot;{pendingDeleteSection.title}&quot;?
-            </h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              {pendingDeleteSection.itemCount === 0
-                ? "This removes the empty section from the list."
-                : `${pendingDeleteSection.itemCount} item${pendingDeleteSection.itemCount === 1 ? "" : "s"} will move to Uncategorized. Sign-ups stay on the same items.`}
-            </p>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingDeleteSection(null)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const p = pendingDeleteSection;
-                  setPendingDeleteSection(null);
-                  if (!p) return;
-                  if (p.itemCount === 0) removeEmptySection(p.id);
-                  else deleteSectionMoveItemsToUncategorized(p.id);
-                }}
-                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
-              >
-                Remove section
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
 
       {pendingRemoveIndex != null && canManageTemplate ? (

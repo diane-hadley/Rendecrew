@@ -119,7 +119,6 @@ describe("PackingListEditor", () => {
         canManageTemplate
       />,
     );
-    expect(screen.getByText("Up to date")).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: "Reorder rows" }),
     ).toBeInTheDocument();
@@ -127,11 +126,9 @@ describe("PackingListEditor", () => {
       screen.getByRole("columnheader", { name: "Item" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Add section" }),
+      screen.getByRole("button", { name: "Edit sections" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: "Add item" }).length,
-    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
   });
 
   it("renders a row for each storage item", () => {
