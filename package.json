@@ -24,6 +24,7 @@
     "prisma:migrate:deploy:session": "node scripts/prisma-migrate-deploy.cjs",
     "prisma:baseline:resolve-applied": "node scripts/prisma-baseline-resolve-applied.cjs",
     "prisma:format": "prisma format",
+    "verify:data-model-erd": "prisma generate && git diff --exit-code docs/data-model-erd.svg",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -69,6 +70,7 @@
     "jsdom": "^29.0.1",
     "postcss": "^8.4.38",
     "prettier": "^3.8.1",
+    "prisma-erd-generator": "^2.4.2",
     "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.0",
