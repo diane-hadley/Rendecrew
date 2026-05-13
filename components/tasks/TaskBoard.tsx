@@ -19,7 +19,6 @@ import {
   useTransition,
 } from "react";
 import {
-  assignEveryoneToTask,
   assignMembersToTask,
   createEventTask,
   deleteEventTask,
@@ -68,6 +67,16 @@ function normalizeDueWall(v: string): string | null {
   if (!s) return null;
   const snapped = snapDatetimeLocalToFiveMinutes(s);
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(snapped) ? snapped : null;
+}
+
+function formatTaskDueForTable(
+  dueDate: string,
+  dueTimeZone: string | null,
+  defaultTimeZone: string,
+): string {
+  return (
+    utcToWallDatetimeLocal(dueDate, dueTimeZone ?? defaultTimeZone) || ""
+  ).replace("T", " ");
 }
 
 type EditorState = {
@@ -185,15 +194,9 @@ export function TaskBoard({
   /** Full member selection must query as ALL so unassigned tasks are included. */
   const userFilterForList = useMemo((): TaskListUserFilter => {
     if (userFilter.kind === "ALL") return userFilter;
-    if (
-      allMemberIds.length > 0 &&
-      selectedUserIds.length === allMemberIds.length &&
-      allMemberIds.every((id) => selectedUserIds.includes(id))
-    ) {
-      return { kind: "ALL" };
-    }
+    if (isEveryoneSelected) return { kind: "ALL" };
     return userFilter;
-  }, [userFilter, allMemberIds, selectedUserIds]);
+  }, [userFilter, isEveryoneSelected]);
 
   function applyUserMemberSelection(nextIds: string[]) {
     const uniq = Array.from(new Set(nextIds.filter(Boolean)));
@@ -702,12 +705,11 @@ export function TaskBoard({
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-200">
                         {t.dueDate ? (
-                          (
-                            utcToWallDatetimeLocal(
-                              t.dueDate,
-                              t.dueDateTimeZone ?? defaultTimeZone,
-                            ) || ""
-                          ).replace("T", " ")
+                          formatTaskDueForTable(
+                            t.dueDate,
+                            t.dueDateTimeZone,
+                            defaultTimeZone,
+                          )
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
@@ -794,10 +796,19 @@ export function TaskBoard({
               </div>
               <button
                 type="button"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                aria-label="Close"
+                className="rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                 onClick={closeEditor}
               >
-                Close
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="size-5"
+                  aria-hidden
+                >
+                  <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+                </svg>
               </button>
             </div>
 
@@ -885,16 +896,13 @@ export function TaskBoard({
                       disabled={isPending}
                       className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
                       onClick={() => {
-                        const taskId = editor.taskId;
-                        if (!taskId) return;
                         setEditorError(null);
-                        startTransition(async () => {
-                          const r = await assignEveryoneToTask(taskId);
-                          if (!r.ok) {
-                            setEditorError(r.error);
-                            return;
+                        setEditor((s) => {
+                          const nextAssignees = { ...s.assignees };
+                          for (const m of members) {
+                            nextAssignees[m.membershipId] = true;
                           }
-                          refresh();
+                          return { ...s, assignees: nextAssignees };
                         });
                       }}
                     >
@@ -933,12 +941,8 @@ export function TaskBoard({
               {Object.values(editor.assignees).filter(Boolean).length >= 2 ? (
                 <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                   <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                    How completion works
+                    Completion
                   </div>
-                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                    Each: everyone must mark done. Any: one person can complete
-                    for everyone.
-                  </p>
                   <div className="mt-3 space-y-2">
                     <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
                       <input

@@ -12,7 +12,6 @@ const listEventTasks = vi.fn();
 const createEventTask = vi.fn();
 const updateEventTask = vi.fn();
 const deleteEventTask = vi.fn();
-const assignEveryoneToTask = vi.fn();
 const assignMembersToTask = vi.fn();
 const unassignMembersFromTask = vi.fn();
 const setMyTaskDone = vi.fn();
@@ -26,7 +25,6 @@ vi.mock("@/app/actions/event-tasks", async (importOriginal) => {
     createEventTask: (...a: unknown[]) => createEventTask(...a),
     updateEventTask: (...a: unknown[]) => updateEventTask(...a),
     deleteEventTask: (...a: unknown[]) => deleteEventTask(...a),
-    assignEveryoneToTask: (...a: unknown[]) => assignEveryoneToTask(...a),
     assignMembersToTask: (...a: unknown[]) => assignMembersToTask(...a),
     unassignMembersFromTask: (...a: unknown[]) => unassignMembersFromTask(...a),
     setMyTaskDone: (...a: unknown[]) => setMyTaskDone(...a),
@@ -40,6 +38,12 @@ vi.mock("@/components/common/DateTimeFields", () => ({
 vi.mock("@/components/common/TimeZonePickerModal", () => ({
   TimeZonePickerModal: () => null,
 }));
+
+/** Matches `DEFAULT_TASK_LIST_OPEN_STATUS_FILTER` used by TaskBoard. */
+const defaultOpenStatusFilter = {
+  kind: "SET" as const,
+  statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
+};
 
 const members: TaskMemberListItem[] = [
   {
@@ -103,7 +107,6 @@ describe("TaskBoard", () => {
     createEventTask.mockResolvedValue({ ok: true as const, taskId: "t-new" });
     updateEventTask.mockResolvedValue({ ok: true as const });
     deleteEventTask.mockResolvedValue({ ok: true as const });
-    assignEveryoneToTask.mockResolvedValue({ ok: true as const });
     assignMembersToTask.mockResolvedValue({ ok: true as const });
     unassignMembersFromTask.mockResolvedValue({ ok: true as const });
     setMyTaskDone.mockResolvedValue({ ok: true as const });
@@ -121,10 +124,7 @@ describe("TaskBoard", () => {
 
     expect(await screen.findByText("Buy ice")).toBeInTheDocument();
     expect(listEventTasks).toHaveBeenCalledWith("e1", {
-      statusFilter: {
-        kind: "SET",
-        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
-      },
+      statusFilter: defaultOpenStatusFilter,
       userFilter: { kind: "MEMBERS", eventMemberIds: ["m1"] },
     });
   });
@@ -178,10 +178,7 @@ describe("TaskBoard", () => {
 
     await waitFor(() => expect(listEventTasks).toHaveBeenCalledTimes(2));
     expect(listEventTasks).toHaveBeenLastCalledWith("e1", {
-      statusFilter: {
-        kind: "SET",
-        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
-      },
+      statusFilter: defaultOpenStatusFilter,
       userFilter: { kind: "ALL" },
     });
   });
@@ -319,24 +316,27 @@ describe("TaskBoard", () => {
   it("deletes a task after confirm", async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(
-      <TaskBoard
-        eventId="e1"
-        currentUserId="u1"
-        members={members}
-        defaultTimeZone="UTC"
-      />,
-    );
-    await screen.findByText("Buy ice");
+    try {
+      render(
+        <TaskBoard
+          eventId="e1"
+          currentUserId="u1"
+          members={members}
+          defaultTimeZone="UTC"
+        />,
+      );
+      await screen.findByText("Buy ice");
 
-    const row = screen.getByText("Buy ice").closest("tr");
-    expect(row).not.toBeNull();
-    await user.click(within(row!).getByRole("button", { name: "Delete" }));
+      const row = screen.getByText("Buy ice").closest("tr");
+      expect(row).not.toBeNull();
+      await user.click(within(row!).getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => {
-      expect(deleteEventTask).toHaveBeenCalledWith("t1");
-    });
-    confirmSpy.mockRestore();
+      await waitFor(() => {
+        expect(deleteEventTask).toHaveBeenCalledWith("t1");
+      });
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   it("defaults to All users when current user has no membership", async () => {
@@ -350,10 +350,7 @@ describe("TaskBoard", () => {
     );
     await screen.findByText("Buy ice");
     expect(listEventTasks).toHaveBeenCalledWith("e1", {
-      statusFilter: {
-        kind: "SET",
-        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
-      },
+      statusFilter: defaultOpenStatusFilter,
       userFilter: { kind: "ALL" },
     });
   });
@@ -427,7 +424,7 @@ describe("TaskBoard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("assigns everyone from the edit dialog", async () => {
+  it("checks all assignees when Assign to everyone is clicked (persisted on Save)", async () => {
     const user = userEvent.setup();
     render(
       <TaskBoard
@@ -441,12 +438,26 @@ describe("TaskBoard", () => {
     const row = screen.getByText("Buy ice").closest("tr");
     expect(row).not.toBeNull();
     await user.click(within(row!).getByRole("button", { name: "Edit" }));
+
+    const danaLabel = screen.getByText("Dana Member").closest("label");
+    expect(danaLabel).not.toBeNull();
+    expect(within(danaLabel!).getByRole("checkbox")).not.toBeChecked();
+
     await user.click(
       screen.getByRole("button", { name: "Assign to everyone" }),
     );
-    await waitFor(() => {
-      expect(assignEveryoneToTask).toHaveBeenCalledWith("t1");
-    });
+
+    expect(
+      within(screen.getByText("Dana Member").closest("label")!).getByRole(
+        "checkbox",
+      ),
+    ).toBeChecked();
+    expect(
+      within(screen.getByText("Casey Organizer").closest("label")!).getByRole(
+        "checkbox",
+      ),
+    ).toBeChecked();
+    expect(assignMembersToTask).not.toHaveBeenCalled();
   });
 
   it("adds a second member to the user filter and refetches", async () => {
@@ -470,10 +481,7 @@ describe("TaskBoard", () => {
     await waitFor(() => expect(listEventTasks).toHaveBeenCalledTimes(2));
     // Selecting every member is sent to the server as ALL (includes unassigned tasks).
     expect(listEventTasks).toHaveBeenLastCalledWith("e1", {
-      statusFilter: {
-        kind: "SET",
-        statuses: [EventTaskStatus.TO_DO, EventTaskStatus.IN_PROGRESS],
-      },
+      statusFilter: defaultOpenStatusFilter,
       userFilter: { kind: "ALL" },
     });
   });
