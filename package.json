@@ -25,6 +25,7 @@
     "prisma:baseline:resolve-applied": "node scripts/prisma-baseline-resolve-applied.cjs",
     "prisma:format": "prisma format",
     "verify:data-model-erd": "prisma generate && git diff --exit-code docs/data-model-erd.svg",
+    "puppeteer:install-chrome": "puppeteer browsers install chrome-headless-shell",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

@@ -3,8 +3,10 @@ generator client {
 }
 
 generator erd {
-  provider = "prisma-erd-generator"
-  output   = "../docs/data-model-erd.svg"
+  provider      = "prisma-erd-generator"
+  output        = "../docs/data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
 }
 
 datasource db {
