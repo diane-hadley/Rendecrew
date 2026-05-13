@@ -36,11 +36,35 @@ for (const file of files) {
     );
   }
 
-  // Slightly larger default text at native 1:1 zoom (raw SVG / wide window).
+  // Mermaid ER uses narrow <foreignObject> cells vs inner max-width; text gets clipped.
+  s = s.replace(/max-width: (\d+)px/g, (_, n) => {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return _;
+    const bumped = v < 200 ? v + 260 : v + 140;
+    return `max-width: ${Math.min(bumped, 900)}px`;
+  });
   s = s.replace(
-    /(#my-svg\{font-family:[^;]+;)font-size:(16|18)px/,
-    "$1font-size:22px",
+    /<foreignObject width="([0-9.]+)" height="([0-9.]+)">/g,
+    (match, wStr, hStr) => {
+      const w0 = Number(wStr);
+      const h0 = Number(hStr);
+      if (!Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
+        return match;
+      }
+      let nw = w0;
+      if (w0 < 56) {
+        nw = Math.min(Math.max(w0 * 2.5, 88), 240);
+      } else if (w0 < 420) {
+        nw = Math.max(Math.round(w0 * 1.38 + 48), 320);
+      }
+      const nh = Math.max(Math.round(h0 * 1.22 + 10), Math.round(h0 + 6));
+      return `<foreignObject width="${nw}" height="${nh}">`;
+    },
   );
+
+  if (!/^<svg[^>]*\boverflow="visible"/.test(s)) {
+    s = s.replace(/^<svg(\s)/, '<svg overflow="visible"$1');
+  }
 
   // Let viewers use the declared pixel size; avoid capping to diagram width.
   s = s.replace(/style="max-width:[^;]+;\s*/g, 'style="max-width: none; ');
