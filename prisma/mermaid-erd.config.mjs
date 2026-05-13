@@ -2,6 +2,11 @@
 export default {
   er: {
     useMaxWidth: false,
-    fontSize: 14,
+    fontSize: 18,
   },
+  themeCSS: `
+    #my-svg {
+      font-size: 18px !important;
+    }
+  `,
 };

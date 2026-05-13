@@ -4,4 +4,4 @@
 # viewport and scale so labels stay readable.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-exec "$ROOT/node_modules/.bin/mmdc" -w 4000 -H 3000 -s 2 "$@"
+exec "$ROOT/node_modules/.bin/mmdc" -w 4800 -H 3600 -s 3 "$@"
