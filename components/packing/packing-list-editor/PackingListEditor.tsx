@@ -62,11 +62,7 @@ import {
   snapshotItemMeta,
   snapshotSectionIds,
 } from "./storage-helpers";
-import type {
-  AuthUser,
-  PackingSignupMemberOption,
-  StorageRow,
-} from "./types";
+import type { AuthUser, PackingSignupMemberOption, StorageRow } from "./types";
 
 type PackingEditSectionsModalRow = EditSectionRow;
 
