@@ -24,7 +24,7 @@
     "prisma:migrate:deploy:session": "node scripts/prisma-migrate-deploy.cjs",
     "prisma:baseline:resolve-applied": "node scripts/prisma-baseline-resolve-applied.cjs",
     "prisma:format": "prisma format",
-    "verify:data-model-erd": "npm run prisma:generate && git diff --exit-code docs/data-model-full-erd.svg docs/data-model-erd.svg docs/packing-data-model-erd.svg docs/rides-data-model-erd.svg",
+    "verify:data-model-erd": "npm run prisma:generate && git diff --exit-code docs/data-model-full-erd.svg docs/data-model-erd.svg docs/packing-data-model-erd.svg docs/rides-data-model-erd.svg docs/tasks-data-model-erd.svg docs/notifications-data-model-erd.svg",
     "puppeteer:install-chrome": "puppeteer browsers install chrome-headless-shell",
     "fix:data-model-erd-svg": "node scripts/fix-data-model-erd-svg.mjs",
     "test": "vitest",

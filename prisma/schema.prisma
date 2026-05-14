@@ -5,7 +5,7 @@ generator client {
 // ERDs: `erdFull` = entire schema (every FK-style relation appears there). Sliced generators omit tables via
 // `ignorePattern`; prisma-erd-generator only draws a relation when BOTH models are still present, so slice
 // diagrams do not show “half” FKs. Enum-to-table lines are hidden on slices (`ignoreEnums`) to keep focus on tables.
-// New models: packing-only → extend `erd` + `erdRides` ignorePattern; rides-only → extend `erd` + `erdPacking`; neither → extend `erdPacking` + `erdRides`. `erdFull` has no ignore list.
+// New models: extend `erd` ignorePattern for any slice-only table; extend each slice’s ignorePattern for tables outside that slice. `erdFull` has no ignore list.
 generator erdFull {
   provider      = "prisma-erd-generator"
   output        = "../docs/data-model-full-erd.svg"
@@ -19,7 +19,7 @@ generator erd {
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
-  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,EventTask,EventTaskAssignment,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
 }
 
 generator erdPacking {
@@ -38,6 +38,24 @@ generator erdRides {
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
   ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventTask,EventTaskAssignment,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
+}
+
+generator erdTasks {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/tasks-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
+}
+
+generator erdNotifications {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/notifications-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,EventTask,EventTaskAssignment"
 }
 
 datasource db {

@@ -13,6 +13,8 @@ const files = [
   path.join(process.cwd(), "docs/data-model-erd.svg"),
   path.join(process.cwd(), "docs/packing-data-model-erd.svg"),
   path.join(process.cwd(), "docs/rides-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/tasks-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/notifications-data-model-erd.svg"),
 ];
 
 for (const file of files) {
