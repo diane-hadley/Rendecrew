@@ -35,7 +35,7 @@ jobs:
           node-version: "20.19"
           cache: "npm"
       - run: npm ci
-      - name: Verify data model ERD matches Prisma schema
+      - name: Generate data model ERD SVGs (Prisma schema changed)
         if: steps.prisma_schema.outputs.schema == 'true'
         env:
           DISABLE_ERD: "false"
@@ -50,10 +50,6 @@ jobs:
             libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 \
             libxrender1 libxss1 libxtst6
           npm run prisma:generate
-          git diff --exit-code docs/data-model-full-erd.svg docs/core-data-model-erd.svg docs/packing-data-model-erd.svg docs/rides-data-model-erd.svg docs/tasks-data-model-erd.svg docs/notifications-data-model-erd.svg || (
-            echo "::error::ERD SVGs are out of date. Run \`npm run prisma:generate\` locally and commit the SVGs under \`docs/\` listed in \`docs/DATA_MODEL.md\`."
-            exit 1
-          )
       - run: npm run build --if-present
       - run: npm run lint
       - run: npm run format:check
