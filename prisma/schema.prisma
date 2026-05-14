@@ -15,7 +15,7 @@ generator erdFull {
 
 generator erd {
   provider      = "prisma-erd-generator"
-  output        = "../docs/data-model-erd.svg"
+  output        = "../docs/core-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"

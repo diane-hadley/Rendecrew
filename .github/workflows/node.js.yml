@@ -15,7 +15,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (24.04) renamed several Chromium deps (e.g. libasound2 → libasound2t64);
+    # keep 22.04 until the manual apt list (or Puppeteer --install-deps) is updated for Noble.
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +50,7 @@ jobs:
             libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 \
             libxrender1 libxss1 libxtst6
           npm run prisma:generate
-          git diff --exit-code docs/data-model-full-erd.svg docs/data-model-erd.svg docs/packing-data-model-erd.svg docs/rides-data-model-erd.svg docs/tasks-data-model-erd.svg docs/notifications-data-model-erd.svg || (
+          git diff --exit-code docs/data-model-full-erd.svg docs/core-data-model-erd.svg docs/packing-data-model-erd.svg docs/rides-data-model-erd.svg docs/tasks-data-model-erd.svg docs/notifications-data-model-erd.svg || (
             echo "::error::ERD SVGs are out of date. Run \`npm run prisma:generate\` locally and commit the SVGs under \`docs/\` listed in \`docs/DATA_MODEL.md\`."
             exit 1
           )

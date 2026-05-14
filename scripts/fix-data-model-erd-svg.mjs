@@ -10,7 +10,7 @@ import path from "node:path";
 
 const files = [
   path.join(process.cwd(), "docs/data-model-full-erd.svg"),
-  path.join(process.cwd(), "docs/data-model-erd.svg"),
+  path.join(process.cwd(), "docs/core-data-model-erd.svg"),
   path.join(process.cwd(), "docs/packing-data-model-erd.svg"),
   path.join(process.cwd(), "docs/rides-data-model-erd.svg"),
   path.join(process.cwd(), "docs/tasks-data-model-erd.svg"),
