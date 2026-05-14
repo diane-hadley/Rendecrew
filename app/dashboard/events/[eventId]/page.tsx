@@ -1,15 +1,15 @@
-import { PackingSuggestionStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import type { EventMemberListItem } from "@/app/actions/event-members";
+import type { EventMemberListItem } from "@/lib/event-member-types";
 import { EventDetailClient } from "@/components/events/EventDetailClient";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import {
   getPackingListForEvent,
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
+import { countDraftUserPackingSuggestionsForEvent } from "@/lib/packing-suggestion-queries";
 import {
   buildPackingCollabPageData,
   type PackingCollabAuthUser,
@@ -19,7 +19,7 @@ import {
   formatEventDateRangeWithTimeZones,
   normalizeTimeZone,
 } from "@/lib/event-datetime";
-import { prisma } from "@/lib/prisma";
+import { listEventMemberListItemsForEvent } from "@/lib/event-member-list";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function EventDetailPage({
@@ -50,12 +50,7 @@ export default async function EventDetailPage({
 
   const pendingSuggestionDraftCount =
     editable && packingList
-      ? await prisma.packingSuggestion.count({
-          where: {
-            eventId: event.id,
-            status: PackingSuggestionStatus.DRAFT_USER,
-          },
-        })
+      ? await countDraftUserPackingSuggestionsForEvent(event.id)
       : 0;
 
   const dateRangeLabel = formatEventDateRangeWithTimeZones(
@@ -65,19 +60,8 @@ export default async function EventDetailPage({
     event.endAtTimeZone,
   );
 
-  const memberRows = await prisma.eventMember.findMany({
-    where: { eventId: event.id },
-    include: { user: { select: { id: true, name: true, email: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-  const membersInitial: EventMemberListItem[] = memberRows.map((m) => ({
-    membershipId: m.id,
-    userId: m.userId,
-    name: m.user.name,
-    email: m.user.email,
-    role: m.role,
-    createdAt: m.createdAt.toISOString(),
-  }));
+  const membersInitial: EventMemberListItem[] =
+    await listEventMemberListItemsForEvent(event.id);
 
   const isCreator = canDeleteEvent(dbUser.id, event);
 
@@ -103,9 +87,9 @@ export default async function EventDetailPage({
           email: dbUser.email,
         } satisfies PackingCollabAuthUser,
         canManageTemplate: editable,
-        packingSignupMembers: memberRows.map((m) => ({
-          userId: m.user.id,
-          name: m.user.name,
+        packingSignupMembers: membersInitial.map((m) => ({
+          userId: m.userId,
+          name: m.name,
         })),
         suggestionApprovalRequired: event.suggestionApprovalRequired ?? false,
       })

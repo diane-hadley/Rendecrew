@@ -9,9 +9,8 @@ import {
   listEventRides,
   removeRidePassenger,
   upsertRideCar,
-  type RideCarRow,
-  type RideMemberListItem,
 } from "@/app/actions/event-rides";
+import type { RideCarRow, RideMemberListItem } from "@/lib/event-rides-types";
 import { DateTimeFields } from "@/components/common/DateTimeFields";
 import { TimeZonePickerModal } from "@/components/common/TimeZonePickerModal";
 import {

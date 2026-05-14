@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RideCarRow } from "@/app/actions/event-rides";
+import type { RideCarRow } from "@/lib/event-rides-types";
 import { RidesBoard } from "./RidesBoard";
 
 const listEventRides = vi.fn();

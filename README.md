@@ -18,8 +18,6 @@ Describe your event —
 
 - 🚗 Ride coordination to match drivers and passengers
 
-- 💸 Budget reminders to keep expenses fair and transparent
-
 Then, just ask:
 
 ```
@@ -73,32 +71,27 @@ To set up Rendecrew on your local machine, follow these guides in order:
 ## Project Structure
 
 ```
-docs/                     # Setup guides (see Getting Started above)
-app/
-  ├── layout.tsx          # Root layout with ClerkProvider
-  ├── page.tsx            # Home page with sign-in/sign-up
-  ├── globals.css         # Global styles with Tailwind
-  ├── sign-in/            # Sign-in page
-  ├── sign-up/            # Sign-up page
-  └── dashboard/          # Protected dashboard page
+app/                      # Next.js App Router
+  ├── layout.tsx          # Root layout (ClerkProvider, fonts, globals)
+  ├── page.tsx            # Home route (composes components/home)
+  ├── globals.css
+  ├── actions/            # Server Actions ("use server") — mutations, revalidatePath
+  ├── api/                # Route handlers (HTTP), e.g. cron, Liveblocks auth
+  ├── dashboard/          # Authenticated app pages (events, settings, notifications)
+  ├── packing/            # Public/shared packing room pages
+  ├── sign-in/            # Clerk sign-in
+  └── sign-up/            # Clerk sign-up
 
-components/
-  ├── common/             # Shared UI (UserButton, ProtectedRoute)
-  ├── events/             # Event detail, forms, chat, display
-  └── packing/            # Packing list editor, collab, event packing panels
+components/               # React UI (feature folders + shared pieces)
 
-lib/
-  ├── anthropic.ts        # Anthropic SDK client (Claude API)
-  └── prisma.ts           # Prisma Client singleton (database access)
+hooks/                    # Client-only React hooks (e.g. dismiss-on-outside-pointer)
+
+lib/                      # TypeScript modules usable from RSC, actions, and route handlers
 
 prisma/
-  └── schema.prisma       # Database schema (platform-agnostic PostgreSQL)
+  └── schema.prisma       # Database schema (PostgreSQL via Supabase)
 
 middleware.ts             # Clerk middleware for route protection
 ```
 
-## Authentication Flow
-
-- **Public routes**: `/`, `/sign-in`, `/sign-up`
-- **Protected routes**: `/dashboard` and all other routes (protected by middleware)
-- Users are automatically redirected to `/sign-in` if not authenticated
+**Conventions:** RSC pages load data via **`lib/`** (and Clerk), then pass props into client components. **`app/actions`** call **`lib`** and Prisma; UI imports actions for mutations. Shared **types** that cross the UI boundary live in **`lib/*-types.ts`** (not in action files). **Tests** stay next to the code they cover (`*.test.ts` / `*.test.tsx`).

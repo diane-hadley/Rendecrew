@@ -1,7 +1,7 @@
 "use client";
 
 import { sendEventChatMessage } from "@/app/actions/event-chat";
-import type { EventChatMessage } from "@/app/actions/event-chat";
+import type { EventChatMessage } from "@/lib/event-chat-types";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 export function Chat({ eventId }: { eventId: string }) {

@@ -4,11 +4,7 @@ import { getAnthropic, ANTHROPIC_MODEL } from "@/lib/anthropic";
 import { getEventForUser } from "@/lib/events";
 import { getEventAISystemPromptSection } from "@/lib/event-ai-context";
 import { getOrCreateUser } from "@/lib/user";
-
-export type EventChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
+import type { EventChatMessage } from "@/lib/event-chat-types";
 
 const MAX_USER_MESSAGE_CHARS = 8_000;
 const MAX_MESSAGES_IN_REQUEST = 40;

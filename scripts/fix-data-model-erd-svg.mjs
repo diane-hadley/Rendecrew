@@ -9,12 +9,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 const files = [
-  path.join(process.cwd(), "docs/data-model-full-erd.svg"),
-  path.join(process.cwd(), "docs/core-data-model-erd.svg"),
-  path.join(process.cwd(), "docs/packing-data-model-erd.svg"),
-  path.join(process.cwd(), "docs/rides-data-model-erd.svg"),
-  path.join(process.cwd(), "docs/tasks-data-model-erd.svg"),
-  path.join(process.cwd(), "docs/notifications-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/data-model-full-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/core-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/packing-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/rides-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/tasks-data-model-erd.svg"),
+  path.join(process.cwd(), "docs/data-model-svgs/notifications-data-model-erd.svg"),
 ];
 
 for (const file of files) {

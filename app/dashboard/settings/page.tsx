@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NotificationPreferencesForm } from "@/components/user-settings/NotificationPreferencesForm";
 import { UserTimezoneForm } from "@/components/user-settings/UserTimezoneForm";
-import { getUserNotificationPreferences } from "@/app/actions/notifications";
+import { loadDisabledNotificationKindsForUser } from "@/lib/notifications";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function DashboardSettingsPage() {
@@ -13,7 +13,8 @@ export default async function DashboardSettingsPage() {
   }
 
   const dbUser = await getOrCreateUser();
-  const notifPrefs = await getUserNotificationPreferences();
+  const disabledKinds = await loadDisabledNotificationKindsForUser(dbUser.id);
+  const notifPrefs = { disabledKinds };
 
   return (
     <div className="mx-auto max-w-7xl">

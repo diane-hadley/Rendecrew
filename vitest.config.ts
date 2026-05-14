@@ -34,7 +34,7 @@ export default defineConfig({
         // DB client singleton + env; not meaningful under v8 unit coverage.
         "lib/prisma.ts",
         // Liveblocks + large client surface; behavior belongs in component/integration tests.
-        "components/packing/PackingListEditor.tsx",
+        "components/packing/packing-list-editor/**",
       ],
     },
   },

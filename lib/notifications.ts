@@ -324,3 +324,39 @@ export async function purgeNotificationsOlderThanRetention(): Promise<{
   });
   return { deleted: res.count };
 }
+
+export async function loadDisabledNotificationKindsForUser(
+  userId: string,
+): Promise<string[]> {
+  const row = await prisma.userNotificationPreferences.findUnique({
+    where: { userId },
+    select: { disabledKinds: true },
+  });
+  return row?.disabledKinds ?? [];
+}
+
+export async function loadPerKindNotificationOverridesForEventMember(
+  eventId: string,
+  userId: string,
+): Promise<Record<string, boolean>> {
+  const em = await prisma.eventMember.findUnique({
+    where: { eventId_userId: { eventId, userId } },
+    select: {
+      notificationPreferences: { select: { perKindOverrides: true } },
+    },
+  });
+  const raw = em?.notificationPreferences?.perKindOverrides;
+  const overrides: Record<string, boolean> = {};
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw)) {
+      if (
+        isNotificationKind(k) &&
+        typeof v === "boolean" &&
+        allowsPerEventNotificationOverride(k)
+      ) {
+        overrides[k] = v;
+      }
+    }
+  }
+  return overrides;
+}
