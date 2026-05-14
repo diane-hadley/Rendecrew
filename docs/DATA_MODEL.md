@@ -3,11 +3,11 @@
 **GitHub and many Markdown previews shrink wide images to the column width.** For readable views, open the raw SVG and scroll/zoom:
 
 - **[Full schema (all tables & relations)](./data-model-full-erd.svg)** — authoritative.
-- **[Core slice](./data-model-erd.svg)** — **User**, **Event**, **EventMember**, and every table not delegated to a domain slice below (omits packing, rides, tasks, and notification tables).
-- **[Packing slice](./packing-data-model-erd.svg)** — packing tables only (no **User** / **Event** / **EventMember**).
-- **[Rides slice](./rides-data-model-erd.svg)** — ride tables only (no **User** / **Event** / **EventMember**).
-- **[Tasks slice](./tasks-data-model-erd.svg)** — **EventTask** and **EventTaskAssignment** only (no **User** / **Event** / **EventMember**).
-- **[Notifications slice](./notifications-data-model-erd.svg)** — **Notification**, **UserNotificationPreferences**, **EventMemberNotificationPreferences** only (no **User** / **Event** / **EventMember**).
+- **[Core slice](./data-model-erd.svg)** — **User**, **Event**, **EventMember**, and every table not delegated to a domain slice below.
+- **[Packing slice](./packing-data-model-erd.svg)**
+- **[Rides slice](./rides-data-model-erd.svg)**
+- **[Tasks slice](./tasks-data-model-erd.svg)**
+- **[Notifications slice](./notifications-data-model-erd.svg)**
 
 ## Full model (embedded)
 

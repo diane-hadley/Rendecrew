@@ -2,14 +2,16 @@
 export default {
   er: {
     useMaxWidth: false,
-    // Room for long @map column names; defaults (100×75) are too tight and clip foreignObject text.
-    minEntityWidth: 720,
-    minEntityHeight: 110,
-    entityPadding: 28,
-    diagramPadding: 48,
-    nodeSpacing: 200,
-    rankSpacing: 120,
-    fontSize: 15,
+    // LR: bias layout left-to-right so related tables sit on one row more often (denser than default TB).
+    layoutDirection: "LR",
+    // Tighter than before; post-process in scripts/fix-data-model-erd-svg.mjs still widens narrow cells.
+    minEntityWidth: 480,
+    minEntityHeight: 88,
+    entityPadding: 18,
+    diagramPadding: 28,
+    nodeSpacing: 110,
+    rankSpacing: 64,
+    fontSize: 14,
   },
   themeCSS: `
     /* Mermaid ER uses <foreignObject> with fixed width/height; avoid clipping overflow. */
