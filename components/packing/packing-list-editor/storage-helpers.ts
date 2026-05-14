@@ -9,6 +9,7 @@ import type {
 import { UNCATEGORIZED_SENTINEL } from "./constants";
 import { snapshotSignUps } from "./snapshot-sign-ups";
 import type {
+  AuthUser,
   ItemMeta,
   NeedsGroup,
   ParsedKeyOrder,
@@ -228,12 +229,6 @@ export function buildSyncPayload(
     })),
   };
 }
-
-type NeedsGroup = {
-  sectionId: string | null;
-  label: string;
-  rows: Array<{ item: StorageRow; index: number }>;
-};
 
 export function buildNeedsSignUpGroups(
   items: readonly StorageRow[],
