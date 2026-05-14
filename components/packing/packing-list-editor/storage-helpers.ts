@@ -1,10 +1,6 @@
 import { LiveList, LiveObject } from "@liveblocks/client";
 import type { PackingListSyncPayload } from "@/lib/packing-list";
-import {
-  isOptionalPackingMin,
-  itemQuantityCap,
-  packingItemNeedsSignUps,
-} from "@/lib/packing-quantity";
+import { packingItemNeedsSignUps } from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
   PackingSectionStorage,

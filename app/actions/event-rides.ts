@@ -10,7 +10,6 @@ import type {
   ListEventRidesResult,
   MutateRidePassengerResult,
   RideCarRow,
-  RideMemberListItem,
   RidePassenger,
 } from "@/lib/event-rides-types";
 

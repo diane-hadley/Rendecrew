@@ -25,27 +25,10 @@ import {
   useStorage,
   useUndo,
 } from "@liveblocks/react";
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncPackingListToDatabase } from "@/app/actions/packing-list";
-import type {
-  PackingItemPayload,
-  PackingListSyncPayload,
-  PackingSectionPayload,
-} from "@/lib/packing-list";
-import {
-  isOptionalPackingMin,
-  itemQuantityCap,
-  packingItemNeedsSignUps,
-} from "@/lib/packing-quantity";
+import type { PackingListSyncPayload } from "@/lib/packing-list";
+import { itemQuantityCap } from "@/lib/packing-quantity";
 import type {
   PackingItemStorage,
   PackingSectionStorage,
@@ -74,16 +57,13 @@ import {
   isMineSignUp,
   normalizeSectionTitleForPayload,
   normalizedLegacySectionField,
-  parseKeyOrder,
   readPersistedSectionId,
-  readSignUps,
   resolvedNewSignUpQuantity,
   snapshotItemMeta,
   snapshotSectionIds,
 } from "./storage-helpers";
 import type {
   AuthUser,
-  NeedsGroup,
   PackingSignupMemberOption,
   StorageRow,
 } from "./types";
