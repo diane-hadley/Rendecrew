@@ -8,14 +8,14 @@ generator client {
 // New models: extend `erd` ignorePattern for slice-only tables; extend each slice’s ignorePattern for tables outside that slice. Slices omit `Event`, `User`, and `EventMember` (see `erd`). `erdFull` has no ignore list.
 generator erdFull {
   provider      = "prisma-erd-generator"
-  output        = "../docs/data-model-full-erd.svg"
+  output        = "../docs/data-model-svgs/data-model-full-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
 }
 
 generator erd {
   provider      = "prisma-erd-generator"
-  output        = "../docs/core-data-model-erd.svg"
+  output        = "../docs/data-model-svgs/core-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
@@ -24,7 +24,7 @@ generator erd {
 
 generator erdPacking {
   provider      = "prisma-erd-generator"
-  output        = "../docs/packing-data-model-erd.svg"
+  output        = "../docs/data-model-svgs/packing-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
@@ -33,7 +33,7 @@ generator erdPacking {
 
 generator erdRides {
   provider      = "prisma-erd-generator"
-  output        = "../docs/rides-data-model-erd.svg"
+  output        = "../docs/data-model-svgs/rides-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
@@ -42,7 +42,7 @@ generator erdRides {
 
 generator erdTasks {
   provider      = "prisma-erd-generator"
-  output        = "../docs/tasks-data-model-erd.svg"
+  output        = "../docs/data-model-svgs/tasks-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"
@@ -51,7 +51,7 @@ generator erdTasks {
 
 generator erdNotifications {
   provider      = "prisma-erd-generator"
-  output        = "../docs/notifications-data-model-erd.svg"
+  output        = "../docs/data-model-svgs/notifications-data-model-erd.svg"
   mermaidConfig = "./prisma/mermaid-erd.config.mjs"
   mmdcPath      = "scripts/mmdc-erd"
   ignoreEnums   = "true"

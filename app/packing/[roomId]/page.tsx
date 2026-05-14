@@ -8,11 +8,14 @@ import {
   getPackingListByRoomId,
   getPackingListEventAccessByRoomId,
 } from "@/lib/packing-list";
-import { prisma } from "@/lib/prisma";
 import {
   buildPackingCollabPageData,
   type PackingCollabAuthUser,
 } from "@/lib/packing-collab-page-data";
+import {
+  getSuggestionApprovalRequiredForEvent,
+  listPackingSignupMembersForEventOrderedByName,
+} from "@/lib/packing-public-page";
 import { getOrCreateUser } from "@/lib/user";
 
 export default async function PublicPackingPage({
@@ -61,12 +64,8 @@ export default async function PublicPackingPage({
 
   const eventId = list.event.id;
 
-  const eventRow = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { suggestionApprovalRequired: true },
-  });
   const suggestionApprovalRequired =
-    eventRow?.suggestionApprovalRequired ?? false;
+    await getSuggestionApprovalRequiredForEvent(eventId);
 
   let canManageTemplate = false;
   let packingSignupMembers: Array<{
@@ -77,17 +76,8 @@ export default async function PublicPackingPage({
     const row = await getEventForUser(eventId, authUser.dbUserId);
     canManageTemplate = row != null && canManageEvent(row.role);
     if (row) {
-      const memberRows = await prisma.eventMember.findMany({
-        where: { eventId },
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-        },
-        orderBy: { user: { name: "asc" } },
-      });
-      packingSignupMembers = memberRows.map((m) => ({
-        userId: m.user.id,
-        name: m.user.name,
-      }));
+      packingSignupMembers =
+        await listPackingSignupMembersForEventOrderedByName(eventId);
     }
   }
 

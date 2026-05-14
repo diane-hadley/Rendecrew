@@ -10,8 +10,8 @@ import {
   promoteMemberToAdmin,
   removeEventMember,
   searchUsersToAddToEvent,
-  type EventMemberListItem,
 } from "@/app/actions/event-members";
+import type { EventMemberListItem } from "@/lib/event-member-types";
 import {
   actorCanAddMembers,
   authorizeDemoteAdmin,

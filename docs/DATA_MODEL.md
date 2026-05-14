@@ -2,18 +2,18 @@
 
 **GitHub and many Markdown previews shrink wide images to the column width.** For readable views, open the raw SVG and scroll/zoom:
 
-- **[Full schema (all tables & relations)](./data-model-full-erd.svg)** — authoritative.
-- **[Core slice](./core-data-model-erd.svg)** — **User**, **Event**, **EventMember**, and every table not delegated to a domain slice below.
-- **[Packing slice](./packing-data-model-erd.svg)**
-- **[Rides slice](./rides-data-model-erd.svg)**
-- **[Tasks slice](./tasks-data-model-erd.svg)**
-- **[Notifications slice](./notifications-data-model-erd.svg)**
+- **[Full schema (all tables & relations)](./data-model-svgs/data-model-full-erd.svg)** — authoritative.
+- **[Core slice](./data-model-svgs/core-data-model-erd.svg)** — **User**, **Event**, **EventMember**, and every table not delegated to a domain slice below.
+- **[Packing slice](./data-model-svgs/packing-data-model-erd.svg)**
+- **[Rides slice](./data-model-svgs/rides-data-model-erd.svg)**
+- **[Tasks slice](./data-model-svgs/tasks-data-model-erd.svg)**
+- **[Notifications slice](./data-model-svgs/notifications-data-model-erd.svg)**
 
 ## Full model (embedded)
 
 <div style="overflow-x: auto;">
 
-![Full data model (ERD)](./data-model-full-erd.svg)
+![Full data model (ERD)](./data-model-svgs/data-model-full-erd.svg)
 
 </div>
 
@@ -21,7 +21,7 @@
 
 <div style="overflow-x: auto;">
 
-![Data model (ERD)](./core-data-model-erd.svg)
+![Data model (ERD)](./data-model-svgs/core-data-model-erd.svg)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 <div style="overflow-x: auto;">
 
-![Packing data model (ERD)](./packing-data-model-erd.svg)
+![Packing data model (ERD)](./data-model-svgs/packing-data-model-erd.svg)
 
 </div>
 
@@ -37,7 +37,7 @@
 
 <div style="overflow-x: auto;">
 
-![Rides data model (ERD)](./rides-data-model-erd.svg)
+![Rides data model (ERD)](./data-model-svgs/rides-data-model-erd.svg)
 
 </div>
 
@@ -45,7 +45,7 @@
 
 <div style="overflow-x: auto;">
 
-![Tasks data model (ERD)](./tasks-data-model-erd.svg)
+![Tasks data model (ERD)](./data-model-svgs/tasks-data-model-erd.svg)
 
 </div>
 
@@ -53,6 +53,6 @@
 
 <div style="overflow-x: auto;">
 
-![Notifications data model (ERD)](./notifications-data-model-erd.svg)
+![Notifications data model (ERD)](./data-model-svgs/notifications-data-model-erd.svg)
 
 </div>

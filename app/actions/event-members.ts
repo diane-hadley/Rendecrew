@@ -14,17 +14,10 @@ import {
   insertNotificationIgnoringPreferences,
   isNotificationEnabledForUserEvent,
 } from "@/lib/notifications";
+import type { EventMemberListItem } from "@/lib/event-member-types";
+import { listEventMemberListItemsForEvent } from "@/lib/event-member-list";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUser } from "@/lib/user";
-
-export type EventMemberListItem = {
-  membershipId: string;
-  userId: string;
-  name: string;
-  email: string;
-  role: EventMemberRole;
-  createdAt: string;
-};
 
 export async function listEventMembers(
   eventId: string,
@@ -35,22 +28,11 @@ export async function listEventMembers(
   const row = await getEventForUser(eventId, user.id);
   if (!row) return { ok: false, error: "Event not found" };
 
-  const members = await prisma.eventMember.findMany({
-    where: { eventId },
-    include: { user: { select: { id: true, name: true, email: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const members = await listEventMemberListItemsForEvent(eventId);
 
   return {
     ok: true,
-    members: members.map((m) => ({
-      membershipId: m.id,
-      userId: m.userId,
-      name: m.user.name,
-      email: m.user.email,
-      role: m.role,
-      createdAt: m.createdAt.toISOString(),
-    })),
+    members,
   };
 }
 

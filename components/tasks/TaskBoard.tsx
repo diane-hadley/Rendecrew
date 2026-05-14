@@ -8,7 +8,7 @@ import {
   normalizeTimeZone,
   utcToWallDatetimeLocal,
 } from "@/lib/event-datetime";
-import { useDismissOnOutsidePointer } from "@/lib/use-dismiss-on-outside-pointer";
+import { useDismissOnOutsidePointer } from "@/hooks/use-dismiss-on-outside-pointer";
 import { DEFAULT_TASK_LIST_OPEN_STATUS_FILTER } from "@/lib/task-list-filters";
 import {
   useCallback,

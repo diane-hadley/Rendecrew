@@ -8,18 +8,8 @@ import {
 } from "@/lib/notification-kinds";
 import { prisma } from "@/lib/prisma";
 import { getEventForUser } from "@/lib/events";
+import { loadPerKindNotificationOverridesForEventMember } from "@/lib/notifications";
 import { getOrCreateUser } from "@/lib/user";
-
-export async function getUserNotificationPreferences(): Promise<{
-  disabledKinds: string[];
-}> {
-  const user = await getOrCreateUser();
-  const row = await prisma.userNotificationPreferences.findUnique({
-    where: { userId: user.id },
-    select: { disabledKinds: true },
-  });
-  return { disabledKinds: row?.disabledKinds ?? [] };
-}
 
 export async function saveUserNotificationPreferences(
   disabledKinds: string[],
@@ -46,25 +36,10 @@ export async function getEventNotificationOverrides(
   const row = await getEventForUser(eventId, user.id);
   if (!row) return { ok: false, error: "Event not found" };
 
-  const em = await prisma.eventMember.findUnique({
-    where: { eventId_userId: { eventId, userId: user.id } },
-    select: {
-      notificationPreferences: { select: { perKindOverrides: true } },
-    },
-  });
-  const raw = em?.notificationPreferences?.perKindOverrides;
-  const overrides: Record<string, boolean> = {};
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    for (const [k, v] of Object.entries(raw)) {
-      if (
-        isNotificationKind(k) &&
-        typeof v === "boolean" &&
-        allowsPerEventNotificationOverride(k)
-      ) {
-        overrides[k] = v;
-      }
-    }
-  }
+  const overrides = await loadPerKindNotificationOverridesForEventMember(
+    eventId,
+    user.id,
+  );
   return { ok: true, overrides };
 }
 
