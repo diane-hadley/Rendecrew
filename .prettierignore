@@ -5,3 +5,9 @@ build
 coverage
 *.min.js
 package-lock.json
+docs/data-model-full-erd.svg
+docs/core-data-model-erd.svg
+docs/packing-data-model-erd.svg
+docs/rides-data-model-erd.svg
+docs/tasks-data-model-erd.svg
+docs/notifications-data-model-erd.svg

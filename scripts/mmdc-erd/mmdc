@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# prisma-erd-generator invokes mmdc without viewport flags; the default 800×600
+# canvas shrinks large ER diagrams. Forward to the real mmdc with a larger
+# viewport and scale so labels stay readable.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+exec "$ROOT/node_modules/.bin/mmdc" -w 4800 -H 3600 -s 3 "$@"

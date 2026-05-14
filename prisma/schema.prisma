@@ -2,6 +2,62 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ERDs: `erdFull` = entire schema (every FK-style relation appears there). Sliced generators omit tables via
+// `ignorePattern`; prisma-erd-generator only draws a relation when BOTH models are still present, so slice
+// diagrams do not show “half” FKs. Enum-to-table lines are hidden on slices (`ignoreEnums`) to keep focus on tables.
+// New models: extend `erd` ignorePattern for slice-only tables; extend each slice’s ignorePattern for tables outside that slice. Slices omit `Event`, `User`, and `EventMember` (see `erd`). `erdFull` has no ignore list.
+generator erdFull {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/data-model-full-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+}
+
+generator erd {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/core-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,EventTask,EventTaskAssignment,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
+}
+
+generator erdPacking {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/packing-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Event,User,EventTask,EventTaskAssignment,EventMember,Notification,UserNotificationPreferences,EventMemberNotificationPreferences,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers"
+}
+
+generator erdRides {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/rides-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,Event,User,EventMember,EventTask,EventTaskAssignment,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
+}
+
+generator erdTasks {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/tasks-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,Event,User,EventMember,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,Notification,UserNotificationPreferences,EventMemberNotificationPreferences"
+}
+
+generator erdNotifications {
+  provider      = "prisma-erd-generator"
+  output        = "../docs/notifications-data-model-erd.svg"
+  mermaidConfig = "./prisma/mermaid-erd.config.mjs"
+  mmdcPath      = "scripts/mmdc-erd"
+  ignoreEnums   = "true"
+  ignorePattern = "Packing*,PersonalPackingItem,UserSuggestionState,Event,User,EventMember,EventRideCar,event_ride_custom_field_definitions,event_ride_custom_field_values,event_ride_passengers,EventTask,EventTaskAssignment"
+}
+
 datasource db {
   provider = "postgresql"
 }
@@ -67,20 +123,20 @@ model Event {
 }
 
 model EventTask {
-  id              String            @id @default(uuid())
-  eventId         String            @map("event_id")
-  title           String
-  notes           String?
-  status          EventTaskStatus   @default(TO_DO)
+  id                     String                          @id @default(uuid())
+  eventId                String                          @map("event_id")
+  title                  String
+  notes                  String?
+  status                 EventTaskStatus                 @default(TO_DO)
   /// * ANY = one assignee may complete for everyone (multi-assignee). EACH = all must mark done.
   assigneeCompletionMode EventTaskAssigneeCompletionMode @default(EACH) @map("assignee_completion_mode")
-  dueDate         DateTime?         @db.Timestamptz(3) @map("due_date")
+  dueDate                DateTime?                       @map("due_date") @db.Timestamptz(3)
   /// * IANA zone for interpreting/displaying `dueDate` (wall time).
-  dueDateTimeZone String?           @map("due_date_time_zone")
-  sortOrder       Int               @default(0) @map("sort_order")
-  createdByUserId String?           @map("created_by_user_id")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  dueDateTimeZone        String?                         @map("due_date_time_zone")
+  sortOrder              Int                             @default(0) @map("sort_order")
+  createdByUserId        String?                         @map("created_by_user_id")
+  createdAt              DateTime                        @default(now()) @map("created_at")
+  updatedAt              DateTime                        @updatedAt @map("updated_at")
 
   event       Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   assignments EventTaskAssignment[]
@@ -91,16 +147,16 @@ model EventTask {
 }
 
 model EventTaskAssignment {
-  id            String      @id @default(uuid())
-  taskId        String      @map("task_id")
-  eventMemberId String      @map("event_member_id")
-  doneAt        DateTime?   @map("done_at")
-  doneByUserId  String?     @map("done_by_user_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  taskId        String    @map("task_id")
+  eventMemberId String    @map("event_member_id")
+  doneAt        DateTime? @map("done_at")
+  doneByUserId  String?   @map("done_by_user_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  task        EventTask    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  eventMember EventMember  @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
+  task        EventTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  eventMember EventMember @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, eventMemberId])
   @@index([eventMemberId, doneAt])
@@ -180,34 +236,34 @@ model PackingItemSignUp {
 }
 
 model EventMember {
-  id                         String                             @id @default(uuid())
-  userId                     String                             @map("user_id")
-  eventId                    String                             @map("event_id")
-  role                       EventMemberRole
-  createdAt                  DateTime                           @default(now()) @map("created_at")
-  updatedAt                  DateTime                           @default(now()) @updatedAt @map("updated_at")
-  event                      Event                              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user                       User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drivenRideCars             EventRideCar[]                     @relation("RideCarDriver")
-  event_ride_passengers      event_ride_passengers[]
-  eventTaskAssignments       EventTaskAssignment[]
-  notificationPreferences    EventMemberNotificationPreferences?
+  id                      String                              @id @default(uuid())
+  userId                  String                              @map("user_id")
+  eventId                 String                              @map("event_id")
+  role                    EventMemberRole
+  createdAt               DateTime                            @default(now()) @map("created_at")
+  updatedAt               DateTime                            @default(now()) @updatedAt @map("updated_at")
+  event                   Event                               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user                    User                                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drivenRideCars          EventRideCar[]                      @relation("RideCarDriver")
+  event_ride_passengers   event_ride_passengers[]
+  eventTaskAssignments    EventTaskAssignment[]
+  notificationPreferences EventMemberNotificationPreferences?
 
   @@unique([eventId, userId])
   @@map("event_members")
 }
 
 model Notification {
-  id                String    @id @default(uuid())
-  recipientUserId   String    @map("recipient_user_id")
-  actorUserId       String?   @map("actor_user_id")
-  kind              String
-  createdAt         DateTime  @default(now()) @map("created_at")
-  readAt            DateTime? @map("read_at")
-  dedupeKey         String?   @unique @map("dedupe_key")
-  metadata          Json      @default("{}")
-  recipient         User      @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
-  actor             User?     @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  id              String    @id @default(uuid())
+  recipientUserId String    @map("recipient_user_id")
+  actorUserId     String?   @map("actor_user_id")
+  kind            String
+  createdAt       DateTime  @default(now()) @map("created_at")
+  readAt          DateTime? @map("read_at")
+  dedupeKey       String?   @unique @map("dedupe_key")
+  metadata        Json      @default("{}")
+  recipient       User      @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  actor           User?     @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([recipientUserId, createdAt(sort: Desc)])
   @@index([createdAt])
@@ -215,47 +271,47 @@ model Notification {
 }
 
 model UserNotificationPreferences {
-  userId         String   @id @map("user_id")
-  disabledKinds  String[] @default([]) @map("disabled_kinds")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String   @id @map("user_id")
+  disabledKinds String[] @default([]) @map("disabled_kinds")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_notification_preferences")
 }
 
 model EventMemberNotificationPreferences {
-  eventMemberId      String      @id @map("event_member_id")
-  perKindOverrides   Json        @default("{}") @map("per_kind_overrides")
-  eventMember        EventMember @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
+  eventMemberId    String      @id @map("event_member_id")
+  perKindOverrides Json        @default("{}") @map("per_kind_overrides")
+  eventMember      EventMember @relation(fields: [eventMemberId], references: [id], onDelete: Cascade)
 
   @@map("event_member_notification_preferences")
 }
 
 model EventRideCar {
-  id                             String                           @id @default(uuid())
-  eventId                        String                           @map("event_id")
-  driverEventMemberId            String                           @map("driver_event_member_id")
-  passengerCapacity              Int                              @map("passenger_capacity")
-  direction                      RideCarDirection                 @default(BOTH)
-  sort_order                     Int                              @default(0)
-  makeModel                      String?                          @map("make_model")
-  funName                        String?                          @map("fun_name")
-  notes                          String?
-  departure_location             String?
-  departure_toward_event_at      DateTime?                        @db.Timestamptz(3)
-  departure_toward_event_time_zone String?                        @map("departure_toward_event_time_zone")
-  expected_arrival_at_event_at   DateTime?                        @db.Timestamptz(3)
-  expected_arrival_at_event_time_zone String?                      @map("expected_arrival_at_event_time_zone")
-  departure_from_event_at        DateTime?                        @db.Timestamptz(3)
-  departure_from_event_time_zone String?                          @map("departure_from_event_time_zone")
-  expected_arrival_home_at       DateTime?                        @db.Timestamptz(3)
-  expected_arrival_home_time_zone String?                         @map("expected_arrival_home_time_zone")
-  returning_to                   String?
-  createdAt                      DateTime                         @default(now()) @map("created_at")
-  updatedAt                      DateTime                         @updatedAt @map("updated_at")
-  driver                         EventMember                      @relation("RideCarDriver", fields: [driverEventMemberId], references: [id])
-  event                          Event                            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  event_ride_custom_field_values event_ride_custom_field_values[]
-  event_ride_passengers          event_ride_passengers[]
+  id                                  String                           @id @default(uuid())
+  eventId                             String                           @map("event_id")
+  driverEventMemberId                 String                           @map("driver_event_member_id")
+  passengerCapacity                   Int                              @map("passenger_capacity")
+  direction                           RideCarDirection                 @default(BOTH)
+  sort_order                          Int                              @default(0)
+  makeModel                           String?                          @map("make_model")
+  funName                             String?                          @map("fun_name")
+  notes                               String?
+  departure_location                  String?
+  departure_toward_event_at           DateTime?                        @db.Timestamptz(3)
+  departure_toward_event_time_zone    String?                          @map("departure_toward_event_time_zone")
+  expected_arrival_at_event_at        DateTime?                        @db.Timestamptz(3)
+  expected_arrival_at_event_time_zone String?                          @map("expected_arrival_at_event_time_zone")
+  departure_from_event_at             DateTime?                        @db.Timestamptz(3)
+  departure_from_event_time_zone      String?                          @map("departure_from_event_time_zone")
+  expected_arrival_home_at            DateTime?                        @db.Timestamptz(3)
+  expected_arrival_home_time_zone     String?                          @map("expected_arrival_home_time_zone")
+  returning_to                        String?
+  createdAt                           DateTime                         @default(now()) @map("created_at")
+  updatedAt                           DateTime                         @updatedAt @map("updated_at")
+  driver                              EventMember                      @relation("RideCarDriver", fields: [driverEventMemberId], references: [id])
+  event                               Event                            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event_ride_custom_field_values      event_ride_custom_field_values[]
+  event_ride_passengers               event_ride_passengers[]
 
   @@index([eventId])
   @@index([eventId, direction])
