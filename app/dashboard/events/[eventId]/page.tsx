@@ -6,10 +6,10 @@ import type { EventMemberListItem } from "@/lib/event-member-types";
 import { EventDetailClient } from "@/components/events/EventDetailClient";
 import { canDeleteEvent, canManageEvent, getEventForUser } from "@/lib/events";
 import {
+  countDraftUserPackingSuggestionsForEvent,
   getPackingListForEvent,
   listPackingCommitmentsForUser,
 } from "@/lib/packing-list";
-import { countDraftUserPackingSuggestionsForEvent } from "@/lib/packing-suggestion-queries";
 import {
   buildPackingCollabPageData,
   type PackingCollabAuthUser,

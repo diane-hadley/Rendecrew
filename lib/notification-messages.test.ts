@@ -117,4 +117,47 @@ describe("formatNotificationMessage", () => {
       }),
     ).toBe(`Alex — custom.unknown in “Beach”.`);
   });
+
+  it("event.member_removed", () => {
+    expect(
+      base({
+        kind: "event.member_removed",
+        metadata: { eventTitle: "Campout" } as NotificationMetadata,
+      }),
+    ).toBe(`Alex removed you from “Campout”.`);
+  });
+
+  it("packing.signup_or_quantity uses item title fallback", () => {
+    expect(
+      base({
+        kind: "packing.signup_or_quantity",
+        metadata: { eventTitle: "Beach" } as NotificationMetadata,
+      }),
+    ).toBe(`Alex updated your packing for “an item” in “Beach”.`);
+  });
+
+  it("rides.driver_assignment_changed removed", () => {
+    expect(
+      base({
+        kind: "rides.driver_assignment_changed",
+        metadata: {
+          eventTitle: "Beach",
+          change: "removed",
+        } as NotificationMetadata,
+      }),
+    ).toBe(`Alex removed you as a driver in “Beach”.`);
+  });
+
+  it("tasks.assignment_changed task_deleted", () => {
+    expect(
+      base({
+        kind: "tasks.assignment_changed",
+        metadata: {
+          taskTitle: "Tents",
+          eventTitle: "Beach",
+          change: "task_deleted",
+        } as NotificationMetadata,
+      }),
+    ).toBe(`Alex deleted the task “Tents” in “Beach”.`);
+  });
 });

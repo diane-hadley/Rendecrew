@@ -10,23 +10,12 @@
  *
  * Uses DATABASE_URL from .env.local / .env; rewrites Supabase :6543 → :5432 for CLI.
  */
-const { config } = require("dotenv");
 const { execSync } = require("child_process");
+const {
+  loadSessionDatabaseUrl,
+} = require("./lib/prisma-session-database-url.cjs");
 
-config({ path: ".env.local" });
-config({ path: ".env" });
-
-let url = process.env.DATABASE_URL;
-if (!url) {
-  console.error("DATABASE_URL is not set");
-  process.exit(1);
-}
-if (url.includes(":6543")) {
-  url = url.replaceAll(":6543", ":5432");
-  process.stderr.write(
-    "Note: using port 5432 for migrate resolve (6543 pooler is unreliable).\n",
-  );
-}
+const url = loadSessionDatabaseUrl("migrate resolve");
 
 /** Folder names under prisma/migrations/, oldest first. */
 const MIGRATIONS = [

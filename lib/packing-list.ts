@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { PackingListVisibility } from "@prisma/client";
+import { PackingListVisibility, PackingSuggestionStatus } from "@prisma/client";
 import {
   buildPackingPersistNotificationQueue,
   emitPackingPersistNotifications,
@@ -395,6 +395,17 @@ export async function getPackingListForEvent(eventId: string) {
         orderBy: { sortOrder: "asc" },
         include: { signUps: signUpsInclude },
       },
+    },
+  });
+}
+
+export async function countDraftUserPackingSuggestionsForEvent(
+  eventId: string,
+): Promise<number> {
+  return prisma.packingSuggestion.count({
+    where: {
+      eventId,
+      status: PackingSuggestionStatus.DRAFT_USER,
     },
   });
 }

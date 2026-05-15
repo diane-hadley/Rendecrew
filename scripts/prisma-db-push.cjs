@@ -6,31 +6,6 @@
  * use `prisma migrate dev` / `migrate deploy` instead of `db push` — push cannot
  * run custom migration.sql steps and may try to drop columns.
  */
-const { config } = require("dotenv");
-const { execSync } = require("child_process");
+const { runPrismaCli } = require("./lib/prisma-session-database-url.cjs");
 
-config({ path: ".env.local" });
-config({ path: ".env" });
-
-let url = process.env.DATABASE_URL;
-if (!url) {
-  console.error("DATABASE_URL is not set");
-  process.exit(1);
-}
-
-if (url.includes(":6543")) {
-  url = url.replace(":6543", ":5432");
-  process.stderr.write(
-    "Note: using port 5432 for db push (6543 transaction pooler is unreliable for schema changes).\n",
-  );
-}
-
-const extra = process.argv.slice(2);
-const cmd =
-  extra.length > 0
-    ? `npx prisma db push ${extra.join(" ")}`
-    : "npx prisma db push";
-execSync(cmd, {
-  stdio: "inherit",
-  env: { ...process.env, DATABASE_URL: url },
-});
+runPrismaCli("db push", "db push");
