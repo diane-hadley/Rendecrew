@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PackingItemPayload } from "./packing-list";
 import {
   backfillPackingItemSignUpsForUser,
+  countDraftUserPackingSuggestionsForEvent,
   createPackingListForEvent,
   getPackingListByRoomId,
   getPackingListForEvent,
@@ -16,6 +17,7 @@ vi.mock("@/lib/packing-notifications", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    packingSuggestion: { count: vi.fn() },
     packingList: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -30,6 +32,18 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+
+describe("countDraftUserPackingSuggestionsForEvent", () => {
+  it("counts draft user suggestions", async () => {
+    vi.mocked(prisma.packingSuggestion.count).mockResolvedValue(3);
+    await expect(countDraftUserPackingSuggestionsForEvent("e1")).resolves.toBe(
+      3,
+    );
+    expect(prisma.packingSuggestion.count).toHaveBeenCalledWith({
+      where: { eventId: "e1", status: "DRAFT_USER" },
+    });
+  });
+});
 
 describe("getPackingListByRoomId", () => {
   it("delegates to prisma", async () => {
