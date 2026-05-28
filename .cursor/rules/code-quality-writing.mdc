@@ -1,0 +1,26 @@
+---
+description: Concise code, no dead code, and test coverage standards
+alwaysApply: true
+---
+
+# Writing Code
+
+- Write concise, minimal code. Prefer fewer lines over verbose implementations.
+- Never leave dead code, commented-out code, or unused variables/imports/functions.
+- Remove any code that is no longer called or reachable before finishing a task.
+- Write tests for all code. Aim for > 75% test coverage. Flag all changes made to existing tests.
+
+## Examples
+
+```typescript
+// ❌ BAD — commented-out code and unused import
+import { unusedHelper } from './helpers';
+// const legacy = computeLegacy(data);
+
+// ✅ GOOD — remove unused imports and dead code
+export function process(data: Data) {
+  return transform(data);
+}
+```
+
+When changing behavior, add or update Vitest tests (e.g. `*.test.ts`, `*.test.tsx`) alongside the change. In your summary, call out any edits to existing tests.
