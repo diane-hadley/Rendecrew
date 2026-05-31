@@ -16,14 +16,14 @@ Planning a group event means juggling many parallel workstreams: who does what, 
 
 Each event has tabbed detail pages (`?tab=` deep links):
 
-| Tab | Purpose |
-|-----|---------|
+| Tab          | Purpose                                                               |
+| ------------ | --------------------------------------------------------------------- |
 | **Overview** | General information (Markdown), event metadata, AI drafting assistant |
-| **Tasks** | Task board with assignments, due dates, filters (when enabled) |
-| **Packing** | Group packing list with Liveblocks collaboration (when enabled) |
-| **Rides** | Driver/passenger coordination board (when enabled) |
-| **Members** | Participant list and invitations |
-| **Settings** | Optional features, roles, notification prefs, delete event |
+| **Tasks**    | Task board with assignments, due dates, filters (when enabled)        |
+| **Packing**  | Group packing list with Liveblocks collaboration (when enabled)       |
+| **Rides**    | Driver/passenger coordination board (when enabled)                    |
+| **Members**  | Participant list and invitations                                      |
+| **Settings** | Optional features, roles, notification prefs, delete event            |
 
 Optional features (`packingEnabled`, `ridesEnabled`, `taskBoardEnabled`) are toggled per event in settings so small events (e.g. a potluck) stay lightweight.
 

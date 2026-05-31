@@ -71,16 +71,16 @@
 
 ## Specifications
 
-| Spec | Title | Status |
-|------|-------|--------|
-| 0001 | Advanced packing list | Implemented |
-| 0002 | Packing list sections | Implemented |
-| 0003 | Event roles and settings | Implemented |
-| 0004 | Event rides board | Implemented |
-| 0005 | Event task board | Implemented |
-| 0006 | Notifications | Implemented (in-app v1) |
-| 0007 | Task board assignee modes and filters | Implemented |
-| 0008 | Embedded packing collab on event tab | Implemented |
+| Spec | Title                                 | Status                  |
+| ---- | ------------------------------------- | ----------------------- |
+| 0001 | Advanced packing list                 | Implemented             |
+| 0002 | Packing list sections                 | Implemented             |
+| 0003 | Event roles and settings              | Implemented             |
+| 0004 | Event rides board                     | Implemented             |
+| 0005 | Event task board                      | Implemented             |
+| 0006 | Notifications                         | Implemented (in-app v1) |
+| 0007 | Task board assignee modes and filters | Implemented             |
+| 0008 | Embedded packing collab on event tab  | Implemented             |
 
 ## Test Coverage
 

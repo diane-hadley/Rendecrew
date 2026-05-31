@@ -10,25 +10,25 @@
 
 ### Frontend
 
-| Technology | Version / Notes |
-|------------|-----------------|
-| TypeScript | 5.5+ |
-| Next.js | 14 (App Router) |
-| React | 18 |
-| Tailwind CSS | 3.4 |
-| UI components | shadcn/ui patterns |
-| Drag-and-drop | `@dnd-kit/core`, `@dnd-kit/sortable` |
-| Markdown | `react-markdown`, `remark-gfm`, `rehype-sanitize` |
+| Technology    | Version / Notes                                   |
+| ------------- | ------------------------------------------------- |
+| TypeScript    | 5.5+                                              |
+| Next.js       | 14 (App Router)                                   |
+| React         | 18                                                |
+| Tailwind CSS  | 3.4                                               |
+| UI components | shadcn/ui patterns                                |
+| Drag-and-drop | `@dnd-kit/core`, `@dnd-kit/sortable`              |
+| Markdown      | `react-markdown`, `remark-gfm`, `rehype-sanitize` |
 
 ### Backend / Data
 
-| Technology | Notes |
-|------------|-------|
-| PostgreSQL | Hosted on Supabase |
-| Prisma | 7.x with `@prisma/adapter-pg` |
-| Clerk | Auth and session management (`@clerk/nextjs` 5.x) |
-| Liveblocks | Realtime packing collaboration |
-| Anthropic SDK | `@anthropic-ai/sdk`; model `claude-sonnet-4-5` |
+| Technology    | Notes                                             |
+| ------------- | ------------------------------------------------- |
+| PostgreSQL    | Hosted on Supabase                                |
+| Prisma        | 7.x with `@prisma/adapter-pg`                     |
+| Clerk         | Auth and session management (`@clerk/nextjs` 5.x) |
+| Liveblocks    | Realtime packing collaboration                    |
+| Anthropic SDK | `@anthropic-ai/sdk`; model `claude-sonnet-4-5`    |
 
 ### Dates
 
@@ -38,13 +38,13 @@
 
 Copy `.env.example` to `.env.local`:
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk client key |
-| `CLERK_SECRET_KEY` | Clerk server key |
-| `DATABASE_URL` | PostgreSQL connection string (Supabase) |
-| `ANTHROPIC_API_KEY` | Claude API access |
-| `LIVEBLOCKS_SECRET_KEY` | Liveblocks server auth |
+| Variable                            | Purpose                                 |
+| ----------------------------------- | --------------------------------------- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk client key                        |
+| `CLERK_SECRET_KEY`                  | Clerk server key                        |
+| `DATABASE_URL`                      | PostgreSQL connection string (Supabase) |
+| `ANTHROPIC_API_KEY`                 | Claude API access                       |
+| `LIVEBLOCKS_SECRET_KEY`             | Liveblocks server auth                  |
 
 Never commit secrets. CI uses a dummy `DATABASE_URL`.
 

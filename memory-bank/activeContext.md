@@ -27,13 +27,13 @@ The core Rendecrew application is functional end-to-end:
 
 ## Active Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Server Actions for mutations | Colocated with UI; simpler than REST API layer |
-| In-app notifications only (v1) | Spec 0006 scope; email/push deferred |
-| Liveblocks for packing collab | Real-time shared list editing without custom websocket infra |
-| Claude Sonnet 4.5 | Default model for all AI features |
-| Optional per-event features | Keeps small events lightweight |
+| Decision                       | Rationale                                                    |
+| ------------------------------ | ------------------------------------------------------------ |
+| Server Actions for mutations   | Colocated with UI; simpler than REST API layer               |
+| In-app notifications only (v1) | Spec 0006 scope; email/push deferred                         |
+| Liveblocks for packing collab  | Real-time shared list editing without custom websocket infra |
+| Claude Sonnet 4.5              | Default model for all AI features                            |
+| Optional per-event features    | Keeps small events lightweight                               |
 
 ## References
 

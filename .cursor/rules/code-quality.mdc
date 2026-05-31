@@ -9,7 +9,7 @@ alwaysApply: true
 - Prefer small, single-responsibility components.
 - Never leave dead code, commented-out code, unused variables/imports/functions, or unreachable code.
 - Write tests for all code. Tests live in same folder as components. Aim for > 75% test coverage. Flag all changes made to existing tests.
-- Always ensure code passes lint and format requirments.
+- Always ensure code passes lint and format requirments. After making any code changes, always run: npm run format -- --write .
 
 # Reviewing Code
 
