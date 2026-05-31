@@ -1,0 +1,17 @@
+---
+description: Concise code, no dead code, and test coverage standards
+alwaysApply: true
+---
+
+# Writing Code
+
+- Write concise, minimal code. Prefer fewer lines over verbose implementations.
+- Prefer small, single-responsibility components.
+- Never leave dead code, commented-out code, unused variables/imports/functions, or unreachable code.
+- Write tests for all code. Tests live in same folder as components. Aim for > 75% test coverage. Flag all changes made to existing tests.
+- Always ensure code passes lint and format requirments.
+
+# Reviewing Code
+
+- Suggest removing over-engineered abstractions that aren't actively used.
+- Check if code will break under unexpected input.
