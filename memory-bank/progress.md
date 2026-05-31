@@ -71,30 +71,16 @@
 
 ## Specifications
 
-| Spec | Title                                 | Status                  |
-| ---- | ------------------------------------- | ----------------------- |
-| 0001 | Advanced packing list                 | Implemented             |
-| 0002 | Packing list sections                 | Implemented             |
-| 0003 | Event roles and settings              | Implemented             |
-| 0004 | Event rides board                     | Implemented             |
-| 0005 | Event task board                      | Implemented             |
-| 0006 | Notifications                         | Implemented (in-app v1) |
-| 0007 | Task board assignee modes and filters | Implemented             |
-| 0008 | Embedded packing collab on event tab  | Implemented             |
-
-## Not Yet Built
-
-| Item                        | Notes                                        |
-| --------------------------- | -------------------------------------------- |
-| Email / push notifications  | Explicitly out of scope for notifications v1 |
-| Notify non-platform members | Out of scope per spec 0006                   |
-| "Learns from past events"   | README vision; no implementation             |
-| Python / FastAPI backend    | README future note only                      |
-| Digest summaries            | Out of scope per spec 0006                   |
-
-## Known Issues
-
-None documented at memory bank initialization. Add entries here as bugs or limitations are discovered.
+| Spec | Title | Status |
+|------|-------|--------|
+| 0001 | Advanced packing list | Implemented |
+| 0002 | Packing list sections | Implemented |
+| 0003 | Event roles and settings | Implemented |
+| 0004 | Event rides board | Implemented |
+| 0005 | Event task board | Implemented |
+| 0006 | Notifications | Implemented (in-app v1) |
+| 0007 | Task board assignee modes and filters | Implemented |
+| 0008 | Embedded packing collab on event tab | Implemented |
 
 ## Test Coverage
 

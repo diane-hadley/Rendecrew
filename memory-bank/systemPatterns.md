@@ -21,15 +21,15 @@
 
 ## Directory Conventions
 
-| Path          | Role                                                                   |
-| ------------- | ---------------------------------------------------------------------- |
-| `app/`        | Next.js App Router routes, layouts, actions, API                       |
-| `components/` | React UI grouped by feature (`events/`, `packing/`, `tasks/`, etc.)    |
-| `hooks/`      | Client-only React hooks                                                |
-| `lib/`        | Shared TypeScript modules usable from RSC, actions, and route handlers |
-| `prisma/`     | Schema, migrations, ERD generators                                     |
-| `docs/specs/` | Numbered feature specifications                                        |
-| `scripts/`    | Prisma session helpers, ERD post-processing                            |
+| Path | Role |
+|------|------|
+| `app/` | Next.js App Router routes, layouts, actions, API |
+| `components/` | React UI grouped by feature (`events/`, `packing/`, `tasks/`, etc.) |
+| `hooks/` | Client-only React hooks |
+| `lib/` | Shared TypeScript modules usable from RSC, actions, and route handlers |
+| `prisma/` | Schema, migrations, ERD generators |
+| `docs/specs/` | Numbered feature specifications |
+| `scripts/` | Prisma session helpers, ERD post-processing |
 
 ## Key Technical Decisions
 
@@ -39,7 +39,7 @@ Business logic and authorization live in server actions and `lib/` modules, not 
 
 ### Shared types in `lib/*-types.ts`
 
-Types that cross the UI boundary (e.g. `EventMemberListItem`, ride board shapes) live in dedicated type files under `lib/`, not exported from action files.
+Types that cross the UI boundary live in dedicated type files under `lib/`, not exported from action files.
 
 ### Auth: Clerk + local User row
 
@@ -63,14 +63,14 @@ Events and tasks store UTC timestamps plus IANA timezone strings for display. `l
 
 ## Domain Module Map
 
-| Module prefix                                              | Domain                                                   |
-| ---------------------------------------------------------- | -------------------------------------------------------- |
-| `lib/events`, `lib/event-*`                                | Event CRUD, roles, tabs, member policy                   |
-| `lib/packing-*`                                            | Lists, sections, sign-ups, suggestions, collab page data |
-| `lib/event-rides-*`                                        | Ride board types and logic                               |
-| `lib/notifications`, `lib/notification-*`                  | Inbox, kinds, messages, preferences                      |
-| `lib/event-ai-context`, `lib/parse-event-natural-language` | AI grounding and NL parsing                              |
-| `lib/dashboard-events`                                     | Dashboard event listing                                  |
+| Module prefix | Domain |
+|---------------|--------|
+| `lib/events`, `lib/event-*` | Event CRUD, roles, tabs, member policy |
+| `lib/packing-*` | Lists, sections, sign-ups, suggestions, collab page data |
+| `lib/event-rides-*` | Ride board types and logic |
+| `lib/notifications`, `lib/notification-*` | Inbox, kinds, messages, preferences |
+| `lib/event-ai-context`, `lib/parse-event-natural-language` | AI grounding and NL parsing |
+| `lib/dashboard-events` | Dashboard event listing |
 
 ## Testing Patterns
 
@@ -90,13 +90,13 @@ Events and tasks store UTC timestamps plus IANA timezone strings for display. `l
 
 Numbered specs in `docs/specs/` are authoritative for feature design:
 
-| Spec | Topic                                 |
-| ---- | ------------------------------------- |
-| 0001 | Advanced packing list                 |
-| 0002 | Packing list sections                 |
-| 0003 | Event roles and settings              |
-| 0004 | Event rides board                     |
-| 0005 | Event task board                      |
-| 0006 | Notifications                         |
+| Spec | Topic |
+|------|-------|
+| 0001 | Advanced packing list |
+| 0002 | Packing list sections |
+| 0003 | Event roles and settings |
+| 0004 | Event rides board |
+| 0005 | Event task board |
+| 0006 | Notifications |
 | 0007 | Task board assignee modes and filters |
-| 0008 | Embedded packing collab on event tab  |
+| 0008 | Embedded packing collab on event tab |

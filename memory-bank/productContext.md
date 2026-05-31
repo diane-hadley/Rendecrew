@@ -16,14 +16,14 @@ Planning a group event means juggling many parallel workstreams: who does what, 
 
 Each event has tabbed detail pages (`?tab=` deep links):
 
-| Tab          | Purpose                                                               |
-| ------------ | --------------------------------------------------------------------- |
+| Tab | Purpose |
+|-----|---------|
 | **Overview** | General information (Markdown), event metadata, AI drafting assistant |
-| **Tasks**    | Task board with assignments, due dates, filters (when enabled)        |
-| **Packing**  | Group packing list with Liveblocks collaboration (when enabled)       |
-| **Rides**    | Driver/passenger coordination board (when enabled)                    |
-| **Members**  | Participant list and invitations                                      |
-| **Settings** | Optional features, roles, notification prefs, delete event            |
+| **Tasks** | Task board with assignments, due dates, filters (when enabled) |
+| **Packing** | Group packing list with Liveblocks collaboration (when enabled) |
+| **Rides** | Driver/passenger coordination board (when enabled) |
+| **Members** | Participant list and invitations |
+| **Settings** | Optional features, roles, notification prefs, delete event |
 
 Optional features (`packingEnabled`, `ridesEnabled`, `taskBoardEnabled`) are toggled per event in settings so small events (e.g. a potluck) stay lightweight.
 
@@ -57,9 +57,3 @@ In-app only (v1). Four categories—Event, Packing, Rides, Tasks—with independ
 - **Grounded AI** — Never guess parking, dress code, or other details absent from event data.
 - **Progressive complexity** — Disable rides/tasks/packing when an event doesn't need them.
 - **Timezone-aware** — Users have a default timezone; events store IANA zones for wall-time display of start, end, and task due dates.
-
-## Related Specifications
-
-- `docs/specs/0003-event-roles-and-settings.md`
-- `docs/specs/0006-notifications.md`
-- `docs/specs/0008-embedded-packing-collab-on-event-tab.md`
